@@ -1,0 +1,64 @@
+{
+    "protocols": [
+        {
+            "etiology_key": "VENOUS_ULCER",
+            "name": "Protocolo Personalizado - Úlcera Venosa",
+            "etiology": "Úlcera Venosa",
+            "objective": "Cicatrização através de terapia compressiva e ambiente úmido",
+            "steps": [
+                {
+                    "order": 1,
+                    "action": "Limpeza",
+                    "description": "Irrigar com solução fisiológica 0.9% morna",
+                    "products": ["SF 0.9%", "Seringa 20ml"],
+                    "frequency": "A cada troca"
+                },
+                {
+                    "order": 2,
+                    "action": "Desbridamento",
+                    "description": "Remover tecido desvitalizado conforme necessidade",
+                    "products": ["Colagenase", "Hidrogel"],
+                    "frequency": "Conforme avaliação",
+                    "notes": "Evitar em pacientes anticoagulados"
+                },
+                {
+                    "order": 3,
+                    "action": "Cobertura primária",
+                    "description": "Selecionar conforme características do leito",
+                    "products": ["Espuma", "Alginato", "Hidrofibra"],
+                    "frequency": "3-7 dias"
+                },
+                {
+                    "order": 4,
+                    "action": "Terapia compressiva",
+                    "description": "Sistema multicamadas ou meia elástica",
+                    "products": ["Sistema compressivo"],
+                    "frequency": "Semanal",
+                    "notes": "Verificar ITB antes"
+                }
+            ],
+            "contraindications": [
+                "ITB < 0.8",
+                "ICC descompensada",
+                "Infecção ativa"
+            ],
+            "monitoring": [
+                "Redução de área >30% em 4 semanas",
+                "Controle do edema",
+                "Sinais de infecção"
+            ],
+            "expected_outcome": "Cicatrização em 12-24 semanas",
+            "evidence_level": "A",
+            "references": [
+                "SOBEST - Consenso de Úlcera Venosa",
+                "EWMA Guidelines 2023"
+            ]
+        }
+    ],
+    "tissue_actions": {
+        "granulation": "Proteger e manter meio úmido",
+        "slough": "Desbridamento autolítico ou enzimático",
+        "necrosis": "Desbridamento prioritário",
+        "periwound": "Proteção com barreira cutânea"
+    }
+}

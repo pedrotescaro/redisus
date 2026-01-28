@@ -1,0 +1,47 @@
+# REDISUS - Dependencies
+# Sistema de Diagnóstico de Feridas por Visão Computacional
+
+# Core
+numpy>=1.24.0
+opencv-python>=4.8.0
+Pillow>=10.0.0
+
+# Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+onnxruntime>=1.16.0
+onnxruntime-gpu>=1.16.0  # Para GPU NVIDIA
+
+# YOLO (Ultralytics)
+ultralytics>=8.0.0
+
+# Segmentação
+segmentation-models-pytorch>=0.3.3
+
+# Utilitários
+scipy>=1.11.0
+scikit-image>=0.21.0
+albumentations>=1.3.0
+
+# Visualização
+matplotlib>=3.7.0
+
+# Threading e Async
+concurrent-log-handler>=0.9.0
+
+# Configuração
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# Logging
+loguru>=0.7.0
+
+# Testes
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Opcional: TensorFlow Lite para mobile
+# tflite-runtime>=2.13.0
+
+# Opcional: GUI Desktop
+# PyQt6>=6.5.0

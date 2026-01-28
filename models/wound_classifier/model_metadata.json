@@ -1,0 +1,46 @@
+{
+  "model_name": "WoundEtiologyClassifier",
+  "version": "1.0.0",
+  "framework": "TensorFlow/Keras",
+  "base_model": "EfficientNetB0",
+  "input_shape": [
+    224,
+    224,
+    3
+  ],
+  "class_names": [
+    "abdominal_wounds",
+    "abdominal_wounds_examples_of_wound_dehiscence",
+    "burn_and_scalds",
+    "burns",
+    "diabetic_foot_ulcers",
+    "epidermolysis_bullosa",
+    "extravasation_injuries",
+    "haemangiomas",
+    "malignant_wounds",
+    "meningitis_wounds",
+    "miscellaneous_wounds",
+    "necrotic_toes",
+    "orthopaedic_wounds",
+    "pilonidal_sinus",
+    "pilonidal_sinus_wounds",
+    "pressure_ulcers_1",
+    "pressure_ulcers_2",
+    "pressure_ulcers_set_1_of_2",
+    "pressure_ulcers_set_2_of_2",
+    "toes_infected_and_necrotic",
+    "venous_and_arterial_ulcers_set_2",
+    "venous_arterial_ulcers_1",
+    "venous_arterial_ulcers_2",
+    "venous_ulcers_and_arterial_ulcers_set_1"
+  ],
+  "num_classes": 24,
+  "preprocessing": "tf.keras.applications.efficientnet.preprocess_input",
+  "training_config": {
+    "batch_size": 16,
+    "validation_split": 0.2,
+    "dropout_rate": 0.5,
+    "initial_learning_rate": 0.001
+  },
+  "created_at": "2026-01-18T21:35:28.388616"
+}
