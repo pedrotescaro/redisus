@@ -1,9 +1,11 @@
 """
-REDISUS - Sistema de Diagnóstico de Feridas
-Módulo de Renderização de Interface (UI)
+REDISUS - Sistema de Diagnostico de Feridas
+Modulo de Renderizacao de Interface (UI)
 
-Este módulo implementa uma interface visual moderna usando OpenCV,
-com HUD informativo, overlays de análise e visualização em tempo real.
+Este modulo implementa uma interface visual moderna usando OpenCV,
+com HUD informativo, overlays de analise e visualizacao em tempo real.
+
+Nota: Usa renderizador de texto ASCII para evitar problemas de encoding.
 """
 import time
 from dataclasses import dataclass, field
@@ -12,6 +14,31 @@ from enum import Enum
 import cv2
 import numpy as np
 from loguru import logger
+
+# Importa renderizador de texto seguro
+try:
+    from ..utils.text_renderer import SafeTextRenderer, to_ascii
+    _text_renderer = SafeTextRenderer(use_unicode=False)
+except ImportError:
+    _text_renderer = None
+    def to_ascii(text):
+        """Fallback simples para ASCII"""
+        return text.encode('ascii', 'replace').decode('ascii')
+
+
+def safe_putText(
+    img: np.ndarray,
+    text: str,
+    org: Tuple[int, int],
+    fontFace: int,
+    fontScale: float,
+    color: Tuple[int, int, int],
+    thickness: int = 1,
+    lineType: int = cv2.LINE_AA
+) -> None:
+    """Wrapper seguro para cv2.putText que converte texto para ASCII"""
+    safe_text = to_ascii(text)
+    cv2.putText(img, safe_text, org, fontFace, fontScale, color, thickness, lineType)
 
 
 class UITheme(Enum):
@@ -198,7 +225,7 @@ class HUDPanel:
         current_y = y + padding
         
         # Título
-        cv2.putText(
+        safe_putText(
             output,
             self._title,
             (x + padding, current_y + 15),
@@ -211,7 +238,7 @@ class HUDPanel:
         
         # Subtítulo
         if self._subtitle:
-            cv2.putText(
+            safe_putText(
                 output,
                 self._subtitle,
                 (x + padding, current_y + 10),
@@ -220,6 +247,7 @@ class HUDPanel:
                 self.theme.text_secondary,
                 self.thickness
             )
+            current_y += 20
             current_y += 20
             
         # Linha separadora
@@ -238,7 +266,7 @@ class HUDPanel:
             color = element.color or self.theme.text_primary
             
             # Label
-            cv2.putText(
+            safe_putText(
                 output,
                 f"{element.icon} {element.label}:" if element.icon else f"{element.label}:",
                 (x + padding, current_y + 12),
@@ -256,9 +284,10 @@ class HUDPanel:
                 except:
                     pass
                     
-            # Posição do valor (alinhado à direita)
-            (text_w, _), _ = cv2.getTextSize(value_str, self.font, self.font_scale_value, self.thickness)
-            cv2.putText(
+            # Posicao do valor (alinhado a direita)
+            safe_value = to_ascii(value_str)
+            (text_w, _), _ = cv2.getTextSize(safe_value, self.font, self.font_scale_value, self.thickness)
+            safe_putText(
                 output,
                 value_str,
                 (x + panel_width - padding - text_w, current_y + 12),

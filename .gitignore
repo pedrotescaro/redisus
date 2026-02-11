@@ -1,0 +1,57 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ===== Virtual Environment =====
+.venv/
+venv/
+ENV/
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+nul
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Database =====
+*.db
+data/redisus.db
+
+# ===== Output/Generated =====
+output/
+exports/
+
+# ===== Models (large binary files) =====
+models/wound_detector/
+models/wound_classifier/*.keras
+models/wound_classifier/*.tflite
+models/wound_classifier/*.h5
+models/wound_classifier/training_history*.csv
+
+# ===== Dataset (large image files) =====
+dataset/
+
+# ===== Temporary files =====
+tmpclaude-*
+*.tmp
+*.bak
+
+# ===== Environment variables =====
+.env
+.env.local

@@ -149,12 +149,16 @@ class RedisusRealtimeApp:
         self.tissue_analyzer = TissueAnalyzerCV()
         
         # Classificador
-        # Tenta usar modelo treinado se disponível
+        # Por padrão usa classificação heurística (mais rápido)
+        # O modelo Keras é opcional e pode ser ativado se necessário
         model_path = Path("models/wound_classifier/wound_classifier_final.keras")
+        use_keras = False  # Desabilitado por padrão para inicialização rápida
+        
         self.classifier = WoundClassifierCV(
-            model_path=str(model_path) if model_path.exists() else None,
-            use_keras_model=model_path.exists()
+            model_path=str(model_path) if model_path.exists() and use_keras else None,
+            use_keras_model=use_keras
         )
+        logger.info("Classificador inicializado (modo heurístico)")
         
         # Processador de imagens
         self.image_processor = ImageProcessor()

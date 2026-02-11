@@ -1,16 +1,17 @@
 """
-REDISUS - Sistema de Diagnóstico de Feridas
+REDISUS - Sistema de Diagnostico de Feridas
 Detector de Feridas com OpenCV
 
-Este módulo implementa detecção de feridas em tempo real usando
-técnicas clássicas de visão computacional e modelos de ML quando disponíveis.
+Este modulo implementa deteccao de feridas em tempo real usando
+tecnicas classicas de visao computacional e modelos de ML quando disponiveis.
 
-Técnicas utilizadas:
-- Segmentação por cor (HSV)
-- Análise morfológica
-- Detecção de contornos
-- Classificação de texturas
-- Integração com modelos YOLO/TensorFlow quando disponíveis
+Tecnicas utilizadas:
+- Segmentacao por cor (HSV)
+- Analise morfologica
+- Deteccao de contornos
+- Classificacao de texturas
+- Filtragem de falsos positivos
+- Integracao com modelos YOLO/TensorFlow quando disponiveis
 """
 import time
 from dataclasses import dataclass, field
@@ -24,11 +25,12 @@ from loguru import logger
 
 
 class DetectionMethod(Enum):
-    """Métodos de detecção disponíveis"""
+    """Metodos de deteccao disponiveis"""
     COLOR_SEGMENTATION = "color"
     EDGE_DETECTION = "edge"
     TEXTURE_ANALYSIS = "texture"
     COMBINED = "combined"
+    TEXTURE_PRIORITY = "texture_priority"  # Prioriza textura sobre cor
     ML_MODEL = "ml"
 
 
@@ -93,13 +95,14 @@ class WoundDetectorCV:
     """
     Detector de feridas usando OpenCV.
     
-    Combina múltiplas técnicas para detecção robusta:
-    1. Segmentação por cor (HSV) para identificar tecidos
-    2. Detecção de bordas para definir contornos
-    3. Análise morfológica para refinar máscaras
-    4. Análise de textura para classificação
+    Combina multiplas tecnicas para deteccao robusta:
+    1. Segmentacao por cor (HSV) para identificar tecidos
+    2. Deteccao de bordas para definir contornos
+    3. Analise morfologica para refinar mascaras
+    4. Analise de textura para classificacao
+    5. Filtragem de falsos positivos (dedos, dispositivos, pele saudavel)
     
-    Pode integrar com modelos ML quando disponíveis.
+    Pode integrar com modelos ML quando disponiveis.
     
     Uso:
         detector = WoundDetectorCV()
@@ -112,50 +115,74 @@ class WoundDetectorCV:
                 cv2.rectangle(frame, det.bbox[:2], det.bbox[2:], (0,255,0), 2)
     """
     
-    # Configurações padrão
-    DEFAULT_MIN_AREA = 1000  # Área mínima em pixels
-    DEFAULT_MAX_AREA = 500000  # Área máxima em pixels
-    DEFAULT_CONFIDENCE_THRESHOLD = 0.4
+    # Configuracoes padrao
+    DEFAULT_MIN_AREA = 1500  # Area minima aumentada para reduzir falsos positivos
+    DEFAULT_MAX_AREA = 500000  # Area maxima em pixels
+    DEFAULT_CONFIDENCE_THRESHOLD = 0.45  # Limiar aumentado
     
     def __init__(
         self,
-        method: DetectionMethod = DetectionMethod.COMBINED,
+        method: DetectionMethod = DetectionMethod.TEXTURE_PRIORITY,
         min_area: int = DEFAULT_MIN_AREA,
         max_area: int = DEFAULT_MAX_AREA,
         confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
-        model_path: Optional[str] = None
+        model_path: Optional[str] = None,
+        enable_false_positive_filter: bool = True,
+        texture_weight: float = 0.5,
+        color_weight: float = 0.3
     ):
         """
         Args:
-            method: Método de detecção
-            min_area: Área mínima da detecção
-            max_area: Área máxima da detecção
-            confidence_threshold: Limiar de confiança
+            method: Metodo de deteccao
+            min_area: Area minima da deteccao
+            max_area: Area maxima da deteccao
+            confidence_threshold: Limiar de confianca
             model_path: Caminho para modelo ML (opcional)
+            enable_false_positive_filter: Ativa filtro de falsos positivos
+            texture_weight: Peso da analise de textura (0-1)
+            color_weight: Peso da analise de cor (0-1)
         """
         self.method = method
         self.min_area = min_area
         self.max_area = max_area
         self.confidence_threshold = confidence_threshold
         self.model_path = model_path
+        self.enable_false_positive_filter = enable_false_positive_filter
+        self.texture_weight = texture_weight
+        self.color_weight = color_weight
         
         # Modelo ML (carregado sob demanda)
         self._ml_model = None
         self._ml_loaded = False
         
-        # Kernels morfológicos
+        # Filtro de falsos positivos
+        self._fp_filter = None
+        if enable_false_positive_filter:
+            try:
+                from .false_positive_filter import FalsePositiveFilter
+                self._fp_filter = FalsePositiveFilter(
+                    min_biological_score=0.25,
+                    min_perilesional_score=0.15,
+                    max_finger_score=0.55,
+                    max_device_score=0.45
+                )
+            except ImportError:
+                logger.warning("Filtro de falsos positivos nao disponivel")
+        
+        # Kernels morfologicos
         self._kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         self._kernel_medium = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
         self._kernel_large = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
         
-        # Histórico para estabilização
+        # Historico para estabilizacao
         self._detection_history: List[List[DetectionResult]] = []
         self._history_size = 5
         
-        # Métricas
+        # Metricas
         self._inference_times: List[float] = []
+        self._false_positives_filtered = 0
         
-        logger.info(f"WoundDetectorCV inicializado (método: {method.value})")
+        logger.info(f"WoundDetectorCV inicializado (metodo: {method.value}, fp_filter: {enable_false_positive_filter})")
         
     def detect(self, frame: np.ndarray) -> List[DetectionResult]:
         """
@@ -172,29 +199,37 @@ class WoundDetectorCV:
         if frame is None or frame.size == 0:
             return []
             
-        # Pré-processamento
+        # Pre-processamento
         processed = self._preprocess(frame)
         
-        # Detecção baseada no método
+        # Deteccao baseada no metodo
         if self.method == DetectionMethod.COLOR_SEGMENTATION:
             detections = self._detect_by_color(frame, processed)
         elif self.method == DetectionMethod.EDGE_DETECTION:
             detections = self._detect_by_edges(frame, processed)
         elif self.method == DetectionMethod.TEXTURE_ANALYSIS:
             detections = self._detect_by_texture(frame, processed)
+        elif self.method == DetectionMethod.TEXTURE_PRIORITY:
+            detections = self._detect_texture_priority(frame, processed)
         elif self.method == DetectionMethod.ML_MODEL and self._load_ml_model():
             detections = self._detect_by_ml(frame)
         else:
-            # Método combinado (padrão)
+            # Metodo combinado (padrao)
             detections = self._detect_combined(frame, processed)
             
-        # Filtra por confiança
+        # Filtra por confianca
         detections = [d for d in detections if d.confidence >= self.confidence_threshold]
         
-        # Estabiliza com histórico
+        # Aplica filtro de falsos positivos
+        if self._fp_filter is not None and len(detections) > 0:
+            original_count = len(detections)
+            detections = self._fp_filter.filter_detections(frame, detections)
+            self._false_positives_filtered += (original_count - len(detections))
+        
+        # Estabiliza com historico
         detections = self._stabilize_detections(detections)
         
-        # Métricas
+        # Metricas
         inference_time = (time.perf_counter() - start_time) * 1000
         self._inference_times.append(inference_time)
         if len(self._inference_times) > 100:
@@ -323,29 +358,29 @@ class WoundDetectorCV:
         processed: Dict[str, np.ndarray]
     ) -> List[DetectionResult]:
         """
-        Detecção combinada usando múltiplos métodos.
+        Deteccao combinada usando multiplos metodos.
         
         Combina:
-        - Segmentação por cor (peso 0.5)
-        - Detecção de bordas (peso 0.3)
-        - Análise de textura (peso 0.2)
+        - Segmentacao por cor (peso 0.5)
+        - Deteccao de bordas (peso 0.3)
+        - Analise de textura (peso 0.2)
         """
-        # Obtém máscaras de cada método
+        # Obtem mascaras de cada metodo
         color_dets = self._detect_by_color(frame, processed)
         
-        # Cria máscara combinada
+        # Cria mascara combinada
         h, w = frame.shape[:2]
         combined_mask = np.zeros((h, w), dtype=np.float32)
         
-        # Adiciona contribuições de cada detecção
+        # Adiciona contribuicoes de cada deteccao
         for det in color_dets:
             if det.mask is not None:
-                combined_mask += det.mask.astype(np.float32) * 0.6
+                combined_mask += det.mask.astype(np.float32) * self.color_weight
             else:
                 x1, y1, x2, y2 = det.bbox
-                combined_mask[y1:y2, x1:x2] += 0.6
+                combined_mask[y1:y2, x1:x2] += self.color_weight
                 
-        # Adiciona análise de textura
+        # Adiciona analise de textura
         gray = processed["gray"]
         kernel_size = 11
         local_mean = cv2.blur(gray.astype(np.float32), (kernel_size, kernel_size))
@@ -353,22 +388,150 @@ class WoundDetectorCV:
         local_var = np.clip(local_sq_mean - local_mean ** 2, 0, None)
         local_var_norm = local_var / (local_var.max() + 1e-6)
         
-        combined_mask += local_var_norm * 0.2
+        combined_mask += local_var_norm * self.texture_weight
         
         # Normaliza e limiariza
         combined_mask = np.clip(combined_mask, 0, 1)
         mask_final = (combined_mask > 0.35).astype(np.uint8) * 255
         
-        # Limpa máscara
+        # Limpa mascara
         mask_final = cv2.morphologyEx(mask_final, cv2.MORPH_CLOSE, self._kernel_large)
         mask_final = cv2.morphologyEx(mask_final, cv2.MORPH_OPEN, self._kernel_medium)
         
-        # Extrai detecções finais
+        # Extrai deteccoes finais
         detections = self._extract_detections(frame, mask_final, method="combined")
         
-        # Adiciona análise de cor para cada detecção
+        # Adiciona analise de cor para cada deteccao
         for det in detections:
             det.features = self._analyze_wound_features(frame, det)
+            det.wound_type = self._classify_wound_type(det.features)
+            
+        return detections
+    
+    def _detect_texture_priority(
+        self,
+        frame: np.ndarray,
+        processed: Dict[str, np.ndarray]
+    ) -> List[DetectionResult]:
+        """
+        Deteccao priorizando textura sobre cor.
+        
+        Este metodo e mais robusto contra falsos positivos causados
+        por pele saudavel ou objetos com cores similares a feridas.
+        
+        Pesos:
+        - Textura irregular: 0.5
+        - Gradiente (bordas): 0.25
+        - Cor de ferida: 0.25
+        """
+        h, w = frame.shape[:2]
+        gray = processed["gray"]
+        hsv = processed["hsv"]
+        
+        # 1. ANALISE DE TEXTURA (peso 0.5)
+        # Variancia local - feridas tem textura irregular
+        kernel_size = 9
+        local_mean = cv2.blur(gray.astype(np.float32), (kernel_size, kernel_size))
+        local_sq_mean = cv2.blur((gray.astype(np.float32) ** 2), (kernel_size, kernel_size))
+        local_var = np.clip(local_sq_mean - local_mean ** 2, 0, None)
+        
+        # Normaliza variancia
+        texture_score = local_var / (np.percentile(local_var, 95) + 1e-6)
+        texture_score = np.clip(texture_score, 0, 1)
+        
+        # Entropia local - complexidade da textura
+        # Usa histograma local
+        entropy_map = np.zeros((h, w), dtype=np.float32)
+        block_size = 16
+        for y in range(0, h - block_size, block_size // 2):
+            for x in range(0, w - block_size, block_size // 2):
+                block = gray[y:y+block_size, x:x+block_size]
+                hist = cv2.calcHist([block], [0], None, [32], [0, 256])
+                hist = hist / (hist.sum() + 1e-6)
+                entropy = -np.sum(hist * np.log2(hist + 1e-6))
+                entropy_map[y:y+block_size, x:x+block_size] = entropy
+        
+        entropy_norm = entropy_map / (np.max(entropy_map) + 1e-6)
+        
+        # Combina metricas de textura
+        texture_mask = (texture_score * 0.6 + entropy_norm * 0.4)
+        
+        # 2. ANALISE DE GRADIENTE (peso 0.25)
+        # Detecta bordas irregulares (caracteristica de feridas)
+        gradient_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+        gradient_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+        gradient_mag = np.sqrt(gradient_x**2 + gradient_y**2)
+        gradient_norm = gradient_mag / (np.percentile(gradient_mag, 95) + 1e-6)
+        gradient_norm = np.clip(gradient_norm, 0, 1)
+        
+        # Variancia do gradiente (bordas irregulares vs retas)
+        grad_var = cv2.blur((gradient_norm ** 2), (15, 15)) - cv2.blur(gradient_norm, (15, 15)) ** 2
+        grad_var_norm = grad_var / (np.max(grad_var) + 1e-6)
+        
+        # 3. ANALISE DE COR (peso 0.25, reduzido)
+        # Tons biologicos de ferida
+        # Vermelho
+        mask_red1 = cv2.inRange(hsv, ColorRanges.RED_LOWER_1, ColorRanges.RED_UPPER_1)
+        mask_red2 = cv2.inRange(hsv, ColorRanges.RED_LOWER_2, ColorRanges.RED_UPPER_2)
+        mask_red = cv2.bitwise_or(mask_red1, mask_red2)
+        
+        # Amarelo (esfacelo)
+        mask_yellow = cv2.inRange(hsv, ColorRanges.YELLOW_LOWER, ColorRanges.YELLOW_UPPER)
+        
+        # Rosa/vermelho claro
+        mask_pink = cv2.inRange(hsv, ColorRanges.PINK_LOWER, ColorRanges.PINK_UPPER)
+        
+        color_mask = cv2.bitwise_or(mask_red, mask_yellow)
+        color_mask = cv2.bitwise_or(color_mask, mask_pink)
+        color_score = color_mask.astype(np.float32) / 255.0
+        
+        # Suaviza mascara de cor
+        color_score = cv2.GaussianBlur(color_score, (11, 11), 0)
+        
+        # 4. EXCLUSAO DE PELE SAUDAVEL
+        # Detecta pele uniforme (sem textura) para excluir
+        skin_lower = np.array([0, 20, 70])
+        skin_upper = np.array([25, 150, 255])
+        skin_mask = cv2.inRange(hsv, skin_lower, skin_upper)
+        
+        # Pele saudavel tem baixa variancia de textura
+        smooth_skin = (texture_score < 0.2) & (skin_mask > 0)
+        exclusion_mask = smooth_skin.astype(np.float32)
+        exclusion_mask = cv2.GaussianBlur(exclusion_mask, (21, 21), 0)
+        
+        # 5. COMBINA SCORES
+        combined = (
+            texture_mask * 0.45 +          # Textura irregular
+            grad_var_norm * 0.2 +          # Bordas irregulares
+            gradient_norm * 0.1 +          # Presenca de bordas
+            color_score * 0.25             # Cor de ferida (peso reduzido)
+        )
+        
+        # Aplica exclusao
+        combined = combined * (1 - exclusion_mask * 0.7)
+        
+        # Normaliza
+        combined = np.clip(combined, 0, 1)
+        
+        # Limiariza
+        threshold = 0.35
+        mask_final = (combined > threshold).astype(np.uint8) * 255
+        
+        # Operacoes morfologicas
+        mask_final = cv2.morphologyEx(mask_final, cv2.MORPH_CLOSE, self._kernel_large)
+        mask_final = cv2.morphologyEx(mask_final, cv2.MORPH_OPEN, self._kernel_medium)
+        
+        # Remove regioes muito pequenas
+        mask_final = cv2.morphologyEx(mask_final, cv2.MORPH_OPEN, self._kernel_small)
+        
+        # Extrai deteccoes
+        detections = self._extract_detections(frame, mask_final, method="texture_priority")
+        
+        # Analisa cada deteccao
+        for det in detections:
+            det.features = self._analyze_wound_features(frame, det)
+            det.features["texture_score"] = float(np.mean(texture_mask[det.bbox[1]:det.bbox[3], det.bbox[0]:det.bbox[2]]))
+            det.features["color_score"] = float(np.mean(color_score[det.bbox[1]:det.bbox[3], det.bbox[0]:det.bbox[2]]))
             det.wound_type = self._classify_wound_type(det.features)
             
         return detections
