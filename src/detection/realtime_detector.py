@@ -345,28 +345,32 @@ class YOLODetector(BaseDetector):
             output = output.T
         
         for detection in output:
-            # Formato: [x_center, y_center, width, height, confidence, class_probs...]
+            # YOLOv8 formato: [x_center, y_center, width, height, class1_conf, class2_conf, ...]
+            # YOLOv8 NAO tem objectness score separado; indices 4+ sao probabilidades de classe
             x_center, y_center, w, h = detection[:4]
-            confidence = detection[4]
-            
+
+            class_scores = detection[4:]
+            class_id = int(np.argmax(class_scores))
+            confidence = float(class_scores[class_id])
+
             if confidence < self.config.confidence_threshold:
                 continue
-            
+
             # Converte para coordenadas absolutas
             x1 = int((x_center - w / 2) * scale_x)
             y1 = int((y_center - h / 2) * scale_y)
             x2 = int((x_center + w / 2) * scale_x)
             y2 = int((y_center + h / 2) * scale_y)
-            
+
             # Clamp para limites da imagem
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(orig_w, x2), min(orig_h, y2)
-            
+
             detections.append(Detection(
                 bbox=(x1, y1, x2, y2),
-                confidence=float(confidence),
-                class_id=0,
-                class_name="wound"
+                confidence=confidence,
+                class_id=class_id,
+                class_name="wound" if class_id == 0 else f"class_{class_id}"
             ))
         
         # Non-Maximum Suppression

@@ -76,6 +76,12 @@ class RedisusRealtimeApp:
         self.tissue_analyzer: Optional[TissueAnalyzerCV] = None
         self.classifier: Optional[WoundClassifierCV] = None
         self.image_processor: Optional[ImageProcessor] = None
+
+        # Backends de deep learning (opcionais)
+        self._yolo_detector = None
+        self._unet_segmenter = None
+        self._use_yolo = False
+        self._use_unet = False
         
         self.database: Optional[Database] = None
         self.export_manager: Optional[ExportManager] = None
@@ -136,7 +142,30 @@ class RedisusRealtimeApp:
         self.visualization = WoundVisualization()
         
         # === Camada de Processamento ===
-        # Detector de feridas
+        # Tenta YOLOv8 primeiro, fallback para OpenCV
+        yolo_model_path = Path("models/yolo_wound_nano.onnx")
+        if yolo_model_path.exists():
+            try:
+                from src.detection.realtime_detector import YOLODetector
+                from src.core.config import ModelConfig
+
+                yolo_config = ModelConfig(
+                    model_path=str(yolo_model_path),
+                    input_size=(320, 320),
+                    num_classes=1,
+                    confidence_threshold=0.5,
+                    device="cuda"
+                )
+                self._yolo_detector = YOLODetector(config=yolo_config, use_onnx=True)
+                self._yolo_detector.load_model()
+                self._yolo_detector.warmup()
+                self._use_yolo = True
+                logger.info("YOLOv8 detector carregado com sucesso (ONNX)")
+            except Exception as e:
+                logger.warning(f"Falha ao carregar YOLOv8: {e}. Usando OpenCV.")
+                self._use_yolo = False
+
+        # Detector OpenCV (sempre instanciado como fallback)
         self.detector = WoundDetectorCV(
             method=DetectionMethod.COMBINED,
             min_area=500,
@@ -144,8 +173,30 @@ class RedisusRealtimeApp:
             confidence_threshold=0.35
         )
         self.detector.warmup()
-        
-        # Analisador de tecidos
+
+        # Tenta U-Net para segmentacao, fallback para OpenCV
+        unet_model_path = Path("models/unet_tissue_segmentation.onnx")
+        if unet_model_path.exists():
+            try:
+                from src.diagnosis.tissue_segmenter import UNetSegmenter
+                from src.core.config import ModelConfig
+
+                unet_config = ModelConfig(
+                    model_path=str(unet_model_path),
+                    input_size=(512, 512),
+                    num_classes=5,
+                    confidence_threshold=0.5,
+                    device="cuda"
+                )
+                self._unet_segmenter = UNetSegmenter(config=unet_config)
+                self._unet_segmenter.load_model()
+                self._use_unet = True
+                logger.info("U-Net segmenter carregado com sucesso (ONNX)")
+            except Exception as e:
+                logger.warning(f"Falha ao carregar U-Net: {e}. Usando OpenCV.")
+                self._use_unet = False
+
+        # Analisador de tecidos OpenCV (sempre instanciado como fallback)
         self.tissue_analyzer = TissueAnalyzerCV()
         
         # Classificador
@@ -289,6 +340,26 @@ class RedisusRealtimeApp:
             cap.release()
             self.window_manager.cleanup()
             
+    def _yolo_to_detection_result(self, detection, frame: np.ndarray) -> DetectionResult:
+        """Converte Detection (YOLO) para DetectionResult (pipeline OpenCV)."""
+        x1, y1, x2, y2 = detection.bbox
+        h, w = frame.shape[:2]
+
+        # Mascara simples a partir da bounding box
+        mask = np.zeros((h, w), dtype=np.uint8)
+        mask[max(0, y1):min(h, y2), max(0, x1):min(w, x2)] = 255
+
+        return DetectionResult(
+            bbox=detection.bbox,
+            confidence=detection.confidence,
+            mask=mask,
+            contour=None,
+            wound_type="wound",
+            area_pixels=detection.area,
+            center=detection.center,
+            features={"backend": "yolo"}
+        )
+
     def _process_frame(self, frame: np.ndarray) -> np.ndarray:
         """
         Processa frame com detecção de feridas.
@@ -300,9 +371,15 @@ class RedisusRealtimeApp:
             Frame processado com anotações
         """
         output = frame.copy()
-        
-        # Detecta feridas
-        self.last_detections = self.detector.detect(frame)
+
+        # Detecta feridas (YOLO ou OpenCV)
+        if self._use_yolo:
+            yolo_detections = self._yolo_detector.detect(frame)
+            self.last_detections = [
+                self._yolo_to_detection_result(d, frame) for d in yolo_detections
+            ]
+        else:
+            self.last_detections = self.detector.detect(frame)
         
         # Desenha detecções
         for det in self.last_detections:
@@ -351,7 +428,19 @@ class RedisusRealtimeApp:
         }
         
         return translations.get(wound_type, wound_type.replace("_", " ").title())
-    
+
+    def _health_from_segmentation(self, seg_result) -> float:
+        """Calcula health score a partir da segmentacao U-Net."""
+        pcts = seg_result.tissue_percentages
+        granulation = pcts.get("Granulacao", pcts.get("Granulação", 0))
+        necrosis = pcts.get("Necrose", 0)
+        slough = pcts.get("Esfacelo", 0)
+
+        positive = granulation * 1.0
+        negative = necrosis * 1.5 + slough * 0.5
+        score = 50 + (positive - negative) * 0.5
+        return max(0.0, min(100.0, score))
+
     def _capture_and_analyze(self):
         """Captura snapshot e realiza análise completa"""
         if self.last_frame is None:
@@ -379,8 +468,23 @@ class RedisusRealtimeApp:
         x1, y1, x2, y2 = main_detection.bbox
         roi = frame[y1:y2, x1:x2]
         
-        # 3. Análise de tecidos
-        tissue_result = self.tissue_analyzer.analyze(roi, main_detection.mask)
+        # 3. Análise de tecidos (U-Net ou OpenCV)
+        if self._use_unet:
+            seg_result = self._unet_segmenter.segment(roi)
+            tissue_result = TissueResult(
+                tissue_mask=seg_result.mask,
+                tissue_percentages=seg_result.tissue_percentages,
+                dominant_tissue=max(
+                    seg_result.tissue_percentages,
+                    key=seg_result.tissue_percentages.get
+                ) if seg_result.tissue_percentages else "Background",
+                wound_area_pixels=seg_result.wound_area_pixels,
+                color_map=seg_result.get_colored_mask(),
+                health_score=self._health_from_segmentation(seg_result),
+                features={"backend": "unet"}
+            )
+        else:
+            tissue_result = self.tissue_analyzer.analyze(roi, main_detection.mask)
         
         # 4. Classificação de etiologia
         classification_result = self.classifier.classify(

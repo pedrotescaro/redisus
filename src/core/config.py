@@ -70,16 +70,21 @@ class RealtimeConfig:
         confidence_threshold=0.5,
         device="cuda"
     ))
-    
+
     # Performance
     target_fps: int = 30
     skip_frames: int = 0  # 0 = processar todos
     async_inference: bool = True
-    
+
     # Visualização
     draw_confidence: bool = True
     box_color: Tuple[int, int, int] = (0, 255, 0)
     box_thickness: int = 2
+
+    # Backend de deep learning
+    prefer_deep_learning: bool = True  # Tenta DL primeiro, fallback para OpenCV
+    yolo_model_path: str = "models/yolo_wound_nano.onnx"
+    unet_model_path: str = "models/unet_tissue_segmentation.onnx"
 
 
 @dataclass
