@@ -125,32 +125,94 @@ pip install -r requirements.txt
 
 ## 💻 Uso
 
+### Aplicação Principal em Tempo Real
+
 ```bash
+# Modo demonstração (imagem sintética)
+python realtime_app.py --mode demo
+
 # Modo webcam com detecção em tempo real
-python main.py --mode webcam
+python realtime_app.py --mode webcam
+
+# Usar câmera secundária
+python realtime_app.py --mode webcam --camera 1
 
 # Análise de imagem estática
-python main.py --mode image --input caminho/para/imagem.jpg
+python realtime_app.py --mode image --input caminho/para/imagem.jpg
 
+# Com ID de paciente
+python realtime_app.py --mode webcam --patient PAC001
+```
+
+### Controles (Modo Webcam)
+
+| Tecla | Ação |
+|-------|------|
+| `SPACE` | Capturar e analisar ferida |
+| `A` | Ativar/desativar auto-capture |
+| `S` | Salvar imagem atual |
+| `R` | Gerar relatório da última análise |
+| `H` | Mostrar ajuda |
+| `Q` / `ESC` | Sair |
+
+### Legado (main.py)
+
+```bash
 # Comparação de evolução
 python main.py --mode evolution --patient-id 12345
 ```
 
 ## 🔬 Módulos Funcionais
 
-### Módulo 1: Detecção em Tempo Real
-- **Modelo**: YOLOv8 Nano / MobileNet SSD
-- **Latência**: < 33ms por frame (30+ FPS)
-- **Função**: Bounding box para enquadramento
+### Arquitetura em Camadas
 
-### Módulo 2: Diagnóstico Profundo
-- **Segmentação**: U-Net com encoder EfficientNet
-- **Classificação**: EfficientNet-B3 fine-tuned
-- **Precisão**: > 90% em validação
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                    CAMADA DE APRESENTAÇÃO                          │
+│  ┌─────────────────┐  ┌────────────────┐  ┌───────────────────┐   │
+│  │   UIRenderer    │  │ Visualization  │  │  WindowManager    │   │
+│  │   (HUD/Overlay) │  │ (Mapas/Gráficos│  │  (Multi-janelas)  │   │
+│  └─────────────────┘  └────────────────┘  └───────────────────┘   │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────────┐
+│                    CAMADA DE PROCESSAMENTO                         │
+│  ┌─────────────────┐  ┌────────────────┐  ┌───────────────────┐   │
+│  │  WoundDetectorCV │  │ TissueAnalyzer │  │ WoundClassifierCV │   │
+│  │  (OpenCV/YOLO)   │  │  (HSV Segment) │  │  (Etiologia)      │   │
+│  └─────────────────┘  └────────────────┘  └───────────────────┘   │
+│                              │                                     │
+│                   ┌──────────┴──────────┐                         │
+│                   │   ImageProcessor    │                         │
+│                   │ (Pré-processamento) │                         │
+│                   └─────────────────────┘                         │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────────┐
+│                      CAMADA DE DADOS                               │
+│  ┌─────────────────┐  ┌────────────────┐  ┌───────────────────┐   │
+│  │    Database     │  │ ExportManager  │  │     Cache         │   │
+│  │    (SQLite)     │  │ (JSON/CSV/PDF) │  │  (Frame/Result)   │   │
+│  └─────────────────┘  └────────────────┘  └───────────────────┘   │
+└────────────────────────────────────────────────────────────────────┘
+```
 
-### Módulo 3: Recomendação e Evolução
-- **Base**: Protocolos clínicos validados
-- **Tracking**: Comparação por registro temporal
+### Módulo 1: Detecção em Tempo Real (OpenCV)
+- **Métodos**: Segmentação por cor (HSV), detecção de bordas, análise de textura
+- **Performance**: 30+ FPS em CPU
+- **Output**: Bounding box, máscara, confiança, tipo
+
+### Módulo 2: Análise de Tecidos
+- **Técnica**: Segmentação por espaço de cor HSV
+- **Tecidos**: Granulação, Esfacelo, Necrose, Epitelização, Fibrina
+- **Output**: Percentuais, mapa de cores, score de saúde (0-100)
+
+### Módulo 3: Classificação de Etiologia
+- **Modelo**: Heurístico + Keras (quando disponível)
+- **Classes**: Úlcera Venosa, Arterial, Pé Diabético, Lesão por Pressão, etc.
+- **Output**: Classificação, confiança, recomendações
 
 ## 📊 Classes de Tecido (Segmentação)
 
