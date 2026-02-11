@@ -40,6 +40,15 @@ loguru>=0.7.0
 pytest>=7.4.0
 pytest-cov>=4.1.0
 
+# PDF Reports
+reportlab>=4.0.0
+fpdf2>=2.7.0
+
+# Keras to ONNX conversion
+tensorflow>=2.13.0
+tf2onnx>=1.16.0
+onnx>=1.14.0
+
 # Opcional: TensorFlow Lite para mobile
 # tflite-runtime>=2.13.0
 
