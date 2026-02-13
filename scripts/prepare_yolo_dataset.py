@@ -368,6 +368,11 @@ def main():
         default=10,
         help="Número de amostras para preview"
     )
+    parser.add_argument(
+        "--keep-all",
+        action="store_true",
+        help="Manter imagens sem detecção usando bbox padrão (0.5, 0.5, 0.8, 0.8)"
+    )
     
     args = parser.parse_args()
     
@@ -379,7 +384,8 @@ def main():
         stats = prepare_yolo_dataset(
             args.source,
             args.output,
-            train_split=args.split
+            train_split=args.split,
+            skip_detection_errors=not args.keep_all
         )
         
         if stats:

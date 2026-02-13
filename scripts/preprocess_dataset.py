@@ -255,12 +255,15 @@ def preprocess_yolo(config: PreprocessConfig, inplace: bool = False):
         # Copia data.yaml atualizando path
         src_yaml = input_dir / "data.yaml"
         if src_yaml.exists():
-            content = src_yaml.read_text(encoding="utf-8")
+            try:
+                content = src_yaml.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                content = src_yaml.read_text(encoding="latin-1")
             content = content.replace(
                 str(input_dir.absolute()),
                 str(output_dir.absolute())
             )
-            (output_dir / "data.yaml").write_text(content, encoding="utf-8")
+            (output_dir / "data.yaml").write_text(content, encoding="utf-8", errors="replace")
 
     logger.info(f"[YOLO] Concluído: {stats['processed']} processadas, "
                 f"{stats['errors']} erros")
