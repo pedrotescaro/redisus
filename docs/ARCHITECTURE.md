@@ -1,10 +1,33 @@
-# Arquitetura Técnica - REDISUS
+# Arquitetura Técnica — HEAL/REDISUS
+## Plataforma Nacional de Saúde Digital Integrada | Cluster REDISUS — RNP/RUTE
 
 ## 1. Visão Geral da Arquitetura
 
-O sistema REDISUS utiliza uma **arquitetura de dois estágios** para otimizar o trade-off entre latência e precisão:
+O **HEAL/REDISUS** é composto por 5 eixos estruturantes e integra os subprojetos Heal+, Twin@Home, mHealth Takere, Esporotricose e a Plataforma Unificada.
 
-### Estágio 1: Pipeline de Tempo Real (Edge)
+### Arquitetura da Plataforma
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                      HEAL/REDISUS Platform                             │
+│                                                                        │
+│  Eixo 1: Diagnóstico     Eixo 2: Gestão     Eixo 3: Interop. SUS    │
+│  ┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐       │
+│  │YOLO → U-Net →   │    │Care Plans    │    │FHIR R4 / e-SUS  │       │
+│  │EfficientNet     │    │mHealth Takere│    │DATASUS / RNDS   │       │
+│  │Vitals / Risk    │    │Digital Twin  │    │Vigilância Epid. │       │
+│  └─────────────────┘    └──────────────┘    └─────────────────┘       │
+│                                                                        │
+│  Eixo 4: Experiência     Eixo 5: Validação                           │
+│  ┌─────────────────┐    ┌──────────────┐                              │
+│  │Educação Saúde   │    │TRL Tracker   │                              │
+│  │Aderência        │    │Pilotos Multi │                              │
+│  │Teleconsulta     │    │RAG / CDS     │                              │
+│  │Comunicação      │    │Regulatório   │                              │
+│  └─────────────────┘    └──────────────┘                              │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Pipeline de IA: Estágio 1 — Tempo Real (Edge)
 ```
 ┌────────────┐    ┌───────────────┐    ┌─────────────────┐    ┌──────────────┐
 │   Câmera   │───►│ Preprocessor  │───►│  YOLO Nano      │───►│  Renderer    │
@@ -263,14 +286,59 @@ num_threads: 4
 - **Macro F1**: > 0.85
 - **AUC-ROC**: > 0.92
 
-## 7. Escalabilidade Futura
+## 7. Módulos HEAL Adicionados
 
-### Fase 2 (Planejado)
-- Integração com prontuário eletrônico (HL7 FHIR)
-- Modelo multimodal (imagem + texto clínico)
+### 7.1 Estrutura de Pacotes
+
+```
+src/
+├── risk/              # Estratificação de risco (Braden, PUSH Tool)
+├── interoperability/  # FHIR R4, e-SUS PEC, DATASUS, BPA, SIGTAP
+├── surveillance/      # Vigilância epidemiológica, georeferenciamento
+├── dashboard/         # Dashboard web Flask (REST API)
+├── care_plans/        # Planos de cuidado, mHealth Takere
+├── patient/           # Educação, aderência, comunicação
+├── monitoring/        # Sinais vitais, integração com vestíveis
+├── telemedicine/      # Teleconsulta, triagem esporotricose
+├── digital_twin/      # Gêmeo digital (Twin@Home), simulação de cicatrização
+├── rag/               # RAG clínico, base de conhecimento com evidências
+└── validation/        # TRL tracker, framework de validação clínica
+```
+
+### 7.2 Pontos de Entrada
+
+| Comando | Descrição |
+|---------|-----------|
+| `python heal_platform.py --mode status` | Status da plataforma |
+| `python heal_platform.py --mode dashboard` | Dashboard web |
+| `python heal_platform.py --mode realtime` | Detecção em tempo real |
+| `python heal_platform.py --mode image -i FILE` | Análise de imagem |
+| `python heal_platform.py --mode query -q "..."` | Consulta RAG |
+| `python heal_platform.py --mode demo` | Demonstração completa |
+
+## 8. Escalabilidade e Roadmap
+
+### TRL Atual: 4 (Validação em Laboratório)
+
+| TRL | Estado | Descrição |
+|-----|--------|-----------|
+| 1-3 | ✅ | Pesquisa, conceito, prova de conceito |
+| 4 | 🔄 | Validação — plataforma integrada |
+| 5 | ⏳ | Piloto em UBS (≥30 pacientes) |
+| 6-7 | ⏳ | Multicêntrico → operacional SUS |
+| 8-9 | ⏳ | Registro ANVISA → escala nacional |
+
+### Funcionalidades implementadas
+- HL7 FHIR R4 com perfis brasileiros ✅
+- Integração e-SUS PEC / DATASUS ✅
+- Modelo multimodal (imagem + dados clínicos) ✅
+- Digital Twin com simulação de cicatrização ✅
+- RAG para apoio à decisão clínica ✅
+- Vigilância epidemiológica com georeferenciamento ✅
+
+### Próximos passos
 - Federated Learning para hospitais
-
-### Fase 3 (Visão)
 - 3D wound reconstruction (depth camera)
 - AR overlay para procedimentos
 - Edge AI em dispositivos vestíveis
+- Integração completa com RNDS
