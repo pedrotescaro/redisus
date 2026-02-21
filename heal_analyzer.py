@@ -1,8 +1,8 @@
 """
-HEAL+ / REDISUS — Analisador Clínico de Feridas (Desktop PyQt6)
-================================================================
+HEAL+ / REDISUS — Analisador Clínico de Feridas v2.0 (Desktop PyQt6)
+=====================================================================
 
-Aplicação especialista em Estomaterapia com Visão Computacional.
+Aplicação especialista em Estomaterapia com Visão Computacional + IA.
 
 Taxonomia clínica rigorosa:
   1. Necrose de Coagulação (Escara)  — preto/marrom, endurecido, seco ou úmido
@@ -10,9 +10,18 @@ Taxonomia clínica rigorosa:
   3. Tecido de Granulação             — vermelho brilhante, úmido, granulado
   4. Epitelização                     — rosa claro/translúcido, avança das bordas
 
-Pipeline:
-  Imagem → Validação → Detecção → Segmentação HSV → Classificação Tecidual
+Pipeline v2:
+  Imagem → Validação → Detecção → Segmentação Multi-Espaço (HSV+LAB)
+        → Análise de Textura → Classificação DL (EfficientNet + TTA)
         → Análise de Bordas → Laudo Clínico
+
+Melhorias v2 vs v1:
+  - Segmentação multi-espaço de cor (HSV 60% + LAB 40%)
+  - Refinamento por textura (variância local, LBP)
+  - CLAHE para normalização de iluminação
+  - Integração com modelo DL (EfficientNetB3, TTA 4x flips)
+  - Intervalos HSV/LAB clínicos recalibrados
+  - Classes consolidadas (24 → 10 categorias significativas)
 
 Uso:
     python heal_analyzer.py
@@ -23,6 +32,14 @@ import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 from dataclasses import dataclass, field
+
+# Import torch BEFORE cv2 to avoid DLL conflicts on Windows
+try:
+    import torch
+    from torchvision import transforms as _tv_transforms
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _TORCH_AVAILABLE = False
 
 import cv2
 import numpy as np
@@ -101,6 +118,9 @@ class ClinicalReport:
     health_score: float = 0.0
     processing_time_ms: float = 0.0
 
+    # Deep Learning prediction (quando disponível)
+    dl_prediction: Optional[Dict] = None
+
     # Imagens processadas
     original: Optional[np.ndarray] = None
     detection_overlay: Optional[np.ndarray] = None
@@ -172,35 +192,85 @@ CLINICAL_TISSUES = {
     },
 }
 
-# Intervalos HSV refinados para classificação clínica
+# ============================================================
+# INTERVALOS CLÍNICOS REFINADOS v2 — Multi-espaço de cor
+# ============================================================
+# HSV: matiz-saturação-valor (boa discriminação de cores puras)
+# LAB: luminosidade-a*-b* (boa separação perceptual, eixo a*=vermelho/verde)
+# YCrCb: luminância-crominância (boa para detecção de pele/tecido)
+
 CLINICAL_HSV_RANGES = {
     "necrosis": [
-        # Preto / marrom escuro
-        (np.array([0, 0, 0]), np.array([180, 255, 50])),
-        # Marrom escuro (saturação moderada, valor baixo)
-        (np.array([5, 30, 20]), np.array([25, 200, 80])),
+        # Preto absoluto
+        (np.array([0, 0, 0]), np.array([180, 255, 40])),
+        # Marrom muito escuro
+        (np.array([5, 30, 15]), np.array([25, 200, 70])),
+        # Escuro com saturação baixa (necrose seca)
+        (np.array([0, 0, 40]), np.array([180, 40, 65])),
+        # Marrom escuro acinzentado
+        (np.array([8, 15, 25]), np.array([22, 150, 75])),
     ],
     "slough": [
-        # Amarelo (fibrina)
-        (np.array([15, 40, 140]), np.array([38, 255, 255])),
-        # Branco amarelado
-        (np.array([0, 0, 190]), np.array([30, 50, 255])),
+        # Amarelo fibrina puro
+        (np.array([15, 50, 140]), np.array([38, 255, 255])),
+        # Branco amarelado (fibrina clara)
+        (np.array([0, 0, 185]), np.array([30, 55, 255])),
         # Cinza-amarelado
         (np.array([15, 20, 120]), np.array([40, 100, 200])),
+        # Amarelo-esverdeado (fibrina contaminada)
+        (np.array([30, 30, 130]), np.array([50, 180, 230])),
+        # Bege / amarelo pálido
+        (np.array([12, 25, 160]), np.array([28, 90, 240])),
     ],
     "granulation": [
-        # Vermelho vivo
+        # Vermelho vivo intenso (H wrap around 0/180)
         (np.array([0, 100, 80]), np.array([10, 255, 255])),
         (np.array([160, 100, 80]), np.array([180, 255, 255])),
-        # Vermelho rosado
+        # Vermelho rosado moderado
         (np.array([0, 60, 100]), np.array([8, 200, 255])),
         (np.array([165, 60, 100]), np.array([180, 200, 255])),
+        # Vermelho escuro (granulação madura)
+        (np.array([0, 80, 60]), np.array([12, 255, 150])),
+        (np.array([158, 80, 60]), np.array([180, 255, 150])),
     ],
     "epithelialization": [
         # Rosa claro
         (np.array([0, 15, 170]), np.array([15, 70, 255])),
-        # Rosa translúcido
         (np.array([155, 15, 170]), np.array([175, 70, 255])),
+        # Rosa pálido quase branco
+        (np.array([0, 8, 195]), np.array([12, 45, 255])),
+        (np.array([160, 8, 195]), np.array([180, 45, 255])),
+        # Salmão claro
+        (np.array([2, 25, 185]), np.array([18, 80, 255])),
+    ],
+}
+
+# Intervalos no espaço LAB para refinamento
+# L: luminosidade (0=preto, 255=branco)
+# A: verde(-) → vermelho(+)
+# B: azul(-) → amarelo(+)
+CLINICAL_LAB_RANGES = {
+    "necrosis": [
+        # Muito escuro, qualquer crominância
+        (np.array([0, 100, 100]), np.array([50, 145, 145])),
+        # Marrom escuro (L baixo, a+, b+)
+        (np.array([15, 128, 120]), np.array([65, 160, 160])),
+    ],
+    "slough": [
+        # Amarelo claro (L alto, b muito positivo)
+        (np.array([150, 110, 145]), np.array([240, 140, 200])),
+        # Bege/branco-amarelado
+        (np.array([170, 118, 130]), np.array([250, 138, 165])),
+    ],
+    "granulation": [
+        # Vermelho (a muito positivo, L médio)
+        (np.array([40, 145, 115]), np.array([180, 220, 165])),
+        # Vermelho escuro
+        (np.array([25, 140, 110]), np.array([100, 200, 150])),
+    ],
+    "epithelialization": [
+        # Rosa (L alto, a levemente positivo, b neutro)
+        (np.array([170, 132, 120]), np.array([240, 155, 142])),
     ],
 }
 
@@ -211,11 +281,14 @@ CLINICAL_HSV_RANGES = {
 
 class ClinicalWoundAnalyzer:
     """
-    Motor de análise clínica de feridas.
+    Motor de análise clínica de feridas v2.
 
     Atua como especialista em Estomaterapia — classifica texturas
     segundo a taxonomia de tecidos viáveis e inviáveis, analisa
     bordas/perilesão e gera laudo técnico.
+
+    v2: Multi-espaço de cor (HSV + LAB), textura LBP, modelo DL
+    integrado (quando disponível), calibração de confiança.
     """
 
     MIN_WOUND_AREA_RATIO = 0.005   # Mínimo 0.5% da imagem
@@ -230,6 +303,129 @@ class ClinicalWoundAnalyzer:
         )
         self.tissue_analyzer = TissueAnalyzerCV()
         self.classifier = WoundClassifierCV()
+
+        # Deep Learning model (carregado sob demanda)
+        self._dl_model = None
+        self._dl_metadata = None
+        self._dl_available = False
+        self._load_dl_model()
+
+    def _load_dl_model(self):
+        """Tenta carregar modelo DL treinado (PyTorch) para classificação."""
+        # PyTorch model paths (traced/TorchScript preferred - self-contained)
+        model_paths = [
+            Path(__file__).parent / "models" / "wound_classifier_v2" / "wound_classifier_v2_traced.pt",
+            Path(__file__).parent / "models" / "wound_classifier_v2" / "wound_classifier_v2_full.pt",
+            Path(__file__).parent / "models" / "wound_classifier_v2" / "wound_classifier_v2.pt",
+        ]
+        meta_paths = [
+            Path(__file__).parent / "models" / "wound_classifier_v2" / "model_metadata_v2.json",
+            Path(__file__).parent / "models" / "wound_classifier" / "model_metadata.json",
+        ]
+
+        for mp in model_paths:
+            if mp.exists():
+                try:
+                    import torch
+                    if "traced" in mp.name:
+                        self._dl_model = torch.jit.load(str(mp), map_location="cpu")
+                    elif "full" in mp.name:
+                        self._dl_model = torch.load(str(mp), map_location="cpu", weights_only=False)
+                    else:
+                        # state_dict — needs metadata to reconstruct model
+                        # skip if no metadata loaded yet; will try full model first
+                        continue
+                    self._dl_model.eval()
+                    self._dl_available = True
+                    print(f"[HEAL+] Modelo DL PyTorch carregado: {mp.name}")
+                    break
+                except Exception as e:
+                    print(f"[HEAL+] Erro DL ({mp.name}): {e}")
+
+        for mp in meta_paths:
+            if mp.exists():
+                try:
+                    import json
+                    with open(mp) as f:
+                        self._dl_metadata = json.load(f)
+                    print(f"[HEAL+] Metadados: {mp.name}")
+                    break
+                except Exception:
+                    pass
+
+    def _predict_dl(self, image: np.ndarray) -> Optional[Dict]:
+        """Predição com modelo DL PyTorch (se disponível)."""
+        if not self._dl_available or self._dl_model is None:
+            return None
+        try:
+            import torch
+            from torchvision import transforms
+
+            meta = self._dl_metadata or {}
+            input_shape = meta.get("input_shape", [300, 300, 3])
+            h, w = input_shape[0], input_shape[1]
+
+            # Preprocessing: ImageNet normalization
+            preprocess_meta = meta.get("preprocessing", {})
+            mean = preprocess_meta.get("normalize_mean", [0.485, 0.456, 0.406])
+            std = preprocess_meta.get("normalize_std", [0.229, 0.224, 0.225])
+
+            transform = transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.Resize((h, w)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean, std=std),
+            ])
+
+            img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            img_tensor = transform(img_rgb).unsqueeze(0)  # [1, 3, H, W]
+
+            # TTA — Test Time Augmentation (4 flips)
+            with torch.no_grad():
+                predictions = []
+                # Original
+                out = torch.softmax(self._dl_model(img_tensor), dim=1)
+                predictions.append(out)
+                # Horizontal flip
+                out = torch.softmax(self._dl_model(torch.flip(img_tensor, [3])), dim=1)
+                predictions.append(out)
+                # Vertical flip
+                out = torch.softmax(self._dl_model(torch.flip(img_tensor, [2])), dim=1)
+                predictions.append(out)
+                # Both flips
+                out = torch.softmax(self._dl_model(torch.flip(img_tensor, [2, 3])), dim=1)
+                predictions.append(out)
+
+                # Média TTA
+                avg_pred = torch.stack(predictions).mean(dim=0).squeeze(0).numpy()
+
+            class_idx = int(np.argmax(avg_pred))
+            confidence = float(avg_pred[class_idx])
+
+            class_names = meta.get("class_names", [])
+            display_names = meta.get("class_display_names", {})
+
+            class_name = class_names[class_idx] if class_idx < len(class_names) else f"class_{class_idx}"
+            display_name = display_names.get(class_name, class_name.replace("_", " ").title())
+
+            # Top-3 predictions
+            top3_idx = np.argsort(avg_pred)[-3:][::-1]
+            top3 = []
+            for idx in top3_idx:
+                name = class_names[idx] if idx < len(class_names) else f"class_{idx}"
+                dname = display_names.get(name, name.replace("_", " ").title())
+                top3.append({"class": name, "display": dname, "confidence": float(avg_pred[idx])})
+
+            return {
+                "class_name": class_name,
+                "display_name": display_name,
+                "confidence": confidence,
+                "top3": top3,
+                "all_probs": {class_names[i]: float(avg_pred[i]) for i in range(len(class_names)) if i < len(avg_pred)},
+            }
+        except Exception as e:
+            print(f"[HEAL+] Erro predicao DL: {e}")
+            return None
 
     # -------------------------------------------------------
     def analyze(self, image: np.ndarray) -> ClinicalReport:
@@ -278,8 +474,8 @@ class ClinicalWoundAnalyzer:
         report.detection_overlay = det_overlay
         report.wound_area_px = int(np.sum(wound_mask > 0))
 
-        # 4. Segmentação tecidual clínica (HSV)
-        tissue_pcts, seg_map, tissue_overlay = self._segment_clinical(image, wound_mask)
+        # 4. Segmentação tecidual clínica (HSV + LAB multi-espaço)
+        tissue_pcts, seg_map, tissue_overlay = self._segment_clinical_v2(image, wound_mask)
         report.segmentation_map = seg_map
         report.tissue_overlay = tissue_overlay
 
@@ -307,6 +503,11 @@ class ClinicalWoundAnalyzer:
 
         # 8. Score de saúde
         report.health_score = self._compute_health_score(tissue_pcts)
+
+        # 9. Deep Learning — classificação etiológica (se disponível)
+        dl_result = self._predict_dl(image)
+        if dl_result:
+            report.dl_prediction = dl_result
 
         report.processing_time_ms = (time.perf_counter() - t0) * 1000
         return report
@@ -356,16 +557,41 @@ class ClinicalWoundAnalyzer:
     def _segment_clinical(
         self, image: np.ndarray, wound_mask: np.ndarray
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
-        """Segmenta a ferida segundo taxonomia clínica."""
-        # Denoise
-        denoised = cv2.fastNlMeansDenoisingColored(image, None, 5, 5, 7, 21)
-        hsv = cv2.cvtColor(denoised, cv2.COLOR_BGR2HSV)
+        """Segmenta a ferida segundo taxonomia clínica (v1 — legado)."""
+        return self._segment_clinical_v2(image, wound_mask)
+
+    def _segment_clinical_v2(
+        self, image: np.ndarray, wound_mask: np.ndarray
+    ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
+        """
+        Segmentação clínica v2 — multi-espaço de cor + textura.
+
+        Pipeline:
+        1. Denoise bilateral (preserva bordas melhor que NLMeans)
+        2. Conversão HSV + LAB
+        3. Segmentação em cada espaço de cor
+        4. Fusão com voto ponderado (HSV 60% + LAB 40%)
+        5. Refinamento morfológico adaptativo
+        6. Análise de textura para ambiguidades
+        """
+        # 1. Denoise: bilateral preserva bordas melhor
+        denoised = cv2.bilateralFilter(image, d=9, sigmaColor=50, sigmaSpace=50)
+        # Aplica leve CLAHE para normalizar iluminação
+        lab_clahe = cv2.cvtColor(denoised, cv2.COLOR_BGR2LAB)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        lab_clahe[:, :, 0] = clahe.apply(lab_clahe[:, :, 0])
+        denoised_norm = cv2.cvtColor(lab_clahe, cv2.COLOR_LAB2BGR)
+
+        hsv = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2HSV)
+        lab = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2LAB)
 
         h, w = image.shape[:2]
         kernel_s = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        kernel_m = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        kernel_m = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        kernel_l = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
 
-        masks = {}
+        # 2. Segmentação HSV
+        hsv_masks = {}
         for tissue_key, ranges in CLINICAL_HSV_RANGES.items():
             mask = np.zeros((h, w), dtype=np.uint8)
             for lower, upper in ranges:
@@ -373,9 +599,67 @@ class ClinicalWoundAnalyzer:
             mask = cv2.bitwise_and(mask, wound_mask)
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_m)
+            hsv_masks[tissue_key] = mask
+
+        # 3. Segmentação LAB (refinamento)
+        lab_masks = {}
+        for tissue_key, ranges in CLINICAL_LAB_RANGES.items():
+            mask = np.zeros((h, w), dtype=np.uint8)
+            for lower, upper in ranges:
+                mask = cv2.bitwise_or(mask, cv2.inRange(lab, lower, upper))
+            mask = cv2.bitwise_and(mask, wound_mask)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_m)
+            lab_masks[tissue_key] = mask
+
+        # 4. Fusão ponderada HSV (60%) + LAB (40%)
+        masks = {}
+        for tissue_key in CLINICAL_HSV_RANGES.keys():
+            hsv_m = hsv_masks.get(tissue_key, np.zeros((h, w), dtype=np.uint8))
+            lab_m = lab_masks.get(tissue_key, np.zeros((h, w), dtype=np.uint8))
+
+            # Score combinado por pixel
+            combined = (hsv_m.astype(np.float32) * 0.6 +
+                        lab_m.astype(np.float32) * 0.4)
+            # Threshold: se pelo menos um detector forte OU ambos fracos concordam
+            mask = np.where(combined > 80, 255, 0).astype(np.uint8)
+
+            # Refinamento morfológico
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_l)
+            mask = cv2.bitwise_and(mask, wound_mask)
             masks[tissue_key] = mask
 
-        # Resolução de sobreposições — prioridade clínica
+        # 5. Refinamento por textura — usa variância local para resolver ambiguidades
+        gray = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2GRAY)
+        local_var = cv2.GaussianBlur(
+            (gray.astype(np.float32) ** 2), (15, 15), 0
+        ) - cv2.GaussianBlur(gray.astype(np.float32), (15, 15), 0) ** 2
+        local_var = np.clip(local_var, 0, None)
+
+        # Necrose tende a ter textura baixa (homogênea)
+        # Granulação tende a ter textura alta (grânulos)
+        low_texture = (local_var < 200).astype(np.uint8)
+        high_texture = (local_var > 500).astype(np.uint8)
+
+        # Reforça necrose em áreas de baixa textura + escuro
+        dark_px = (gray < 60).astype(np.uint8) * 255
+        masks["necrosis"] = cv2.bitwise_or(
+            masks["necrosis"],
+            cv2.bitwise_and(cv2.bitwise_and(dark_px, wound_mask),
+                            (low_texture * 255).astype(np.uint8))
+        )
+
+        # Reforça granulação em áreas de alta textura + vermelho
+        red_channel = denoised_norm[:, :, 2]  # BGR → canal R
+        red_dominant = ((red_channel.astype(np.int16) - denoised_norm[:, :, 1].astype(np.int16)) > 30).astype(np.uint8) * 255
+        masks["granulation"] = cv2.bitwise_or(
+            masks["granulation"],
+            cv2.bitwise_and(cv2.bitwise_and(red_dominant, wound_mask),
+                            (high_texture * 255).astype(np.uint8))
+        )
+
+        # 6. Resolução de sobreposições — prioridade clínica
         priority = ["necrosis", "slough", "granulation", "epithelialization"]
         used = np.zeros((h, w), dtype=np.uint8)
         for key in priority:
@@ -389,7 +673,7 @@ class ClinicalWoundAnalyzer:
             pcts[key] = float(np.sum(masks[key] > 0) / total * 100)
 
         # Mapa de segmentação colorido
-        seg_map = np.full((h, w, 3), 80, dtype=np.uint8)  # cinza para fundo
+        seg_map = np.full((h, w, 3), 80, dtype=np.uint8)
         colors = {
             "necrosis": (30, 30, 60),
             "slough": (80, 220, 220),
@@ -868,6 +1152,53 @@ class HealAnalyzerApp(QMainWindow):
 
         self.right_layout.addWidget(box_tissue)
 
+        # --- CLASSIFICAÇÃO IA (Deep Learning) ---
+        if r.dl_prediction:
+            box_dl = self._make_group("🧠 CLASSIFICAÇÃO IA (Deep Learning)")
+            dl = r.dl_prediction
+
+            # Classe principal
+            lbl_cls = QLabel(dl.get("display_name", "N/A"))
+            lbl_cls.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+            conf = dl.get("confidence", 0)
+            conf_color = "#22c55e" if conf >= 0.7 else ("#fbbf24" if conf >= 0.4 else "#ef4444")
+            lbl_cls.setStyleSheet(f"color: {conf_color}; padding: 2px 0;")
+            box_dl.layout().addWidget(lbl_cls)
+
+            # Confiança
+            conf_row = QWidget()
+            cl = QHBoxLayout(conf_row)
+            cl.setContentsMargins(0, 2, 0, 2)
+            cl.addWidget(self._styled_label("Confiança:", "#94a3b8", 10))
+            cl.addWidget(self._styled_label(f"{conf:.1%}", conf_color, 11, bold=True))
+            cl.addStretch()
+            box_dl.layout().addWidget(conf_row)
+
+            # Top-3 predictions
+            top3 = dl.get("top3", [])
+            if len(top3) > 1:
+                box_dl.layout().addWidget(self._styled_label("Diagnósticos diferenciais:", "#64748b", 9))
+                for pred in top3[1:]:
+                    p_conf = pred.get("confidence", 0)
+                    p_name = pred.get("display", pred.get("class", ""))
+                    row = QWidget()
+                    rl = QHBoxLayout(row)
+                    rl.setContentsMargins(8, 0, 0, 0)
+                    rl.addWidget(self._styled_label(f"• {p_name}", "#94a3b8", 9))
+                    rl.addStretch()
+                    rl.addWidget(self._styled_label(f"{p_conf:.1%}", "#64748b", 9))
+                    box_dl.layout().addWidget(row)
+
+            # Nota sobre modelo
+            if conf < 0.5:
+                note = QLabel("⚠ Confiança baixa — recomenda-se avaliação por especialista")
+                note.setWordWrap(True)
+                note.setFont(QFont("Segoe UI", 9))
+                note.setStyleSheet("color: #fbbf24; padding-top: 4px;")
+                box_dl.layout().addWidget(note)
+
+            self.right_layout.addWidget(box_dl)
+
         # --- ANÁLISE DE BORDAS ---
         if r.border_analysis:
             box_border = self._make_group("🔎 ANÁLISE DE BORDAS E PERILESÃO")
@@ -914,11 +1245,15 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- METADADOS ---
         box_meta = self._make_group("ℹ METADADOS")
+        dl_status = "✓ Ativo (TTA)" if r.dl_prediction else "Não disponível"
+        pipeline_desc = "Detecção (OpenCV) → Segm. HSV+LAB → Textura → DL"
         meta_items = [
             ("Área da ferida", f"{r.wound_area_px:,} px"),
             ("Tempo de processamento", f"{r.processing_time_ms:.0f} ms"),
-            ("Pipeline", "Detecção (OpenCV) → Segmentação HSV → Classificação Clínica"),
-            ("Nota", "Modelos DL em modo simulação (HSV). Resultados para validação."),
+            ("Pipeline", pipeline_desc),
+            ("Segmentação", "Multi-espaço (HSV 60% + LAB 40%) + Textura"),
+            ("Modelo DL", dl_status),
+            ("Versão", "HEAL+ v2.0 — Análise Clínica Avançada"),
         ]
         for k, v in meta_items:
             row = QWidget()

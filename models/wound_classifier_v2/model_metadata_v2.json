@@ -1,0 +1,132 @@
+{
+  "model_name": "WoundClassifier_v2_PyTorch",
+  "version": "2.0.0",
+  "framework": "PyTorch/timm",
+  "base_model": "mobilenetv3_large_100",
+  "input_shape": [
+    224,
+    224,
+    3
+  ],
+  "class_names": [
+    "abdominal_wounds",
+    "burns",
+    "diabetic_ulcers",
+    "epidermolysis_bullosa",
+    "malignant_wounds",
+    "miscellaneous",
+    "necrotic_wounds",
+    "pilonidal_sinus",
+    "pressure_ulcers",
+    "surgical_wounds",
+    "venous_arterial_ulcers"
+  ],
+  "class_display_names": {
+    "abdominal_wounds": "Feridas Abdominais / Deiscência",
+    "burns": "Queimaduras e Escaldaduras",
+    "diabetic_ulcers": "Úlceras Diabéticas (Pé Diabético)",
+    "epidermolysis_bullosa": "Epidermólise Bolhosa",
+    "malignant_wounds": "Feridas Malignas",
+    "miscellaneous": "Feridas Diversas",
+    "necrotic_wounds": "Feridas Necróticas e Infecções",
+    "pilonidal_sinus": "Cisto/Fístula Pilonidal",
+    "pressure_ulcers": "Lesões por Pressão",
+    "surgical_wounds": "Feridas Cirúrgicas / Ortopédicas",
+    "venous_arterial_ulcers": "Úlceras Venosas e Arteriais"
+  },
+  "num_classes": 11,
+  "preprocessing": {
+    "resize": [
+      224,
+      224
+    ],
+    "normalize_mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "normalize_std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "consolidation_map": {
+    "abdominal_wounds": "abdominal_wounds",
+    "abdominal_wounds_examples_of_wound_dehiscence": "abdominal_wounds",
+    "burn_and_scalds": "burns",
+    "burns": "burns",
+    "diabetic_foot_ulcers": "diabetic_ulcers",
+    "epidermolysis_bullosa": "epidermolysis_bullosa",
+    "extravasation_injuries": "miscellaneous",
+    "haemangiomas": "miscellaneous",
+    "malignant_wounds": "malignant_wounds",
+    "meningitis_wounds": "miscellaneous",
+    "miscellaneous_wounds": "miscellaneous",
+    "necrotic_toes": "necrotic_wounds",
+    "toes_infected_and_necrotic": "necrotic_wounds",
+    "orthopaedic_wounds": "surgical_wounds",
+    "pilonidal_sinus": "pilonidal_sinus",
+    "pilonidal_sinus_wounds": "pilonidal_sinus",
+    "pressure_ulcers_1": "pressure_ulcers",
+    "pressure_ulcers_2": "pressure_ulcers",
+    "pressure_ulcers_set_1_of_2": "pressure_ulcers",
+    "pressure_ulcers_set_2_of_2": "pressure_ulcers",
+    "venous_and_arterial_ulcers_set_2": "venous_arterial_ulcers",
+    "venous_arterial_ulcers_1": "venous_arterial_ulcers",
+    "venous_arterial_ulcers_2": "venous_arterial_ulcers",
+    "venous_ulcers_and_arterial_ulcers_set_1": "venous_arterial_ulcers"
+  },
+  "metrics": {
+    "accuracy": 0.7786885245901639,
+    "top3_accuracy": 0.9016393442622951,
+    "per_class": {
+      "abdominal_wounds": {
+        "accuracy": 0.8333333333333334,
+        "samples": 6
+      },
+      "burns": {
+        "accuracy": 1.0,
+        "samples": 5
+      },
+      "diabetic_ulcers": {
+        "accuracy": 0.8095238095238095,
+        "samples": 21
+      },
+      "epidermolysis_bullosa": {
+        "accuracy": 0.0,
+        "samples": 1
+      },
+      "malignant_wounds": {
+        "accuracy": 1.0,
+        "samples": 3
+      },
+      "miscellaneous": {
+        "accuracy": 0.7441860465116279,
+        "samples": 43
+      },
+      "necrotic_wounds": {
+        "accuracy": 1.0,
+        "samples": 12
+      },
+      "pilonidal_sinus": {
+        "accuracy": 1.0,
+        "samples": 2
+      },
+      "pressure_ulcers": {
+        "accuracy": 0.7058823529411765,
+        "samples": 68
+      },
+      "surgical_wounds": {
+        "accuracy": 0.9473684210526315,
+        "samples": 19
+      },
+      "venous_arterial_ulcers": {
+        "accuracy": 0.75,
+        "samples": 64
+      }
+    },
+    "total_val_samples": 244
+  },
+  "created_at": "2026-02-21T09:52:24.621031"
+}

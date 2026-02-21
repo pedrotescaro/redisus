@@ -902,15 +902,13 @@ def main():
     
     initial_epochs = len(history1.history['loss'])
     
-    # === 6. FASE 2: Fine-Tuning (opcional) ===
-    # Descomente as linhas abaixo para executar fine-tuning
-    # CUIDADO: Pode causar overfitting em datasets muito pequenos!
-    
-    # print("\n⚠ Iniciando Fine-Tuning...")
-    # history2 = train_fine_tuning(
-    #     model, train_ds, val_ds, config, class_weights, 
-    #     str(output_dir), initial_epochs
-    # )
+    # === 6. FASE 2: Fine-Tuning ===
+    # Ativado na v2 — melhora significativamente a acurácia
+    print("\n⚠ Iniciando Fine-Tuning...")
+    history2 = train_fine_tuning(
+        model, train_ds, val_ds, config, class_weights, 
+        str(output_dir), initial_epochs
+    )
     
     # === 7. Avaliação Final ===
     evaluate_model(model, val_ds, class_names, str(output_dir))

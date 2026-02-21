@@ -46,27 +46,39 @@ class TissueResult:
         }
 
 
-# Intervalos HSV para cada tipo de tecido
+# Intervalos HSV para cada tipo de tecido (v2 — recalibrados)
 TISSUE_HSV_RANGES = {
     TissueType.GRANULATION: {
-        "lower": [np.array([0, 100, 100]), np.array([170, 100, 100])],
-        "upper": [np.array([10, 255, 255]), np.array([180, 255, 255])]
+        "lower": [np.array([0, 100, 80]), np.array([160, 100, 80]),
+                  np.array([0, 60, 100]), np.array([165, 60, 100]),
+                  np.array([0, 80, 60]), np.array([158, 80, 60])],
+        "upper": [np.array([10, 255, 255]), np.array([180, 255, 255]),
+                  np.array([8, 200, 255]), np.array([180, 200, 255]),
+                  np.array([12, 255, 150]), np.array([180, 255, 150])]
     },
     TissueType.SLOUGH: {
-        "lower": [np.array([15, 30, 150])],
-        "upper": [np.array([35, 150, 255])]
+        "lower": [np.array([15, 50, 140]), np.array([0, 0, 185]),
+                  np.array([15, 20, 120]), np.array([30, 30, 130]),
+                  np.array([12, 25, 160])],
+        "upper": [np.array([38, 255, 255]), np.array([30, 55, 255]),
+                  np.array([40, 100, 200]), np.array([50, 180, 230]),
+                  np.array([28, 90, 240])]
     },
     TissueType.NECROSIS: {
-        "lower": [np.array([0, 0, 0])],
-        "upper": [np.array([180, 100, 60])]
+        "lower": [np.array([0, 0, 0]), np.array([5, 30, 15]),
+                  np.array([0, 0, 40]), np.array([8, 15, 25])],
+        "upper": [np.array([180, 255, 40]), np.array([25, 200, 70]),
+                  np.array([180, 40, 65]), np.array([22, 150, 75])]
     },
     TissueType.EPITHELIALIZATION: {
-        "lower": [np.array([0, 20, 180])],
-        "upper": [np.array([20, 100, 255])]
+        "lower": [np.array([0, 15, 170]), np.array([155, 15, 170]),
+                  np.array([0, 8, 195]), np.array([2, 25, 185])],
+        "upper": [np.array([15, 70, 255]), np.array([175, 70, 255]),
+                  np.array([12, 45, 255]), np.array([18, 80, 255])]
     },
     TissueType.FIBRIN: {
-        "lower": [np.array([20, 50, 180])],
-        "upper": [np.array([40, 150, 255])]
+        "lower": [np.array([20, 50, 180]), np.array([18, 30, 170])],
+        "upper": [np.array([40, 150, 255]), np.array([35, 120, 245])]
     },
 }
 
@@ -144,8 +156,13 @@ class TissueAnalyzerCV:
         if wound_mask is None:
             wound_mask = np.ones((h, w), dtype=np.uint8) * 255
             
-        # Pré-processamento
-        denoised = cv2.fastNlMeansDenoisingColored(image, None, 5, 5, 7, 21)
+        # Pré-processamento v2: bilateral (preserva bordas) + CLAHE
+        denoised = cv2.bilateralFilter(image, d=9, sigmaColor=50, sigmaSpace=50)
+        # Normalização de iluminação via CLAHE no canal L do LAB
+        lab_img = cv2.cvtColor(denoised, cv2.COLOR_BGR2LAB)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        lab_img[:, :, 0] = clahe.apply(lab_img[:, :, 0])
+        denoised = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
         hsv = cv2.cvtColor(denoised, cv2.COLOR_BGR2HSV)
         
         # Segmenta cada tipo de tecido
