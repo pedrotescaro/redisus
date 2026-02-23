@@ -79,7 +79,7 @@ def validate_dataset(data_yaml: str) -> bool:
         logger.error(f"data.yaml nao encontrado: {data_yaml}")
         return False
 
-    with open(yaml_path) as f:
+    with open(yaml_path, encoding='utf-8') as f:
         data = yaml.safe_load(f)
 
     # Campos obrigatorios
@@ -118,7 +118,7 @@ def validate_dataset(data_yaml: str) -> bool:
         # Verifica formato de alguns labels
         errors = 0
         for label_file in labels[:5]:
-            with open(label_file) as f:
+            with open(label_file, encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
                     parts = line.strip().split()
                     if len(parts) != 5:

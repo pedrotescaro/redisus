@@ -161,10 +161,10 @@ class WoundDetectorCV:
             try:
                 from .false_positive_filter import FalsePositiveFilter
                 self._fp_filter = FalsePositiveFilter(
-                    min_biological_score=0.25,
-                    min_perilesional_score=0.15,
-                    max_finger_score=0.55,
-                    max_device_score=0.45
+                    min_biological_score=0.20,
+                    min_perilesional_score=0.10,
+                    max_finger_score=0.65,
+                    max_device_score=0.55
                 )
             except ImportError:
                 logger.warning("Filtro de falsos positivos nao disponivel")
@@ -439,18 +439,9 @@ class WoundDetectorCV:
         texture_score = local_var / (np.percentile(local_var, 95) + 1e-6)
         texture_score = np.clip(texture_score, 0, 1)
         
-        # Entropia local - complexidade da textura
-        # Usa histograma local
-        entropy_map = np.zeros((h, w), dtype=np.float32)
-        block_size = 16
-        for y in range(0, h - block_size, block_size // 2):
-            for x in range(0, w - block_size, block_size // 2):
-                block = gray[y:y+block_size, x:x+block_size]
-                hist = cv2.calcHist([block], [0], None, [32], [0, 256])
-                hist = hist / (hist.sum() + 1e-6)
-                entropy = -np.sum(hist * np.log2(hist + 1e-6))
-                entropy_map[y:y+block_size, x:x+block_size] = entropy
-        
+        # Entropia local RAPIDA (aproximacao vetorizada)
+        # entropy ~ log2(variancia + 1) — proxy eficiente sem loop
+        entropy_map = np.log2(local_var + 1.0)
         entropy_norm = entropy_map / (np.max(entropy_map) + 1e-6)
         
         # Combina metricas de textura
@@ -498,6 +489,21 @@ class WoundDetectorCV:
         smooth_skin = (texture_score < 0.2) & (skin_mask > 0)
         exclusion_mask = smooth_skin.astype(np.float32)
         exclusion_mask = cv2.GaussianBlur(exclusion_mask, (21, 21), 0)
+        
+        # 4.1 EXCLUSAO DE CAMPO CIRURGICO (lencol azul/verde/cinza de maca)
+        # Evita que sombras do drape sejam detectadas como ferida
+        drape_blue = cv2.inRange(hsv,
+                                 np.array([90, 30, 20]), np.array([130, 255, 255]))
+        drape_green = cv2.inRange(hsv,
+                                  np.array([35, 30, 30]), np.array([85, 255, 255]))
+        drape_gray = cv2.inRange(hsv,
+                                 np.array([0, 0, 40]), np.array([180, 22, 170]))
+        drape_mask = cv2.bitwise_or(drape_blue, drape_green)
+        drape_mask = cv2.bitwise_or(drape_mask, drape_gray)
+        drape_score = drape_mask.astype(np.float32) / 255.0
+        drape_score = cv2.GaussianBlur(drape_score, (15, 15), 0)
+        # Soma  a exclusao de drape a mascara de exclusao
+        exclusion_mask = np.clip(exclusion_mask + drape_score * 0.85, 0, 1)
         
         # 5. COMBINA SCORES
         combined = (
@@ -731,17 +737,18 @@ class WoundDetectorCV:
     ) -> List[DetectionResult]:
         """
         Estabiliza detecções usando histórico temporal.
-        
-        Reduz ruído e detecções intermitentes.
+
+        Reduz ruído e detecções intermitentes, mas permite novas
+        detecções de alta confiança imediatamente.
         """
         # Adiciona ao histórico
         self._detection_history.append(detections)
         if len(self._detection_history) > self._history_size:
             self._detection_history.pop(0)
-            
-        if len(self._detection_history) < 3:
+
+        if len(self._detection_history) < 2:
             return detections
-            
+
         # Para cada detecção atual, verifica consistência com histórico
         stabilized = []
         for det in detections:
@@ -749,19 +756,19 @@ class WoundDetectorCV:
             consistent_count = 0
             for past_dets in self._detection_history[:-1]:
                 for past_det in past_dets:
-                    if self._iou(det.bbox, past_det.bbox) > 0.3:
+                    if self._iou(det.bbox, past_det.bbox) > 0.25:
                         consistent_count += 1
                         break
-                        
-            # Só mantém se consistente em múltiplos frames
-            if consistent_count >= len(self._detection_history) // 2:
+
+            # Mantém se consistente em pelo menos 1 frame anterior
+            if consistent_count >= 1:
                 # Aumenta confiança de detecções estáveis
-                det.confidence = min(det.confidence * 1.2, 1.0)
+                det.confidence = min(det.confidence * 1.15, 1.0)
                 stabilized.append(det)
-            elif det.confidence > 0.7:
-                # Mantém detecções de alta confiança mesmo se novas
+            elif det.confidence > 0.55:
+                # Mantém detecções de confiança moderada-alta mesmo se novas
                 stabilized.append(det)
-                
+
         return stabilized
     
     def _iou(
@@ -819,9 +826,9 @@ class WoundDetectorCV:
                     
             elif suffix in [".tflite"]:
                 try:
-                    import tflite_runtime.interpreter as tflite
+                    import tflite_runtime.interpreter as tflite  # type: ignore[import-not-found]
                 except ImportError:
-                    import tensorflow.lite as tflite
+                    import tensorflow.lite as tflite  # type: ignore[import-not-found]
                 self._ml_model = tflite.Interpreter(model_path=str(path))
                 self._ml_model.allocate_tensors()
                 logger.info(f"Modelo TFLite carregado: {path.name}")

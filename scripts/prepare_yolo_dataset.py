@@ -234,7 +234,7 @@ def prepare_yolo_dataset(
             # Cria label YOLO
             x_center, y_center, width, height = bbox
             label_path = label_dir / f"{base_name}.txt"
-            with open(label_path, 'w') as f:
+            with open(label_path, 'w', encoding='utf-8') as f:
                 f.write(f"0 {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n")
             
             processed += 1
@@ -275,14 +275,14 @@ names:
 # Validação: {stats['val']}
 """
     
-    with open(data_yaml_path, 'w') as f:
+    with open(data_yaml_path, 'w', encoding='utf-8') as f:
         f.write(data_yaml_content)
     
     logger.info(f"data.yaml atualizado: {data_yaml_path}")
     
     # Salva estatísticas
     stats_path = output_path / "dataset_stats.json"
-    with open(stats_path, 'w') as f:
+    with open(stats_path, 'w', encoding='utf-8') as f:
         json.dump(stats, f, indent=2)
     
     logger.info(f"Estatísticas salvas: {stats_path}")

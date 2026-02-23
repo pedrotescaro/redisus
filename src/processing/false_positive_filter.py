@@ -110,8 +110,14 @@ class SkinDetector:
         skin_mask = cls.detect_skin_mask(roi)
         
         if mask is not None:
-            # Considera apenas area da deteccao
-            analysis_mask = mask
+            # Garante que a mascara tenha o mesmo tamanho que a ROI
+            if mask.shape[:2] != roi.shape[:2]:
+                analysis_mask = cv2.resize(
+                    mask, (roi.shape[1], roi.shape[0]),
+                    interpolation=cv2.INTER_NEAREST
+                )
+            else:
+                analysis_mask = mask
         else:
             analysis_mask = np.ones(roi.shape[:2], dtype=np.uint8) * 255
             
@@ -368,7 +374,23 @@ class BiologicalTextureAnalyzer:
         """
         features = {}
         
+        if roi is None or roi.size == 0:
+            return 0.0, features
+        
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi
+        
+        # Garante que a mascara tem tamanho identico ao gray
+        if mask is not None:
+            if mask.shape[:2] != gray.shape[:2]:
+                mask = cv2.resize(
+                    mask, (gray.shape[1], gray.shape[0]),
+                    interpolation=cv2.INTER_NEAREST
+                )
+            if mask.dtype != np.uint8:
+                mask = mask.astype(np.uint8)
+            # Mascara vazia -> None (evita histograma vazio)
+            if cv2.countNonZero(mask) == 0:
+                mask = None
         
         # 1. Variancia local (feridas tem textura irregular)
         kernel_size = 7
@@ -580,9 +602,13 @@ class FalsePositiveFilter:
             ValidationResult com status da validacao
         """
         x1, y1, x2, y2 = bbox
+        h_frame, w_frame = frame.shape[:2]
+        # Garante bbox dentro dos limites do frame
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w_frame, x2), min(h_frame, y2)
         roi = frame[y1:y2, x1:x2]
         
-        if roi.size == 0:
+        if roi.size == 0 or (y2 - y1) < 2 or (x2 - x1) < 2:
             return ValidationResult(
                 is_valid=False,
                 confidence_adjustment=0.0,
@@ -591,6 +617,19 @@ class FalsePositiveFilter:
                 context_score=0.0,
                 features={}
             )
+        
+        # Normaliza a mascara para ter o mesmo tamanho da ROI
+        roi_h, roi_w = roi.shape[:2]
+        if mask is not None and mask.size > 0:
+            if mask.shape[:2] != (roi_h, roi_w):
+                mask = cv2.resize(
+                    mask, (roi_w, roi_h),
+                    interpolation=cv2.INTER_NEAREST
+                )
+            if mask.dtype != np.uint8:
+                mask = mask.astype(np.uint8)
+        else:
+            mask = None
             
         rejection_reasons = []
         all_features = {}
@@ -702,6 +741,7 @@ class FalsePositiveFilter:
             Lista filtrada de deteccoes validas
         """
         filtered = []
+        _reject_count = getattr(self, '_reject_count', 0)
         
         for det in detections:
             validation = self.validate_detection(
@@ -725,8 +765,13 @@ class FalsePositiveFilter:
                 
                 filtered.append(det)
             else:
-                logger.debug(
-                    f"Deteccao rejeitada: {[r.value for r in validation.rejection_reasons]}"
-                )
+                _reject_count += 1
+                # Log apenas a cada 50 rejeicoes para nao poluir console
+                if _reject_count % 50 == 1:
+                    logger.debug(
+                        f"Deteccao rejeitada (#{_reject_count}): {[r.value for r in validation.rejection_reasons]}"
+                    )
+        
+        self._reject_count = _reject_count
                 
         return filtered

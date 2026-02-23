@@ -162,6 +162,28 @@ python realtime_app.py --mode webcam --patient PAC001
 python main.py --mode evolution --patient-id 12345
 ```
 
+### Treino: Detector de Parte do Corpo
+
+```bash
+# Treino padrão
+python src/training/train_body_part_detector.py \
+    --dataset dataset/body_parts \
+    --output models/body_part_detector \
+    --epochs 30
+
+# Treino robusto (adversarial FGSM leve, inspirado em adversarial augmentation)
+python src/training/train_body_part_detector.py \
+    --dataset dataset/body_parts \
+    --output models/body_part_detector \
+    --epochs 30 \
+    --adv-epsilon 0.01 \
+    --adv-alpha 0.4
+```
+
+Observações rápidas:
+- As classes devem ser pastas dentro de `dataset/body_parts` (ex.: `foot`, `lower_leg`, `sacrum`, `abdomen`, `unknown`).
+- O treino gera `body_part_detector_best.pth`, `body_part_detector_full.pt`, `body_part_detector.onnx` e `metadata.json`.
+
 ## 🔬 Módulos Funcionais
 
 ### Arquitetura em Camadas

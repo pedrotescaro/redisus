@@ -152,7 +152,7 @@ def update_etiology_classifier_config(onnx_path: str, metadata_path: str):
     logger.info("Atualizando configuração do EtiologyClassifier...")
     
     # Carrega metadata
-    with open(metadata_path) as f:
+    with open(metadata_path, encoding='utf-8') as f:
         metadata = json.load(f)
     
     config_info = {
@@ -226,7 +226,7 @@ def main():
                 
                 # Salva config ONNX
                 config_path = output_path.with_suffix(".json")
-                with open(config_path, 'w') as f:
+                with open(config_path, 'w', encoding='utf-8') as f:
                     json.dump(config, f, indent=2)
                 logger.info(f"Configuração salva: {config_path}")
             

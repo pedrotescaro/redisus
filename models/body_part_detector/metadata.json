@@ -1,0 +1,13 @@
+{
+  "classes": [
+    "abdomen",
+    "foot",
+    "lower_leg",
+    "sacrum",
+    "unknown"
+  ],
+  "num_classes": 5,
+  "image_size": 224,
+  "best_val_acc": 0.97131,
+  "architecture": "mobilenet_v3_small"
+}
