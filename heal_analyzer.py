@@ -11,10 +11,23 @@ Taxonomia clínica rigorosa:
   3. Tecido de Granulação             — vermelho brilhante, úmido, granulado
   4. Epitelização                     — rosa claro/translúcido, avança das bordas
 
-Pipeline v2:
-  Imagem → Validação → Detecção → Segmentação Multi-Espaço (HSV+LAB)
+Pipeline v3:
+  Imagem → Validação → Detecção → ROI Contorno → Zonas (Periferia/Core)
+        → Segmentação Multi-Espaço (HSV+LAB) restrita à ROI
+        → Gradiente de Borda (Scharr) → Epitelização Periférica
         → Análise de Textura → Classificação DL (EfficientNet + TTA)
         → Análise de Bordas → Laudo Clínico
+
+Melhorias v3 vs v2:
+  - Máscara ROI por contorno (não mais bounding box retangular)
+  - Zonas espaciais: periferia vs. core vs. anel externo
+  - Detecção de epitelização por gradiente na borda (Scharr)
+  - Classificação espacial de background (variância + crominância + conectividade)
+    separa fundo de câmera de tecido necrótico por contexto espacial
+  - Necrose priorizada por luminância: pixels V < 50 dentro do perímetro
+    anatômico segmentado são tratados como necrose de alta confiança
+  - Esfacelo restrito ao core; epitelização à periferia
+  - Distance transform para peso espacial
 
 Melhorias v2 vs v1:
   - Segmentação multi-espaço de cor (HSV 60% + LAB 40%)
@@ -257,6 +270,9 @@ class ClinicalReport:
     # Detecção de parte do corpo (quando disponível)
     body_part: Optional[Dict] = None
 
+    # Zonas espaciais da ferida (periferia, core, anel externo)
+    wound_zones: Optional[Dict] = None
+
     # Imagens processadas
     original: Optional[np.ndarray] = None
     detection_overlay: Optional[np.ndarray] = None
@@ -349,37 +365,35 @@ CLINICAL_HSV_RANGES = {
         (np.array([8, 15, 25]), np.array([25, 150, 75])),
     ],
     "slough": [
-        # Amarelo fibrina puro
-        (np.array([15, 50, 140]), np.array([38, 255, 255])),
+        # Amarelo fibrina puro (mais restrito para não pegar pele)
+        (np.array([18, 60, 140]), np.array([35, 255, 255])),
         # Branco amarelado (fibrina clara)
-        (np.array([0, 0, 185]), np.array([30, 55, 255])),
+        (np.array([0, 0, 195]), np.array([30, 50, 255])),
         # Cinza-amarelado
-        (np.array([15, 20, 120]), np.array([40, 100, 200])),
+        (np.array([15, 20, 130]), np.array([35, 90, 210])),
         # Amarelo-esverdeado (fibrina contaminada)
-        (np.array([30, 30, 130]), np.array([50, 180, 230])),
-        # Bege / amarelo pálido
-        (np.array([12, 25, 160]), np.array([28, 90, 240])),
+        (np.array([30, 40, 130]), np.array([45, 180, 230])),
     ],
     "granulation": [
         # Vermelho vivo intenso (H wrap around 0/180)
-        (np.array([0, 100, 80]), np.array([10, 255, 255])),
-        (np.array([160, 100, 80]), np.array([180, 255, 255])),
-        # Vermelho rosado moderado
-        (np.array([0, 60, 100]), np.array([8, 200, 255])),
-        (np.array([165, 60, 100]), np.array([180, 200, 255])),
+        (np.array([0, 120, 80]), np.array([10, 255, 255])),
+        (np.array([165, 120, 80]), np.array([180, 255, 255])),
+        # Vermelho rosado moderado (mais restrito para não pegar epitelização)
+        (np.array([0, 80, 100]), np.array([8, 200, 255])),
+        (np.array([170, 80, 100]), np.array([180, 200, 255])),
         # Vermelho escuro (granulação madura)
-        (np.array([0, 80, 60]), np.array([12, 255, 150])),
-        (np.array([158, 80, 60]), np.array([180, 255, 150])),
+        (np.array([0, 100, 60]), np.array([12, 255, 150])),
+        (np.array([160, 100, 60]), np.array([180, 255, 150])),
     ],
     "epithelialization": [
-        # Rosa claro
-        (np.array([0, 15, 170]), np.array([15, 70, 255])),
-        (np.array([155, 15, 170]), np.array([175, 70, 255])),
+        # Rosa claro (mais restrito para não pegar pele sã)
+        (np.array([0, 15, 180]), np.array([12, 60, 255])),
+        (np.array([160, 15, 180]), np.array([180, 60, 255])),
         # Rosa pálido quase branco
-        (np.array([0, 8, 195]), np.array([12, 45, 255])),
-        (np.array([160, 8, 195]), np.array([180, 45, 255])),
+        (np.array([0, 8, 200]), np.array([10, 40, 255])),
+        (np.array([165, 8, 200]), np.array([180, 40, 255])),
         # Salmão claro
-        (np.array([2, 25, 185]), np.array([18, 80, 255])),
+        (np.array([2, 25, 190]), np.array([15, 70, 255])),
     ],
 }
 
@@ -396,19 +410,19 @@ CLINICAL_LAB_RANGES = {
     ],
     "slough": [
         # Amarelo claro (L alto, b muito positivo)
-        (np.array([150, 110, 145]), np.array([240, 140, 200])),
+        (np.array([150, 110, 150]), np.array([240, 140, 200])),
         # Bege/branco-amarelado
-        (np.array([170, 118, 130]), np.array([250, 138, 165])),
+        (np.array([170, 118, 135]), np.array([250, 135, 165])),
     ],
     "granulation": [
         # Vermelho (a muito positivo, L médio)
-        (np.array([40, 145, 115]), np.array([180, 220, 165])),
+        (np.array([40, 150, 115]), np.array([180, 220, 165])),
         # Vermelho escuro
-        (np.array([25, 140, 110]), np.array([100, 200, 150])),
+        (np.array([25, 145, 110]), np.array([100, 200, 150])),
     ],
     "epithelialization": [
         # Rosa (L alto, a levemente positivo, b neutro)
-        (np.array([170, 132, 120]), np.array([240, 155, 142])),
+        (np.array([175, 130, 120]), np.array([240, 150, 140])),
     ],
 }
 
@@ -617,18 +631,28 @@ class ClinicalWoundAnalyzer:
         # 3. Detecção de regiões de ferida
         detections = self.detector.detect(image)
 
-        # Cria máscara da região de interesse
-        wound_mask = np.zeros(image.shape[:2], dtype=np.uint8)
-        if detections:
-            for det in detections:
-                x1, y1, x2, y2 = det.bbox
-                wound_mask[y1:y2, x1:x2] = 255
-        else:
-            # Assume imagem inteira é área de ferida (close-up)
-            wound_mask[:] = 255
+        # 3.1 Cria máscara ROI precisa por contorno (não mais bbox retangular)
+        wound_mask = self._create_wound_roi_mask(image, detections)
 
-        # 3.1 Remove fundo cirúrgico (lençol azul/verde/cinza) da máscara
+        # 3.2 Remove fundo cirúrgico (lençol azul/verde/cinza) da máscara
         wound_mask = self._exclude_surgical_background(image, wound_mask)
+
+        # 3.3 Classificação espacial de background — separa fundo de câmera
+        # de tecido necrótico usando variância local, crominância e conectividade
+        background_mask = self._create_background_mask_spatial(image, wound_mask)
+        wound_mask_clean = cv2.bitwise_and(wound_mask, cv2.bitwise_not(background_mask))
+        # Se a limpeza removeu quase tudo, ignora (provavelmente não tem fundo)
+        if np.sum(wound_mask_clean > 0) > 0.05 * np.sum(wound_mask > 0):
+            wound_mask = wound_mask_clean
+
+        # 3.4 Separação em zonas espaciais (periferia, core, anel externo)
+        peripheral_zone, core_zone, outer_ring = self._create_zone_masks(wound_mask)
+        report.wound_zones = {
+            "peripheral_area_px": int(np.sum(peripheral_zone > 0)),
+            "core_area_px": int(np.sum(core_zone > 0)),
+            "outer_ring_area_px": int(np.sum(outer_ring > 0)),
+            "border_width_adaptive": True,
+        }
 
         # Desenha detecções
         det_overlay = image.copy()
@@ -641,8 +665,10 @@ class ClinicalWoundAnalyzer:
         report.detection_overlay = det_overlay
         report.wound_area_px = int(np.sum(wound_mask > 0))
 
-        # 4. Segmentação tecidual clínica (HSV + LAB multi-espaço)
-        tissue_pcts, seg_map, tissue_overlay = self._segment_clinical_v2(image, wound_mask)
+        # 4. Segmentação tecidual clínica v3 (HSV + LAB + zonas + gradiente)
+        tissue_pcts, seg_map, tissue_overlay = self._segment_clinical_v3(
+            image, wound_mask, peripheral_zone, core_zone, outer_ring
+        )
         report.segmentation_map = seg_map
         report.tissue_overlay = tissue_overlay
 
@@ -806,57 +832,465 @@ class ClinicalWoundAnalyzer:
         return True
 
     # -------------------------------------------------------
+    # MÉTODOS DE ROI E ZONAS ESPACIAIS (v3)
+    # -------------------------------------------------------
+
+    def _create_wound_roi_mask(
+        self, image: np.ndarray, detections: list
+    ) -> np.ndarray:
+        """
+        Cria máscara ROI precisa do leito da ferida usando contorno real
+        em vez de bounding boxes retangulares.
+
+        Pipeline:
+        1. Inicializa com bounding boxes das detecções
+        2. Segmenta por cor dentro de cada bbox (exclui pele sã, fundo)
+        3. Extrai contorno externo (perímetro da lesão)
+        4. Preenche contorno para criar máscara binária precisa
+
+        Resultado: máscara onde 255 = leito da ferida, 0 = fora.
+        """
+        h, w = image.shape[:2]
+        wound_mask = np.zeros((h, w), dtype=np.uint8)
+
+        if not detections:
+            # Close-up: assume imagem inteira, mas tenta segmentar
+            wound_mask[:] = 255
+            return wound_mask
+
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        for det in detections:
+            x1, y1, x2, y2 = det.bbox
+            # Margem de segurança (5% do bbox)
+            margin_x = int((x2 - x1) * 0.05)
+            margin_y = int((y2 - y1) * 0.05)
+            rx1 = max(0, x1 - margin_x)
+            ry1 = max(0, y1 - margin_y)
+            rx2 = min(w, x2 + margin_x)
+            ry2 = min(h, y2 + margin_y)
+
+            roi_hsv = hsv[ry1:ry2, rx1:rx2]
+
+            # Máscara de cores compatíveis com ferida (não-pele-sã, não-fundo)
+            wound_colors = np.zeros(roi_hsv.shape[:2], dtype=np.uint8)
+
+            # Vermelho/rosa (granulação, sangue, inflamação)
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([0, 40, 40]), np.array([15, 255, 255])))
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([155, 40, 40]), np.array([180, 255, 255])))
+            # Amarelo (esfacelo/fibrina)
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([12, 30, 100]), np.array([45, 255, 255])))
+            # Escuro (necrose)
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([0, 0, 0]), np.array([180, 255, 70])))
+            # Rosa (epitelização)
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([0, 8, 160]), np.array([20, 80, 255])))
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([150, 8, 160]), np.array([180, 80, 255])))
+
+            # Exclui fundo hospitalar
+            bg_mask = np.zeros(roi_hsv.shape[:2], dtype=np.uint8)
+            # Azul
+            bg_mask = cv2.bitwise_or(bg_mask, cv2.inRange(
+                roi_hsv, np.array([90, 30, 20]), np.array([130, 255, 255])))
+            # Verde
+            bg_mask = cv2.bitwise_or(bg_mask, cv2.inRange(
+                roi_hsv, np.array([35, 30, 30]), np.array([85, 255, 255])))
+
+            # Combina: cor de ferida AND NOT fundo
+            roi_mask = cv2.bitwise_and(wound_colors, cv2.bitwise_not(bg_mask))
+
+            # Limpeza morfológica
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+            roi_mask = cv2.morphologyEx(roi_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+            roi_mask = cv2.morphologyEx(roi_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+            # Preenche buracos: extrai e preenche contornos externos
+            roi_filled = np.zeros_like(roi_mask)
+            contours, _ = cv2.findContours(
+                roi_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if contours:
+                # Pega contornos maiores (descarta artefatos < 2% do bbox)
+                min_contour_area = (rx2 - rx1) * (ry2 - ry1) * 0.02
+                for cnt in contours:
+                    if cv2.contourArea(cnt) >= min_contour_area:
+                        cv2.drawContours(roi_filled, [cnt], -1, 255, cv2.FILLED)
+
+            # Se segmentação capturou muito pouco, fallback para bbox
+            roi_area = np.sum(roi_filled > 0)
+            bbox_area = (rx2 - rx1) * (ry2 - ry1)
+            if roi_area < bbox_area * 0.10:
+                wound_mask[y1:y2, x1:x2] = 255
+            else:
+                wound_mask[ry1:ry2, rx1:rx2] = cv2.bitwise_or(
+                    wound_mask[ry1:ry2, rx1:rx2], roi_filled
+                )
+
+        return wound_mask
+
+    @staticmethod
+    def _create_zone_masks(
+        wound_mask: np.ndarray,
+        border_width_px: int = 15
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Separa a máscara da ferida em zonas espaciais:
+
+        - peripheral_zone: anel de borda interna (transição ferida → pele sã)
+        - core_zone: centro/miolo do leito da ferida
+        - outer_ring: anel externo (para detectar epitelização avançando)
+
+        A largura do buffer é adaptativa: usa min(border_width_px,
+        ~15% do raio equivalente) para não engolir feridas pequenas.
+
+        Args:
+            wound_mask: Máscara binária da ferida (255 = ferida)
+            border_width_px: Largura base do anel de borda em pixels
+
+        Returns:
+            (peripheral_zone, core_zone, outer_ring) — todas uint8, 0/255
+        """
+        h, w = wound_mask.shape[:2]
+
+        # Raio equivalente para adaptar largura do buffer
+        wound_area = np.sum(wound_mask > 0)
+        equiv_radius = np.sqrt(wound_area / np.pi) if wound_area > 0 else 0
+
+        # Buffer adaptativo: máx 15% do raio, mín 3px, máx border_width_px
+        adaptive_width = int(np.clip(equiv_radius * 0.15, 3, border_width_px))
+
+        # Erosão para criar zona central (core)
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE,
+            (2 * adaptive_width + 1, 2 * adaptive_width + 1)
+        )
+        eroded = cv2.erode(wound_mask, kernel, iterations=1)
+
+        # core = interior erodido
+        core_zone = eroded
+
+        # peripheral = wound_mask - core (anel interno da borda)
+        peripheral_zone = cv2.bitwise_and(
+            wound_mask, cv2.bitwise_not(core_zone)
+        )
+
+        # outer_ring = dilatação - wound_mask (anel externo)
+        dilated = cv2.dilate(wound_mask, kernel, iterations=1)
+        outer_ring = cv2.bitwise_and(
+            dilated, cv2.bitwise_not(wound_mask)
+        )
+
+        return peripheral_zone, core_zone, outer_ring
+
+    # -------------------------------------------------------
+    # CLASSIFICAÇÃO ESPACIAL DE BACKGROUND
+    # -------------------------------------------------------
+
+    @staticmethod
+    def _create_background_mask_spatial(
+        image: np.ndarray,
+        wound_mask: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Classifica pixels escuros como 'background' vs 'necrose' usando
+        contexto espacial em vez de apenas valor de pixel.
+
+        Racional clínico:
+          Fundo de câmera fotográfica e necrose de coagulação (escara) são
+          ambos muito escuros (V ≈ 0). Porém, diferem em:
+            1. Variância local — fundo é uniformemente preto (var ≈ 0),
+               enquanto tecido necrótico tem micro-textura (var > 0).
+            2. Crominância — fundo puro é acromático (a*≈128, b*≈128),
+               enquanto necrose geralmente tem tint marrom/vermelho.
+            3. Conectividade — fundo tende a formar regiões grandes e
+               contíguas que tocam as bordas da imagem; necrose forma
+               ilhas menores dentro do perímetro anatômico.
+            4. Posição relativa — fundo de câmera frequentemente toca
+               as bordas da imagem; necrose está centrada no leito.
+
+        Pipeline:
+          1) Identifica pixels muito escuros (V < 20) dentro do wound_mask
+          2) Calcula variância local (5×5) — background: var < threshold
+          3) Calcula desvio cromático (chroma) — background: chroma ≈ 0
+          4) Conectividade: regiões escuras > 30% do wound_mask E tocando
+             borda da imagem → provável background leaking
+          5) Score combinado → máscara de background
+
+        Args:
+            image: Imagem BGR original
+            wound_mask: Máscara binária da ferida (255 = ferida)
+
+        Returns:
+            background_mask: Máscara onde 255 = pixel de background, 0 = tecido
+        """
+        h, w = image.shape[:2]
+        background_mask = np.zeros((h, w), dtype=np.uint8)
+
+        # 1. Pixels muito escuros dentro do wound_mask
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        very_dark = (gray < 20).astype(np.uint8) * 255
+        dark_in_roi = cv2.bitwise_and(very_dark, wound_mask)
+
+        # Se quase não tem pixels escuros no ROI, retorna vazio
+        dark_count = np.sum(dark_in_roi > 0)
+        roi_count = max(np.sum(wound_mask > 0), 1)
+        if dark_count < roi_count * 0.02:
+            return background_mask  # < 2% escuro → não tem background significativo
+
+        # 2. Variância local (5×5) — background tem variância ≈ 0
+        gray_f = gray.astype(np.float32)
+        local_mean = cv2.blur(gray_f, (5, 5))
+        local_sqmean = cv2.blur(gray_f ** 2, (5, 5))
+        local_var = local_sqmean - local_mean ** 2
+        local_var = np.clip(local_var, 0, None)
+
+        # Background: variância muito baixa (superfície uniforme)
+        low_var = (local_var < 8.0).astype(np.uint8) * 255
+
+        # 3. Crominância — background é acromático puro
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        a_ch = lab[:, :, 1].astype(np.float32)
+        b_ch = lab[:, :, 2].astype(np.float32)
+        chroma_deviation = np.sqrt((a_ch - 128.0) ** 2 + (b_ch - 128.0) ** 2)
+
+        # Acromático = desvio cromático < 5 (praticamente neutro)
+        achromatic = (chroma_deviation < 5.0).astype(np.uint8) * 255
+
+        # 4. Candidato a background: escuro + variância baixa + acromático
+        bg_candidate = cv2.bitwise_and(dark_in_roi, low_var)
+        bg_candidate = cv2.bitwise_and(bg_candidate, achromatic)
+
+        # 5. Análise de conectividade — regiões grandes e/ou tocando borda
+        # são mais prováveis de ser background
+        contours, _ = cv2.findContours(
+            bg_candidate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        border_margin = 3  # pixels da borda da imagem
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+
+            # Critério 1: região muito grande (> 15% do wound_mask) → background
+            if area > roi_count * 0.15:
+                cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
+                continue
+
+            # Critério 2: toca borda da imagem → provável background de câmera
+            x, y, cw, ch = cv2.boundingRect(cnt)
+            touches_border = (
+                x <= border_margin or
+                y <= border_margin or
+                (x + cw) >= (w - border_margin) or
+                (y + ch) >= (h - border_margin)
+            )
+            if touches_border and area > 50:
+                cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
+                continue
+
+            # Critério 3: região pequena mas extremamente uniforme
+            # (variância média dentro da região < 2) → background
+            cnt_mask = np.zeros((h, w), dtype=np.uint8)
+            cv2.drawContours(cnt_mask, [cnt], -1, 255, cv2.FILLED)
+            region_var = local_var[cnt_mask > 0]
+            if len(region_var) > 10 and np.mean(region_var) < 2.0:
+                cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
+
+        # 6. Dilata levemente para fechar bordas de transição
+        if np.sum(background_mask > 0) > 0:
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            background_mask = cv2.dilate(background_mask, kernel, iterations=1)
+            background_mask = cv2.bitwise_and(background_mask, wound_mask)
+
+        return background_mask
+
+    def _detect_epithelialization_gradient(
+        self,
+        image: np.ndarray,
+        wound_mask: np.ndarray,
+        peripheral_zone: np.ndarray,
+        outer_ring: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Detecta tecido epitelial usando análise de gradiente na zona de borda.
+
+        A epitelização ocorre especificamente na transição ferida → pele sã:
+        - Cor rosa claro / translúcido
+        - Gradiente suave (superfície lisa, sem textura granulada)
+        - Proximidade com pele íntegra (zona periférica)
+        - Baixo contraste local (tecido uniforme)
+
+        Combina:
+        1. Detecção por cor HSV/LAB restrita à zona periférica
+        2. Análise de gradiente (Scharr) — epitelização tem gradiente baixo
+        3. Proximidade com borda (weighted distance transform)
+
+        Returns:
+            epithelial_mask: máscara binária dos pixels epiteliais (0/255)
+        """
+        h, w = image.shape[:2]
+
+        # Zona de interesse: periferia interna + anel externo
+        epi_roi = cv2.bitwise_or(peripheral_zone, outer_ring)
+
+        # 1. Detecção por cor na zona periférica (HSV + LAB)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+
+        color_mask = np.zeros((h, w), dtype=np.uint8)
+        for lower, upper in CLINICAL_HSV_RANGES["epithelialization"]:
+            color_mask = cv2.bitwise_or(
+                color_mask, cv2.inRange(hsv, lower, upper)
+            )
+        for lower, upper in CLINICAL_LAB_RANGES["epithelialization"]:
+            color_mask = cv2.bitwise_or(
+                color_mask, cv2.inRange(lab, lower, upper)
+            )
+        # Restringe estritamente à zona periférica + anel externo
+        color_mask = cv2.bitwise_and(color_mask, epi_roi)
+
+        # 2. Análise de gradiente — Scharr (mais preciso que Sobel)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        gray_smooth = cv2.GaussianBlur(gray, (5, 5), 0)
+
+        grad_x = cv2.Scharr(gray_smooth, cv2.CV_64F, 1, 0)
+        grad_y = cv2.Scharr(gray_smooth, cv2.CV_64F, 0, 1)
+        gradient_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
+
+        # Normaliza gradiente para 0-255
+        grad_norm = cv2.normalize(
+            gradient_mag, None, 0, 255, cv2.NORM_MINMAX
+        ).astype(np.uint8)
+
+        # Epitelização = gradiente BAIXO (superfície lisa/translúcida)
+        # Threshold adaptativo: 40º percentil na zona de interesse
+        peri_grads = grad_norm[epi_roi > 0]
+        if len(peri_grads) > 50:
+            grad_threshold = np.percentile(peri_grads, 40)
+        else:
+            grad_threshold = 30
+
+        low_gradient = (grad_norm < grad_threshold).astype(np.uint8) * 255
+        low_gradient = cv2.bitwise_and(low_gradient, epi_roi)
+
+        # 3. Distance transform — peso por proximidade da borda
+        dist = cv2.distanceTransform(wound_mask, cv2.DIST_L2, 5)
+        max_dist = np.max(dist) if np.max(dist) > 0 else 1.0
+
+        # Peso maior para pixels próximos à borda (inverso da distância)
+        border_weight = 1.0 - (dist / max_dist)
+        border_weight_u8 = (border_weight * 255).astype(np.uint8)
+
+        # Peso alto na borda (>= 70% de peso → V > 180)
+        border_strong = (border_weight_u8 > 180).astype(np.uint8) * 255
+
+        # 4. Combinação ponderada:
+        #    Cor rosa: 40% | Gradiente baixo: 30% | Proximidade borda: 30%
+        epi_score = np.zeros((h, w), dtype=np.float32)
+        epi_score += (color_mask.astype(np.float32) / 255.0) * 0.40
+        epi_score += (low_gradient.astype(np.float32) / 255.0) * 0.30
+        epi_score += (border_strong.astype(np.float32) / 255.0) * 0.30
+
+        # Threshold: precisa de pelo menos 2 dos 3 critérios (> 0.55)
+        epithelial_mask = np.where(epi_score > 0.55, 255, 0).astype(np.uint8)
+
+        # Restringe estritamente à zona periférica + outer ring
+        epithelial_mask = cv2.bitwise_and(epithelial_mask, epi_roi)
+
+        # Limpeza morfológica
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        epithelial_mask = cv2.morphologyEx(epithelial_mask, cv2.MORPH_OPEN, kernel)
+        epithelial_mask = cv2.morphologyEx(epithelial_mask, cv2.MORPH_CLOSE, kernel)
+
+        return epithelial_mask
+
+    # -------------------------------------------------------
+    # SEGMENTAÇÃO TECIDUAL
+    # -------------------------------------------------------
+
     def _segment_clinical(
         self, image: np.ndarray, wound_mask: np.ndarray
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
-        """Segmenta a ferida segundo taxonomia clínica (v1 — legado)."""
-        return self._segment_clinical_v2(image, wound_mask)
+        """Segmenta a ferida segundo taxonomia clínica (v1/v2 — legado)."""
+        peripheral, core, outer = self._create_zone_masks(wound_mask)
+        return self._segment_clinical_v3(image, wound_mask, peripheral, core, outer)
 
     def _segment_clinical_v2(
         self, image: np.ndarray, wound_mask: np.ndarray
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
+        """Compat v2: delega para v3 com zonas auto-calculadas."""
+        peripheral, core, outer = self._create_zone_masks(wound_mask)
+        return self._segment_clinical_v3(image, wound_mask, peripheral, core, outer)
+
+    def _segment_clinical_v3(
+        self,
+        image: np.ndarray,
+        wound_mask: np.ndarray,
+        peripheral_zone: np.ndarray,
+        core_zone: np.ndarray,
+        outer_ring: np.ndarray,
+    ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
         """
-        Segmentação clínica v2 — multi-espaço de cor + textura.
+        Segmentação clínica v3 — multi-espaço de cor + zonas espaciais + gradiente.
 
         Pipeline:
-        1. Denoise bilateral (preserva bordas melhor que NLMeans)
-        2. Conversão HSV + LAB
-        3. Segmentação em cada espaço de cor
-        4. Fusão com voto ponderado (HSV 60% + LAB 40%)
-        5. Refinamento morfológico adaptativo
-        6. Análise de textura para ambiguidades
+        1. Denoise bilateral (preserva bordas)
+        2. CLAHE adaptativo (L + canal a*)
+        3. Conversão HSV + LAB
+        4. Segmentação por cor restrita estritamente à wound_mask (ROI)
+        5. Fusão ponderada HSV (60%) + LAB (40%)
+        6. Restrição espacial:
+           - Necrose → viés relaxado (core 1.0, periferia 0.6),
+             com boost por baixa luminância (V < 50) em TODO o ROI.
+             Background já removido espacialmente antes da segmentação.
+           - Esfacelo → forte viés para core_zone
+           - Granulação → wound_mask inteira (core + periferia)
+           - Epitelização → exclusivamente peripheral_zone + outer_ring
+        7. Detecção de epitelização por gradiente de borda (Scharr)
+        8. Boost de necrose por luminância: pixels V < 50 dentro do
+           perímetro anatômico são classificados como necrose, exceto
+           se forem background residual (variância 0 + acromático)
+        9. Análise de textura para resolver ambiguidades
+        10. Exclusão de fundo cirúrgico
+        11. Resolução de sobreposições com prioridade clínica
         """
-        # 1. Denoise: bilateral preserva bordas melhor
+        # ── 1. Pré-processamento: denoise + CLAHE ─────────────────────
         denoised = cv2.bilateralFilter(image, d=9, sigmaColor=50, sigmaSpace=50)
-        # CLAHE mais agressivo para destacar contraste ferida vs fundo
         lab_clahe = cv2.cvtColor(denoised, cv2.COLOR_BGR2LAB)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         lab_clahe[:, :, 0] = clahe.apply(lab_clahe[:, :, 0])
-        # Também equaliza canal a* (vermelho/verde) para destacar granulação
         clahe_a = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
         lab_clahe[:, :, 1] = clahe_a.apply(lab_clahe[:, :, 1])
         denoised_norm = cv2.cvtColor(lab_clahe, cv2.COLOR_LAB2BGR)
 
-        hsv = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2HSV)
-        lab = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2LAB)
+        # Aplica denoise/CLAHE SOMENTE no ROI da ferida (preserva dados originais fora)
+        roi_image = cv2.bitwise_and(denoised_norm, denoised_norm, mask=wound_mask)
+
+        hsv = cv2.cvtColor(roi_image, cv2.COLOR_BGR2HSV)
+        lab = cv2.cvtColor(roi_image, cv2.COLOR_BGR2LAB)
 
         h, w = image.shape[:2]
         kernel_s = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         kernel_m = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         kernel_l = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
 
-        # 2. Segmentação HSV
+        # ── 2. Segmentação HSV — restrita estritamente à wound_mask ───
         hsv_masks = {}
         for tissue_key, ranges in CLINICAL_HSV_RANGES.items():
             mask = np.zeros((h, w), dtype=np.uint8)
             for lower, upper in ranges:
                 mask = cv2.bitwise_or(mask, cv2.inRange(hsv, lower, upper))
+            # OBRIGATÓRIO: restringe à ROI — ignora todo pixel fora do perímetro
             mask = cv2.bitwise_and(mask, wound_mask)
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_m)
             hsv_masks[tissue_key] = mask
 
-        # 3. Segmentação LAB (refinamento)
+        # ── 3. Segmentação LAB — restrita à wound_mask ────────────────
         lab_masks = {}
         for tissue_key, ranges in CLINICAL_LAB_RANGES.items():
             mask = np.zeros((h, w), dtype=np.uint8)
@@ -867,80 +1301,174 @@ class ClinicalWoundAnalyzer:
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_m)
             lab_masks[tissue_key] = mask
 
-        # 4. Fusão ponderada HSV (60%) + LAB (40%)
+        # ── 4. Fusão ponderada HSV (60%) + LAB (40%) ─────────────────
         masks = {}
         for tissue_key in CLINICAL_HSV_RANGES.keys():
             hsv_m = hsv_masks.get(tissue_key, np.zeros((h, w), dtype=np.uint8))
             lab_m = lab_masks.get(tissue_key, np.zeros((h, w), dtype=np.uint8))
 
-            # Score combinado por pixel
             combined = (hsv_m.astype(np.float32) * 0.6 +
                         lab_m.astype(np.float32) * 0.4)
-            # Threshold: se pelo menos um detector forte OU ambos fracos concordam
             mask = np.where(combined > 80, 255, 0).astype(np.uint8)
 
-            # Refinamento morfológico
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_l)
+            # Restrição final à ROI (nenhum pixel fora do perímetro)
             mask = cv2.bitwise_and(mask, wound_mask)
             masks[tissue_key] = mask
 
-        # 5. Refinamento por textura — usa variância local para resolver ambiguidades
+        # ── 5. Restrição espacial por zonas ──────────────────────────
+        # Necrose: viés RELAXADO — necrose é prioritária em baixa luminância
+        # dentro de TODO o perímetro anatômico (core + periferia).
+        # A separação background-vs-necrose já foi feita espacialmente
+        # por _create_background_mask_spatial(), então pixels escuros
+        # que sobreviveram ao filtro são tecido necrótico confirmado.
+        #
+        # Esfacelo: forte viés para core_zone (fibrina tende a concentrar-se
+        # no leito central, raramente na periferia).
+
+        # --- Necrose: viés espacial suave (não penaliza periferia tanto) ---
+        necro_spatial = np.zeros((h, w), dtype=np.float32)
+        necro_spatial[core_zone > 0] = 1.0
+        necro_spatial[peripheral_zone > 0] = 0.6  # relaxado (era 0.2)
+
+        # Boost adicional para pixels de baixa luminância dentro da ROI:
+        # Se V < 50 e está dentro do wound_mask → alta confiança de necrose,
+        # independente da zona espacial. Racional clínico: escara escura
+        # pode cobrir toda a superfície da ferida, inclusive bordas.
+        gray_roi = cv2.cvtColor(
+            cv2.bitwise_and(denoised_norm, denoised_norm, mask=wound_mask),
+            cv2.COLOR_BGR2GRAY
+        )
+        low_lum_mask = (gray_roi < 50).astype(np.float32)
+        # Pixels com luminância < 50 dentro do ROI recebem peso máximo
+        necro_spatial = np.maximum(necro_spatial, low_lum_mask * wound_mask.astype(np.float32) / 255.0)
+
+        m_necro = masks["necrosis"].astype(np.float32)
+        m_necro_biased = m_necro * necro_spatial
+        masks["necrosis"] = np.where(m_necro_biased > 80, 255, 0).astype(np.uint8)  # threshold relaxado
+        masks["necrosis"] = cv2.bitwise_and(masks["necrosis"], wound_mask)
+
+        # --- Esfacelo: viés forte para core ---
+        core_bias_slough = np.zeros((h, w), dtype=np.float32)
+        core_bias_slough[core_zone > 0] = 1.0
+        core_bias_slough[peripheral_zone > 0] = 0.2
+
+        m_slough = masks["slough"].astype(np.float32)
+        m_slough_biased = m_slough * core_bias_slough
+        masks["slough"] = np.where(m_slough_biased > 120, 255, 0).astype(np.uint8)
+        masks["slough"] = cv2.bitwise_and(masks["slough"], wound_mask)
+
+        # Granulação: presente no leito inteiro (core + periferia)
+        # Sem viés espacial adicional — já restrita à wound_mask
+
+        # Epitelização: EXCLUSIVAMENTE periférica.
+        # Substitui a máscara de cor pura pelo detector de gradiente
+        # que combina cor + suavidade + proximidade à borda.
+        epi_gradient = self._detect_epithelialization_gradient(
+            denoised_norm, wound_mask, peripheral_zone, outer_ring
+        )
+        # Mescla: máscara de cor original (restrita à periferia) + gradiente
+        epi_roi_zone = cv2.bitwise_or(peripheral_zone, outer_ring)
+        epi_color_periph = cv2.bitwise_and(masks["epithelialization"], epi_roi_zone)
+        
+        # Epitelização só é válida se estiver na zona periférica
+        masks["epithelialization"] = cv2.bitwise_and(
+            cv2.bitwise_or(epi_color_periph, epi_gradient),
+            epi_roi_zone
+        )
+
+        # ── 6. Refinamento por textura ───────────────────────────────
         gray = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2GRAY)
         local_var = cv2.GaussianBlur(
             (gray.astype(np.float32) ** 2), (15, 15), 0
         ) - cv2.GaussianBlur(gray.astype(np.float32), (15, 15), 0) ** 2
         local_var = np.clip(local_var, 0, None)
 
-        # Necrose tende a ter textura baixa (homogênea)
-        # Granulação tende a ter textura alta (grânulos)
         low_texture = (local_var < 200).astype(np.uint8)
         high_texture = (local_var > 500).astype(np.uint8)
 
-        # 5.1 Exclui pixels de fundo cirúrgico da segmentação de tecido
-        # Detecta azul/verde/cinza acromático que NÃO é tecido biológico
+        # ── 7. Exclusão de fundo cirúrgico ───────────────────────────
         hsv_raw = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         _drape = np.zeros((h, w), dtype=np.uint8)
-        # Azul hospitalar
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
             hsv_raw, np.array([90, 30, 20]), np.array([130, 255, 255])))
-        # Verde cirúrgico
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
             hsv_raw, np.array([35, 30, 30]), np.array([85, 255, 255])))
-        # Cinza acromático (maca, inox) — S muito baixo, V médio
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
             hsv_raw, np.array([0, 0, 40]), np.array([180, 22, 170])))
-        # Remove pixels de drape de TODAS as máscaras de tecido
         _not_drape = cv2.bitwise_not(_drape)
         for _tk in masks:
             masks[_tk] = cv2.bitwise_and(masks[_tk], _not_drape)
 
-        # Reforça necrose em áreas de baixa textura + escuro + NÃO-azul
+        # ── 8. Reforço por textura + luminância (restrito à ROI) ────
+        # 8a. Necrose por luminância: prioriza pixels escuros (V < 50)
+        #     dentro de TODO o perímetro anatômico segmentado.
+        #     Racional: após a exclusão de background espacial, pixels
+        #     escuros remanescentes dentro do wound_mask são necrose.
         dark_px = (gray < 60).astype(np.uint8) * 255
-        dark_px = cv2.bitwise_and(dark_px, _not_drape)  # exclui sombra de drape
-        masks["necrosis"] = cv2.bitwise_or(
-            masks["necrosis"],
-            cv2.bitwise_and(cv2.bitwise_and(dark_px, wound_mask),
-                            (low_texture * 255).astype(np.uint8))
+        dark_px = cv2.bitwise_and(dark_px, _not_drape)
+
+        # Necrose baixa luminância: V < 50, dentro do ROI, qualquer zona
+        very_dark_roi = (gray < 50).astype(np.uint8) * 255
+        very_dark_roi = cv2.bitwise_and(very_dark_roi, wound_mask)
+        very_dark_roi = cv2.bitwise_and(very_dark_roi, _not_drape)
+
+        # Proteção: exclui pixels que parecem background residual
+        # (variância local < 10 E acromático puro = provável fundo)
+        local_var_safe = local_var.copy()
+        possible_bg_residual = np.zeros((h, w), dtype=np.uint8)
+        lab_check = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        a_ch = lab_check[:, :, 1].astype(np.float32)
+        b_ch = lab_check[:, :, 2].astype(np.float32)
+        chroma_dev = np.sqrt((a_ch - 128) ** 2 + (b_ch - 128) ** 2)
+        # Acromático puro + variância zero + muito escuro = background residual
+        possible_bg_residual = cv2.bitwise_and(
+            ((local_var_safe < 10).astype(np.uint8) * 255),
+            ((chroma_dev < 6).astype(np.uint8) * 255)
+        )
+        possible_bg_residual = cv2.bitwise_and(
+            possible_bg_residual,
+            ((gray < 15).astype(np.uint8) * 255)
         )
 
-        # Reforça granulação em áreas de alta textura + vermelho
+        # Necrose confirmada por luminância: escuro E não-background
+        necro_lum_boost = cv2.bitwise_and(
+            very_dark_roi,
+            cv2.bitwise_not(possible_bg_residual)
+        )
+        masks["necrosis"] = cv2.bitwise_or(masks["necrosis"], necro_lum_boost)
+
+        # 8b. Necrose por textura: textura baixa + escuro (original)
+        necro_texture_boost = cv2.bitwise_and(
+            cv2.bitwise_and(dark_px, wound_mask),
+            (low_texture * 255).astype(np.uint8)
+        )
+        # Viés para core — necrose por textura no centro é mais confiável
+        necro_texture_boost = cv2.bitwise_and(necro_texture_boost, cv2.bitwise_or(
+            core_zone, cv2.bitwise_and(peripheral_zone, dark_px)
+        ))
+        masks["necrosis"] = cv2.bitwise_or(masks["necrosis"], necro_texture_boost)
+
+        # Granulação: textura alta + vermelho dominante
         red_channel = denoised_norm[:, :, 2]  # BGR → canal R
-        red_dominant = ((red_channel.astype(np.int16) - denoised_norm[:, :, 1].astype(np.int16)) > 30).astype(np.uint8) * 255
-        masks["granulation"] = cv2.bitwise_or(
-            masks["granulation"],
-            cv2.bitwise_and(cv2.bitwise_and(red_dominant, wound_mask),
-                            (high_texture * 255).astype(np.uint8))
+        red_dominant = (
+            (red_channel.astype(np.int16) - denoised_norm[:, :, 1].astype(np.int16)) > 30
+        ).astype(np.uint8) * 255
+        gran_boost = cv2.bitwise_and(
+            cv2.bitwise_and(red_dominant, wound_mask),
+            (high_texture * 255).astype(np.uint8)
         )
+        masks["granulation"] = cv2.bitwise_or(masks["granulation"], gran_boost)
 
-        # 6. Resolução de sobreposições — prioridade clínica
+        # ── 9. Resolução de sobreposições — prioridade clínica ───────
         priority = ["necrosis", "slough", "granulation", "epithelialization"]
         used = np.zeros((h, w), dtype=np.uint8)
         for key in priority:
             masks[key] = cv2.bitwise_and(masks[key], cv2.bitwise_not(used))
             used = cv2.bitwise_or(used, masks[key])
 
-        # Porcentagens
+        # ── 10. Métricas e visualização ──────────────────────────────
         total = max(np.sum(wound_mask > 0), 1)
         pcts = {}
         for key in priority:
@@ -957,9 +1485,21 @@ class ClinicalWoundAnalyzer:
         for key, mask in masks.items():
             seg_map[mask > 0] = colors[key]
 
-        # Overlay na imagem original
+        # Desenha contorno da wound_mask (perímetro da ROI) no overlay
         overlay = image.copy()
         cv2.addWeighted(seg_map, 0.45, overlay, 0.55, 0, overlay)
+
+        # Contorno do perímetro da ferida (verde, 2px)
+        contours_roi, _ = cv2.findContours(
+            wound_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        cv2.drawContours(overlay, contours_roi, -1, (0, 255, 0), 2)
+
+        # Contorno da zona periférica (azul claro, 1px) para referência
+        contours_peri, _ = cv2.findContours(
+            core_zone, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        cv2.drawContours(overlay, contours_peri, -1, (255, 200, 100), 1)
 
         return pcts, seg_map, overlay
 
@@ -1529,17 +2069,36 @@ class HealAnalyzerApp(QMainWindow):
         main_layout.setSpacing(10)
 
         # === HEADER ===
+        header_layout = QHBoxLayout()
+        
+        # Logo/Icon (opcional, usando texto estilizado por enquanto)
+        logo_lbl = QLabel("🏥")
+        logo_lbl.setFont(QFont("Segoe UI", 24))
+        header_layout.addWidget(logo_lbl)
+        
+        title_layout = QVBoxLayout()
         header = QLabel("HEAL+ — Analisador Clínico de Feridas")
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        header.setStyleSheet("color: #38bdf8; padding: 6px;")
-        main_layout.addWidget(header)
+        header.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        header.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        header.setStyleSheet("color: #38bdf8; padding: 0px; margin: 0px;")
+        title_layout.addWidget(header)
 
         subtitle = QLabel("Especialista em Estomaterapia e Visão Computacional  ·  Classificação Tecidual Rigorosa")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         subtitle.setFont(QFont("Segoe UI", 10))
-        subtitle.setStyleSheet("color: #94a3b8; padding-bottom: 4px;")
-        main_layout.addWidget(subtitle)
+        subtitle.setStyleSheet("color: #94a3b8; padding: 0px; margin: 0px;")
+        title_layout.addWidget(subtitle)
+        
+        header_layout.addLayout(title_layout)
+        header_layout.addStretch()
+        main_layout.addLayout(header_layout)
+
+        # Linha separadora
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        line.setStyleSheet("background-color: #334155;")
+        main_layout.addWidget(line)
 
         # === TOOLBAR ===
         toolbar = QHBoxLayout()
@@ -2196,16 +2755,37 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- CLASSIFICAÇÃO PRINCIPAL ---
         box_main = self._make_group("🔬 CLASSIFICAÇÃO PRINCIPAL")
+        
+        # Layout horizontal para ícone e texto
+        main_hl = QHBoxLayout()
+        
+        # Ícone baseado no tecido
+        icon_map = {
+            "Tecido de Granulação": "❤️",
+            "Epitelização": "✨",
+            "Esfacelo (Fibrina)": "⚠️",
+            "Necrose de Coagulação (Escara)": "💀"
+        }
+        icon_text = icon_map.get(r.primary_tissue, "🔬")
+        lbl_icon = QLabel(icon_text)
+        lbl_icon.setFont(QFont("Segoe UI", 24))
+        main_hl.addWidget(lbl_icon)
+        
+        # Texto da classificação
+        text_vl = QVBoxLayout()
         lbl_primary = QLabel(r.primary_tissue)
-        lbl_primary.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        lbl_primary.setStyleSheet("color: #38bdf8; padding: 4px 0;")
-        box_main.layout().addWidget(lbl_primary)
+        lbl_primary.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        lbl_primary.setStyleSheet("color: #38bdf8; padding: 0px;")
+        text_vl.addWidget(lbl_primary)
 
         lbl_just = QLabel(r.primary_justification)
         lbl_just.setWordWrap(True)
         lbl_just.setFont(QFont("Segoe UI", 10))
         lbl_just.setStyleSheet("color: #cbd5e1; padding: 2px 0 6px;")
-        box_main.layout().addWidget(lbl_just)
+        text_vl.addWidget(lbl_just)
+        
+        main_hl.addLayout(text_vl)
+        box_main.layout().addLayout(main_hl)
         self.right_layout.addWidget(box_main)
 
         # --- COMPOSIÇÃO TECIDUAL ---
@@ -2242,10 +2822,15 @@ class HealAnalyzerApp(QMainWindow):
         # Score
         score_row = QWidget()
         sl = QHBoxLayout(score_row)
-        sl.setContentsMargins(0, 8, 0, 0)
-        sl.addWidget(self._styled_label("Score de Saúde:", "#94a3b8", 10))
+        sl.setContentsMargins(0, 12, 0, 0)
+        
+        # Ícone de saúde
+        health_icon = "🟢" if r.health_score >= 60 else ("🟡" if r.health_score >= 30 else "🔴")
+        sl.addWidget(self._styled_label(health_icon, "#e2e8f0", 14))
+        
+        sl.addWidget(self._styled_label("Score de Saúde:", "#94a3b8", 12))
         score_color = "#22c55e" if r.health_score >= 60 else ("#fbbf24" if r.health_score >= 30 else "#ef4444")
-        sl.addWidget(self._styled_label(f"{r.health_score:.0f}/100", score_color, 12, bold=True))
+        sl.addWidget(self._styled_label(f"{r.health_score:.0f}/100", score_color, 16, bold=True))
         sl.addStretch()
         box_tissue.layout().addWidget(score_row)
 

@@ -51,6 +51,26 @@ np.random.seed(SEED)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(SEED)
 
+# Forçar flush + logging direto a arquivo (Tee-Object do PowerShell buffera)
+import functools
+import io
+
+_LOG_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "train_v3_log.txt")
+_log_file_handle = open(_LOG_FILE_PATH, "w", encoding="utf-8", buffering=1)  # line-buffered
+
+_builtin_print = print
+def print(*args, **kwargs):
+    """Print to both stdout and log file with immediate flush."""
+    kwargs['flush'] = True
+    _builtin_print(*args, **kwargs)
+    # Also write to log file
+    try:
+        msg = " ".join(str(a) for a in args)
+        _log_file_handle.write(msg + "\n")
+        _log_file_handle.flush()
+    except Exception:
+        pass
+
 # ============================================================================
 # MAPEAMENTO DE CONSOLIDAÇÃO DE CLASSES
 # ============================================================================
@@ -106,24 +126,29 @@ class Config:
     CONSOLIDATED_DIR = "dataset/medetec_consolidated"
     OUTPUT_DIR = "models/wound_classifier_v2"
 
-    IMG_SIZE = 224
+    IMG_SIZE = 224                            # 224 → standard ImageNet (mais rápido, menos overfitting)
     BATCH_SIZE = 16
     NUM_WORKERS = 0  # Windows compat
-    MODEL_NAME = "mobilenetv3_large_100"  # Fast on CPU, good accuracy
+    MODEL_NAME = "efficientnet_b0"            # Melhor accuracy/params para dataset pequeno
 
-    PHASE1_EPOCHS = 20
-    PHASE2_EPOCHS = 12
-    PHASE3_EPOCHS = 8
+    PHASE1_EPOCHS = 40                       # Mais épocas fase 1 (head precisa convergir bem)
+    PHASE2_EPOCHS = 20
+    PHASE3_EPOCHS = 15
 
-    PHASE1_LR = 1e-3
+    PHASE1_LR = 1e-3                         # LR mais alto para head convergir rápido
     PHASE2_LR = 1e-4
     PHASE3_LR = 2e-5
 
-    DROPOUT = 0.35
-    LABEL_SMOOTHING = 0.1
-    WEIGHT_DECAY = 1e-4
+    DROPOUT = 0.30                           # Regularização moderada
+    LABEL_SMOOTHING = 0.08
+    WEIGHT_DECAY = 1e-4                       # Weight decay padrão
+    MIXUP_ALPHA = 0.0                         # Desabilitado (muito agressivo para dataset pequeno)
+    CUTMIX_ALPHA = 0.0                        # Desabilitado
+    MIXUP_PROB = 0.0                          # Desabilitado
+    MAX_CLASS_WEIGHT = 3.0                    # Cap nos pesos de classe (evita viés para minoria)
 
-    PATIENCE = 8
+    PATIENCE = 12                             # Mais paciência
+    PIN_MEMORY = False                        # False para CPU (evita warning)
 
 
 # ============================================================================
@@ -237,30 +262,33 @@ class WoundDataset(Dataset):
 
 
 def get_transforms(img_size: int, is_train: bool):
-    """Augmentacoes: geometricas agressivas, cor conservativa."""
+    """Augmentacoes: geometricas agressivas, cor conservativa (otimizadas v3)."""
     if is_train:
         return transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((img_size + 32, img_size + 32)),
+            transforms.Resize((img_size + 40, img_size + 40)),
             transforms.RandomCrop(img_size),
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomRotation(20),
+            transforms.RandomVerticalFlip(p=0.3),
+            transforms.RandomRotation(25),
             transforms.RandomAffine(
-                degrees=0, translate=(0.08, 0.08),
-                scale=(0.9, 1.1), shear=5
+                degrees=0, translate=(0.10, 0.10),
+                scale=(0.85, 1.15), shear=8
             ),
-            # Cor MUITO conservativa (imagens medicas!)
+            transforms.RandomPerspective(distortion_scale=0.15, p=0.3),
+            # Cor conservativa mas mais variada (simula condições de iluminação)
             transforms.ColorJitter(
-                brightness=0.08, contrast=0.08,
-                saturation=0.05, hue=0.0  # NUNCA alterar hue em feridas!
+                brightness=0.15, contrast=0.15,
+                saturation=0.10, hue=0.0  # NUNCA alterar hue em feridas!
             ),
-            transforms.RandomGrayscale(p=0.02),
-            transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.0)),
+            transforms.RandomGrayscale(p=0.03),
+            transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.5)),
+            transforms.RandomAutocontrast(p=0.1),
+            transforms.RandomEqualize(p=0.05),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225]),
-            transforms.RandomErasing(p=0.1, scale=(0.02, 0.08)),
+            transforms.RandomErasing(p=0.15, scale=(0.02, 0.12)),
         ])
     else:
         return transforms.Compose([
@@ -292,12 +320,12 @@ def create_dataloaders(cfg: Config, dataset_path: str):
     train_loader = DataLoader(
         train_ds, batch_size=cfg.BATCH_SIZE,
         sampler=sampler, num_workers=cfg.NUM_WORKERS,
-        pin_memory=True, drop_last=True
+        pin_memory=cfg.PIN_MEMORY, drop_last=True
     )
     val_loader = DataLoader(
         val_ds, batch_size=cfg.BATCH_SIZE,
         shuffle=False, num_workers=cfg.NUM_WORKERS,
-        pin_memory=True
+        pin_memory=cfg.PIN_MEMORY
     )
 
     print(f"\n[OK] Dataset: {len(train_ds)} treino, {len(val_ds)} validacao")
@@ -318,7 +346,7 @@ def create_dataloaders(cfg: Config, dataset_path: str):
 class WoundClassifierV2(nn.Module):
     """timm backbone + cabeca de classificacao customizada."""
 
-    def __init__(self, num_classes: int, dropout: float = 0.35, model_name: str = "mobilenetv3_large_100"):
+    def __init__(self, num_classes: int, dropout: float = 0.30, model_name: str = "efficientnet_b0"):
         super().__init__()
         self.model_name = model_name
 
@@ -334,14 +362,14 @@ class WoundClassifierV2(nn.Module):
             feat_dim = self.backbone(dummy).shape[-1]
         print(f"  Backbone feature dim: {feat_dim}")
 
-        # Cabeca de classificacao
+        # Cabeca de classificacao (simples e eficaz)
         self.head = nn.Sequential(
             nn.BatchNorm1d(feat_dim),
             nn.Dropout(dropout),
             nn.Linear(feat_dim, 256),
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(256),
-            nn.Dropout(dropout * 0.7),
+            nn.Dropout(dropout * 0.5),
             nn.Linear(256, num_classes),
         )
 
@@ -364,10 +392,60 @@ class WoundClassifierV2(nn.Module):
 
 
 # ============================================================================
+# MIXUP / CUTMIX (regularização forte para dataset pequeno)
+# ============================================================================
+
+def mixup_data(x, y, alpha=0.3):
+    """Mixup: combina pares de imagens linearmente."""
+    if alpha <= 0:
+        return x, y, y, 1.0
+    lam = np.random.beta(alpha, alpha)
+    lam = max(lam, 1.0 - lam)  # garante lam >= 0.5
+    batch_size = x.size(0)
+    index = torch.randperm(batch_size, device=x.device)
+    mixed_x = lam * x + (1.0 - lam) * x[index]
+    return mixed_x, y, y[index], lam
+
+
+def cutmix_data(x, y, alpha=0.3):
+    """CutMix: recorta um patch de outra imagem."""
+    if alpha <= 0:
+        return x, y, y, 1.0
+    lam = np.random.beta(alpha, alpha)
+    batch_size = x.size(0)
+    index = torch.randperm(batch_size, device=x.device)
+
+    _, _, H, W = x.shape
+    cut_ratio = np.sqrt(1.0 - lam)
+    cut_w = int(W * cut_ratio)
+    cut_h = int(H * cut_ratio)
+
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+    x1 = np.clip(cx - cut_w // 2, 0, W)
+    y1 = np.clip(cy - cut_h // 2, 0, H)
+    x2 = np.clip(cx + cut_w // 2, 0, W)
+    y2 = np.clip(cy + cut_h // 2, 0, H)
+
+    mixed_x = x.clone()
+    mixed_x[:, :, y1:y2, x1:x2] = x[index, :, y1:y2, x1:x2]
+
+    # adjust lambda to actual area
+    lam = 1.0 - (x2 - x1) * (y2 - y1) / (W * H)
+    return mixed_x, y, y[index], lam
+
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    """Loss para dados mixados."""
+    return lam * criterion(pred, y_a) + (1.0 - lam) * criterion(pred, y_b)
+
+
+# ============================================================================
 # TREINAMENTO
 # ============================================================================
 
-def train_epoch(model, loader, criterion, optimizer, device, scaler=None):
+def train_epoch(model, loader, criterion, optimizer, device, scaler=None,
+                mixup_alpha=0.0, cutmix_alpha=0.0, mix_prob=0.5):
     model.train()
     running_loss = 0.0
     correct = 0
@@ -377,10 +455,20 @@ def train_epoch(model, loader, criterion, optimizer, device, scaler=None):
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
 
+        # Aplicar Mixup ou CutMix com probabilidade mix_prob
+        use_mix = np.random.random() < mix_prob and (mixup_alpha > 0 or cutmix_alpha > 0)
+        if use_mix:
+            if np.random.random() < 0.5 and mixup_alpha > 0:
+                images, targets_a, targets_b, lam = mixup_data(images, labels, mixup_alpha)
+            else:
+                images, targets_a, targets_b, lam = cutmix_data(images, labels, cutmix_alpha)
+        else:
+            targets_a, targets_b, lam = labels, labels, 1.0
+
         if scaler:
             with torch.amp.autocast('cuda'):
                 outputs = model(images)
-                loss = criterion(outputs, labels)
+                loss = mixup_criterion(criterion, outputs, targets_a, targets_b, lam)
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -388,7 +476,7 @@ def train_epoch(model, loader, criterion, optimizer, device, scaler=None):
             scaler.update()
         else:
             outputs = model(images)
-            loss = criterion(outputs, labels)
+            loss = mixup_criterion(criterion, outputs, targets_a, targets_b, lam)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
@@ -437,12 +525,15 @@ def validate(model, loader, criterion, device):
 
 def train_phase(
     model, train_loader, val_loader, criterion, optimizer, scheduler,
-    device, scaler, epochs, phase_name, output_dir, patience=10
+    device, scaler, epochs, phase_name, output_dir, patience=10,
+    mixup_alpha=0.0, cutmix_alpha=0.0, mix_prob=0.0
 ):
-    """Treina uma fase com early stopping."""
+    """Treina uma fase com early stopping e Mixup/CutMix."""
     print(f"\n{'='*60}")
     print(f"  {phase_name}")
     print(f"  Epocas: {epochs}, Patience: {patience}")
+    if mix_prob > 0:
+        print(f"  Mixup: alpha={mixup_alpha}, CutMix: alpha={cutmix_alpha}, prob={mix_prob}")
     print(f"{'='*60}")
 
     best_val_acc = 0.0
@@ -453,7 +544,8 @@ def train_phase(
     for epoch in range(1, epochs + 1):
         t0 = time.time()
         train_loss, train_acc = train_epoch(
-            model, train_loader, criterion, optimizer, device, scaler
+            model, train_loader, criterion, optimizer, device, scaler,
+            mixup_alpha=mixup_alpha, cutmix_alpha=cutmix_alpha, mix_prob=mix_prob,
         )
         val_loss, val_acc, _, _, _ = validate(model, val_loader, criterion, device)
 
@@ -611,8 +703,8 @@ def save_for_production(model, class_names, cfg, output_dir, metrics):
 
     # Metadados
     metadata = {
-        "model_name": "WoundClassifier_v2_PyTorch",
-        "version": "2.0.0",
+        "model_name": "WoundClassifier_v3_PyTorch",
+        "version": "3.0.0",
         "framework": "PyTorch/timm",
         "base_model": cfg.MODEL_NAME,
         "input_shape": [cfg.IMG_SIZE, cfg.IMG_SIZE, 3],
@@ -651,8 +743,8 @@ def main():
     print("""
     ================================================================
     |                                                              |
-    |   REDISUS -- WOUND CLASSIFIER v2.0 (PyTorch)                |
-    |   MobileNetV3 . Label Smoothing . 3 Fases . TTA             |
+    |   REDISUS -- WOUND CLASSIFIER v3.1 (PyTorch)                |
+    |   EfficientNet-B0 . 3 Fases . TTA . Regularizacao Leve      |
     |   24 classes -> ~10 categorias clinicas                      |
     |                                                              |
     ================================================================
@@ -683,7 +775,7 @@ def main():
     # 3. Loss com label smoothing + class weights
     weight_tensor = torch.ones(num_classes)
     for idx, w in class_weights_dict.items():
-        weight_tensor[idx] = min(w, 5.0)
+        weight_tensor[idx] = min(w, cfg.MAX_CLASS_WEIGHT)
     weight_tensor = weight_tensor.to(device)
     criterion = nn.CrossEntropyLoss(
         weight=weight_tensor,
@@ -719,6 +811,7 @@ def main():
         model, train_loader, val_loader, criterion, opt1, sched1,
         device, scaler, cfg.PHASE1_EPOCHS,
         "FASE 1: Feature Extraction", output_dir, cfg.PATIENCE,
+        mixup_alpha=0.0, cutmix_alpha=0.0, mix_prob=0.0,
     )
 
     if args.no_fine_tune:
@@ -742,6 +835,7 @@ def main():
             model, train_loader, val_loader, criterion, opt2, sched2,
             device, scaler, cfg.PHASE2_EPOCHS,
             "FASE 2: Fine-Tune Parcial 25pct", output_dir, cfg.PATIENCE,
+            mixup_alpha=0.0, cutmix_alpha=0.0, mix_prob=0.0,
         )
 
         # ======================================================
@@ -760,6 +854,7 @@ def main():
             model, train_loader, val_loader, criterion, opt3, sched3,
             device, scaler, cfg.PHASE3_EPOCHS,
             "FASE 3: Fine-Tune Profundo 60pct", output_dir, cfg.PATIENCE,
+            mixup_alpha=0.0, cutmix_alpha=0.0, mix_prob=0.0,  # sem mix na ultima fase
         )
 
     # ======================================================
@@ -780,12 +875,13 @@ def main():
     save_for_production(model, class_names, cfg, output_dir, metrics)
 
     print(f"\n{'='*60}")
-    print(f"  TREINAMENTO v2.0 CONCLUIDO!")
+    print(f"  TREINAMENTO v3.0 CONCLUIDO!")
     print(f"{'='*60}")
-    print(f"  Accuracy:     {acc:.2%}  (era ~44%)")
+    print(f"  Accuracy:     {acc:.2%}  (anterior: ~78%)")
     print(f"  Top-3:        {top3:.2%}")
-    print(f"  Classes:      {num_classes} (era 24)")
+    print(f"  Classes:      {num_classes}")
     print(f"  Modelo:       {cfg.MODEL_NAME} @ {cfg.IMG_SIZE}x{cfg.IMG_SIZE}")
+    print(f"  Dropout: {cfg.DROPOUT}, Label Smooth: {cfg.LABEL_SMOOTHING}")
     print(f"  Artefatos:    {output_dir}")
     print(f"\n  -> Rode: python heal_analyzer.py  para testar!\n")
 

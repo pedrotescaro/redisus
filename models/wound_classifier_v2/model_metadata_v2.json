@@ -1,11 +1,11 @@
 {
-  "model_name": "WoundClassifier_v2_PyTorch",
-  "version": "2.0.0",
+  "model_name": "WoundClassifier_v3_PyTorch",
+  "version": "3.0.0",
   "framework": "PyTorch/timm",
-  "base_model": "mobilenetv3_large_100",
+  "base_model": "efficientnet_b0",
   "input_shape": [
-    224,
-    224,
+    256,
+    256,
     3
   ],
   "class_names": [
@@ -37,8 +37,8 @@
   "num_classes": 11,
   "preprocessing": {
     "resize": [
-      224,
-      224
+      256,
+      256
     ],
     "normalize_mean": [
       0.485,
@@ -78,8 +78,8 @@
     "venous_ulcers_and_arterial_ulcers_set_1": "venous_arterial_ulcers"
   },
   "metrics": {
-    "accuracy": 0.7786885245901639,
-    "top3_accuracy": 0.9016393442622951,
+    "accuracy": 0.6024590163934426,
+    "top3_accuracy": 0.8483606557377049,
     "per_class": {
       "abdominal_wounds": {
         "accuracy": 0.8333333333333334,
@@ -90,7 +90,7 @@
         "samples": 5
       },
       "diabetic_ulcers": {
-        "accuracy": 0.8095238095238095,
+        "accuracy": 0.8571428571428571,
         "samples": 21
       },
       "epidermolysis_bullosa": {
@@ -102,7 +102,7 @@
         "samples": 3
       },
       "miscellaneous": {
-        "accuracy": 0.7441860465116279,
+        "accuracy": 0.5116279069767442,
         "samples": 43
       },
       "necrotic_wounds": {
@@ -114,19 +114,19 @@
         "samples": 2
       },
       "pressure_ulcers": {
-        "accuracy": 0.7058823529411765,
+        "accuracy": 0.4852941176470588,
         "samples": 68
       },
       "surgical_wounds": {
-        "accuracy": 0.9473684210526315,
+        "accuracy": 0.8947368421052632,
         "samples": 19
       },
       "venous_arterial_ulcers": {
-        "accuracy": 0.75,
+        "accuracy": 0.46875,
         "samples": 64
       }
     },
     "total_val_samples": 244
   },
-  "created_at": "2026-02-21T09:52:24.621031"
+  "created_at": "2026-02-23T11:59:34.910695"
 }
