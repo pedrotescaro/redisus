@@ -1,8 +1,8 @@
 
     ================================================================
     |                                                              |
-    |   REDISUS -- WOUND CLASSIFIER v3.0 (PyTorch)                |
-    |   EfficientNet-B0 . Mixup/CutMix . 3 Fases . TTA           |
+    |   REDISUS -- WOUND CLASSIFIER v3.1 (PyTorch)                |
+    |   EfficientNet-B0 . 3 Fases . TTA . Regularizacao Leve      |
     |   24 classes -> ~10 categorias clinicas                      |
     |                                                              |
     ================================================================
@@ -26,129 +26,36 @@ Device: cpu
 
 Construindo efficientnet_b0 (11 classes)...
   Backbone feature dim: 1280
-  Parametros totais: 4,801,671
+  Parametros totais: 4,341,383
 
-FASE 1: Backbone CONGELADO (12 params treinaveis)
+FASE 1: Backbone CONGELADO (8 params treinaveis)
 
 ============================================================
   FASE 1: Feature Extraction
-  Epocas: 30, Patience: 10
-  Mixup: alpha=0.3, CutMix: alpha=0.3, prob=0.5
+  Epocas: 40, Patience: 12
 ============================================================
-  Epoch   1/30  train_loss=1.8020  train_acc=0.303  val_loss=2.7679  val_acc=0.139  lr=5.00e-04  178.3s
-  Epoch   2/30  train_loss=1.4427  train_acc=0.434  val_loss=2.7298  val_acc=0.156  lr=5.00e-04  157.5s
-  Epoch   3/30  train_loss=1.2856  train_acc=0.509  val_loss=2.6772  val_acc=0.205  lr=5.00e-04  155.0s
-  Epoch   4/30  train_loss=1.2232  train_acc=0.541  val_loss=2.6529  val_acc=0.225  lr=5.00e-04  149.5s
-  Epoch   5/30  train_loss=1.2530  train_acc=0.531  val_loss=2.6560  val_acc=0.209  lr=5.00e-04  138.7s
-  Epoch   6/30  train_loss=1.2248  train_acc=0.553  val_loss=2.6215  val_acc=0.205  lr=5.00e-04  138.7s
-  Epoch   7/30  train_loss=1.1759  train_acc=0.537  val_loss=2.5446  val_acc=0.279  lr=5.00e-04  139.7s
-  Epoch   8/30  train_loss=1.2386  train_acc=0.532  val_loss=2.4977  val_acc=0.270  lr=5.00e-04  136.3s
-  Epoch   9/30  train_loss=1.2632  train_acc=0.509  val_loss=2.4976  val_acc=0.270  lr=5.00e-04  137.7s
-  Epoch  10/30  train_loss=1.2954  train_acc=0.495  val_loss=2.4048  val_acc=0.332  lr=5.00e-04  134.8s
-  Epoch  11/30  train_loss=1.1503  train_acc=0.580  val_loss=2.4068  val_acc=0.316  lr=5.00e-04  129.8s
-  Epoch  12/30  train_loss=1.3063  train_acc=0.526  val_loss=2.4575  val_acc=0.295  lr=5.00e-04  128.9s
-  Epoch  13/30  train_loss=1.0537  train_acc=0.615  val_loss=2.4780  val_acc=0.275  lr=5.00e-04  131.5s
-  Epoch  14/30  train_loss=1.1450  train_acc=0.600  val_loss=2.4727  val_acc=0.303  lr=5.00e-04  133.5s
-  Epoch  15/30  train_loss=1.1691  train_acc=0.567  val_loss=2.4344  val_acc=0.328  lr=5.00e-04  145.8s
-  Epoch  16/30  train_loss=1.1145  train_acc=0.590  val_loss=2.3999  val_acc=0.311  lr=5.00e-04  168.6s
-  Epoch  17/30  train_loss=1.1491  train_acc=0.574  val_loss=2.3842  val_acc=0.299  lr=5.00e-04  150.1s
-  Epoch  18/30  train_loss=1.0629  train_acc=0.621  val_loss=2.3993  val_acc=0.316  lr=5.00e-04  135.2s
-  Epoch  19/30  train_loss=1.1245  train_acc=0.599  val_loss=2.3759  val_acc=0.344  lr=5.00e-04  174.0s
-  Epoch  20/30  train_loss=1.1243  train_acc=0.597  val_loss=2.4171  val_acc=0.316  lr=5.00e-04  162.8s
-  Epoch  21/30  train_loss=1.0901  train_acc=0.581  val_loss=2.4120  val_acc=0.311  lr=5.00e-04  161.7s
-  Epoch  22/30  train_loss=1.0994  train_acc=0.609  val_loss=2.3941  val_acc=0.320  lr=5.00e-04  160.6s
-  Epoch  23/30  train_loss=1.1070  train_acc=0.580  val_loss=2.3478  val_acc=0.361  lr=5.00e-04  182.8s
-  Epoch  24/30  train_loss=1.0454  train_acc=0.644  val_loss=2.3316  val_acc=0.381  lr=5.00e-04  149.9s
-  Epoch  25/30  train_loss=1.0939  train_acc=0.606  val_loss=2.3279  val_acc=0.398  lr=5.00e-04  -3480.2s
-  Epoch  26/30  train_loss=1.0549  train_acc=0.613  val_loss=2.3455  val_acc=0.402  lr=5.00e-04  158.7s
-  Epoch  27/30  train_loss=1.1796  train_acc=0.575  val_loss=2.3327  val_acc=0.422  lr=5.00e-04  180.2s
-  Epoch  28/30  train_loss=1.1248  train_acc=0.602  val_loss=2.4142  val_acc=0.443  lr=5.00e-04  161.0s
-  Epoch  29/30  train_loss=1.1207  train_acc=0.625  val_loss=2.2650  val_acc=0.459  lr=5.00e-04  118.1s
-  Epoch  30/30  train_loss=1.0987  train_acc=0.619  val_loss=2.3475  val_acc=0.422  lr=5.00e-04  120.3s
-  [OK] FASE 1: Feature Extraction -- Best val_acc: 0.4590, val_loss: 2.2650
-  Backbone: 53/211 parametros treinaveis
-
-============================================================
-  FASE 2: Fine-Tune Parcial 25pct
-  Epocas: 15, Patience: 10
-  Mixup: alpha=0.3, CutMix: alpha=0.3, prob=0.25
-============================================================
-  Epoch   1/15  train_loss=0.8480  train_acc=0.694  val_loss=2.2745  val_acc=0.447  lr=4.95e-05  134.8s
-  Epoch   2/15  train_loss=0.9686  train_acc=0.675  val_loss=2.2507  val_acc=0.475  lr=4.79e-05  135.3s
-  Epoch   3/15  train_loss=0.9752  train_acc=0.688  val_loss=2.2741  val_acc=0.455  lr=4.53e-05  139.0s
-  Epoch   4/15  train_loss=1.0106  train_acc=0.680  val_loss=2.2535  val_acc=0.496  lr=4.19e-05  135.8s
-  Epoch   5/15  train_loss=0.8866  train_acc=0.705  val_loss=2.1750  val_acc=0.504  lr=3.78e-05  134.2s
-  Epoch   6/15  train_loss=0.8832  train_acc=0.714  val_loss=2.2274  val_acc=0.484  lr=3.31e-05  133.3s
-  Epoch   7/15  train_loss=0.9590  train_acc=0.700  val_loss=2.1921  val_acc=0.508  lr=2.81e-05  133.7s
-  Epoch   8/15  train_loss=0.8761  train_acc=0.718  val_loss=2.1658  val_acc=0.525  lr=2.29e-05  134.1s
-  Epoch   9/15  train_loss=0.9313  train_acc=0.696  val_loss=2.1529  val_acc=0.541  lr=1.79e-05  133.7s
-  Epoch  10/15  train_loss=0.9741  train_acc=0.698  val_loss=2.1589  val_acc=0.533  lr=1.33e-05  133.8s
-  Epoch  11/15  train_loss=0.9254  train_acc=0.706  val_loss=2.1287  val_acc=0.561  lr=9.11e-06  130.0s
-  Epoch  12/15  train_loss=0.8810  train_acc=0.736  val_loss=2.1317  val_acc=0.570  lr=5.68e-06  134.2s
-  Epoch  13/15  train_loss=0.9195  train_acc=0.708  val_loss=2.1526  val_acc=0.508  lr=3.12e-06  136.5s
-  Epoch  14/15  train_loss=0.8711  train_acc=0.739  val_loss=2.1289  val_acc=0.561  lr=1.54e-06  131.6s
-  Epoch  15/15  train_loss=0.8761  train_acc=0.757  val_loss=2.1296  val_acc=0.557  lr=1.00e-06  131.3s
-  [OK] FASE 2: Fine-Tune Parcial 25pct -- Best val_acc: 0.5697, val_loss: 2.1317
-  Backbone: 127/211 parametros treinaveis
-
-============================================================
-  FASE 3: Fine-Tune Profundo 60pct
-  Epocas: 10, Patience: 10
-============================================================
-  Epoch   1/10  train_loss=0.7941  train_acc=0.758  val_loss=2.1275  val_acc=0.566  lr=9.76e-06  164.6s
-  Epoch   2/10  train_loss=0.7754  train_acc=0.770  val_loss=2.1139  val_acc=0.545  lr=9.05e-06  162.9s
-  Epoch   3/10  train_loss=0.7555  train_acc=0.773  val_loss=2.1166  val_acc=0.570  lr=7.96e-06  165.9s
-  Epoch   4/10  train_loss=0.7613  train_acc=0.789  val_loss=2.1057  val_acc=0.578  lr=6.58e-06  166.1s
-  Epoch   5/10  train_loss=0.7969  train_acc=0.753  val_loss=2.0830  val_acc=0.586  lr=5.05e-06  -3412.8s
-  Epoch   6/10  train_loss=0.7631  train_acc=0.765  val_loss=2.0918  val_acc=0.598  lr=3.52e-06  192.1s
-  Epoch   7/10  train_loss=0.8020  train_acc=0.769  val_loss=2.1141  val_acc=0.578  lr=2.14e-06  216.3s
-  Epoch   8/10  train_loss=0.7439  train_acc=0.769  val_loss=2.1412  val_acc=0.566  lr=1.05e-06  187.7s
-  Epoch   9/10  train_loss=0.7828  train_acc=0.785  val_loss=2.1043  val_acc=0.574  lr=3.42e-07  176.7s
-  Epoch  10/10  train_loss=0.8200  train_acc=0.754  val_loss=2.0818  val_acc=0.586  lr=1.00e-07  176.3s
-  [OK] FASE 3: Fine-Tune Profundo 60pct -- Best val_acc: 0.5984, val_loss: 2.0918
-
-============================================================
-  AVALIACAO FINAL (com TTA 4x)
-============================================================
-  Accuracy:     60.25%
-  Top-3 Acc:    84.84%
-
-  Por classe:
-    abdominal_wounds               83.33% (6 amostras)
-    burns                          100.00% (5 amostras)
-    diabetic_ulcers                85.71% (21 amostras)
-    epidermolysis_bullosa           0.00% (1 amostras)
-    malignant_wounds               100.00% (3 amostras)
-    miscellaneous                  51.16% (43 amostras)
-    necrotic_wounds                100.00% (12 amostras)
-    pilonidal_sinus                100.00% (2 amostras)
-    pressure_ulcers                48.53% (68 amostras)
-    surgical_wounds                89.47% (19 amostras)
-    venous_arterial_ulcers         46.88% (64 amostras)
-
-  Confusoes mais frequentes:
-    venous_arterial_ulcers    -> miscellaneous             (11x)
-    pressure_ulcers           -> abdominal_wounds          (10x)
-    pressure_ulcers           -> necrotic_wounds           (7x)
-    miscellaneous             -> necrotic_wounds           (7x)
-    pressure_ulcers           -> malignant_wounds          (7x)
-    venous_arterial_ulcers    -> diabetic_ulcers           (5x)
-    pressure_ulcers           -> diabetic_ulcers           (5x)
-    pressure_ulcers           -> surgical_wounds           (5x)
-[OK] Modelo state_dict: models\wound_classifier_v2\wound_classifier_v2.pt
-[OK] Modelo completo: models\wound_classifier_v2\wound_classifier_v2_full.pt
-[OK] TorchScript: models\wound_classifier_v2\wound_classifier_v2_traced.pt
-[OK] Metadados: models\wound_classifier_v2\model_metadata_v2.json
-
-============================================================
-  TREINAMENTO v3.0 CONCLUIDO!
-============================================================
-  Accuracy:     60.25%  (anterior: ~78%)
-  Top-3:        84.84%
-  Classes:      11
-  Modelo:       efficientnet_b0 @ 256x256
-  Mixup/CutMix: alpha=0.3
-  Artefatos:    models/wound_classifier_v2
-
-  -> Rode: python heal_analyzer.py  para testar!
-
+  Epoch   1/40  train_loss=1.4652  train_acc=0.441  val_loss=2.2578  val_acc=0.189  lr=1.00e-03  151.3s
+  Epoch   2/40  train_loss=1.0852  train_acc=0.577  val_loss=2.0393  val_acc=0.266  lr=1.00e-03  174.7s
+  Epoch   3/40  train_loss=0.9744  train_acc=0.632  val_loss=2.0511  val_acc=0.270  lr=1.00e-03  178.6s
+  Epoch   4/40  train_loss=0.9760  train_acc=0.627  val_loss=2.0183  val_acc=0.332  lr=1.00e-03  102.1s
+  Epoch   5/40  train_loss=0.9526  train_acc=0.648  val_loss=2.0210  val_acc=0.320  lr=1.00e-03  89.0s
+  Epoch   6/40  train_loss=0.9169  train_acc=0.660  val_loss=1.9385  val_acc=0.365  lr=1.00e-03  89.0s
+  Epoch   7/40  train_loss=0.9029  train_acc=0.686  val_loss=1.9377  val_acc=0.381  lr=1.00e-03  89.5s
+  Epoch   8/40  train_loss=0.9377  train_acc=0.643  val_loss=1.9674  val_acc=0.393  lr=1.00e-03  87.2s
+  Epoch   9/40  train_loss=0.8596  train_acc=0.681  val_loss=1.9194  val_acc=0.381  lr=1.00e-03  87.4s
+  Epoch  10/40  train_loss=0.8429  train_acc=0.702  val_loss=1.9129  val_acc=0.373  lr=1.00e-03  87.4s
+  Epoch  11/40  train_loss=0.8032  train_acc=0.707  val_loss=1.8459  val_acc=0.430  lr=1.00e-03  101.6s
+  Epoch  12/40  train_loss=0.8131  train_acc=0.740  val_loss=1.8885  val_acc=0.402  lr=1.00e-03  101.4s
+  Epoch  13/40  train_loss=0.8252  train_acc=0.700  val_loss=1.9470  val_acc=0.365  lr=1.00e-03  88.6s
+  Epoch  14/40  train_loss=0.8204  train_acc=0.706  val_loss=1.7660  val_acc=0.451  lr=1.00e-03  98.9s
+  Epoch  15/40  train_loss=0.8464  train_acc=0.720  val_loss=1.8298  val_acc=0.406  lr=1.00e-03  111.0s
+  Epoch  16/40  train_loss=0.8766  train_acc=0.719  val_loss=1.7489  val_acc=0.475  lr=1.00e-03  115.0s
+  Epoch  17/40  train_loss=0.8569  train_acc=0.699  val_loss=1.7551  val_acc=0.488  lr=1.00e-03  113.8s
+  Epoch  18/40  train_loss=0.8318  train_acc=0.735  val_loss=1.7597  val_acc=0.492  lr=1.00e-03  100.7s
+  Epoch  19/40  train_loss=0.7919  train_acc=0.756  val_loss=1.8209  val_acc=0.447  lr=1.00e-03  99.6s
+  Epoch  20/40  train_loss=0.8428  train_acc=0.711  val_loss=1.7374  val_acc=0.520  lr=1.00e-03  103.8s
+  Epoch  21/40  train_loss=0.8030  train_acc=0.741  val_loss=1.6747  val_acc=0.541  lr=1.00e-03  110.5s
+  Epoch  22/40  train_loss=0.7922  train_acc=0.742  val_loss=1.7495  val_acc=0.475  lr=1.00e-03  110.1s
+  Epoch  23/40  train_loss=0.8124  train_acc=0.730  val_loss=1.6765  val_acc=0.545  lr=1.00e-03  89.3s
+  Epoch  24/40  train_loss=0.7627  train_acc=0.769  val_loss=1.7292  val_acc=0.504  lr=1.00e-03  89.0s
+  Epoch  25/40  train_loss=0.8113  train_acc=0.733  val_loss=1.7031  val_acc=0.504  lr=1.00e-03  109.1s
