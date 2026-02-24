@@ -86,9 +86,13 @@ class ColorRanges:
     PINK_LOWER = np.array([0, 30, 100])
     PINK_UPPER = np.array([15, 150, 255])
     
-    # Pele (para exclusão)
-    SKIN_LOWER = np.array([0, 20, 70])
-    SKIN_UPPER = np.array([25, 150, 255])
+    # Pele (para exclusão) — todos os tons de Fitzpatrick I-VI
+    # V mínimo 30 (era 70) para incluir peles escuras (Fitzpatrick V-VI)
+    SKIN_LOWER = np.array([0, 15, 30])
+    SKIN_UPPER = np.array([30, 180, 255])
+    # Faixa adicional para pele muito escura (baixa saturação)
+    SKIN_DARK_LOWER = np.array([0, 10, 25])
+    SKIN_DARK_UPPER = np.array([25, 100, 110])
 
 
 class WoundDetectorCV:
@@ -479,11 +483,14 @@ class WoundDetectorCV:
         # Suaviza mascara de cor
         color_score = cv2.GaussianBlur(color_score, (11, 11), 0)
         
-        # 4. EXCLUSAO DE PELE SAUDAVEL
+        # 4. EXCLUSAO DE PELE SAUDAVEL (todos os tons, Fitzpatrick I-VI)
         # Detecta pele uniforme (sem textura) para excluir
-        skin_lower = np.array([0, 20, 70])
-        skin_upper = np.array([25, 150, 255])
+        skin_lower = np.array([0, 15, 30])  # V=30 inclui pele escura
+        skin_upper = np.array([30, 180, 255])
         skin_mask = cv2.inRange(hsv, skin_lower, skin_upper)
+        # Faixa adicional para pele muito escura (Fitzpatrick VI)
+        skin_dark = cv2.inRange(hsv, np.array([0, 10, 25]), np.array([25, 100, 110]))
+        skin_mask = cv2.bitwise_or(skin_mask, skin_dark)
         
         # Pele saudavel tem baixa variancia de textura
         smooth_skin = (texture_score < 0.2) & (skin_mask > 0)

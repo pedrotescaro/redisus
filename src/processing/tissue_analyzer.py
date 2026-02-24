@@ -65,13 +65,15 @@ TISSUE_HSV_RANGES = {
                   np.array([28, 90, 240])]
     },
     TissueType.NECROSIS: {
-        # Preto/marrom escuro — exclui H 80-140 (azul hospitalar/verde cirúrgico)
+        # Preto/marrom escuro — exclui H 80-140 (azul/verde cirúrgico)
         "lower": [np.array([0, 0, 0]), np.array([140, 0, 0]),
-                  np.array([5, 30, 15]),
-                  np.array([0, 5, 10]), np.array([8, 15, 25])],
+                  np.array([5, 25, 15]),
+                  np.array([0, 5, 5]),
+                  np.array([8, 15, 20])],
         "upper": [np.array([80, 255, 40]), np.array([180, 255, 40]),
-                  np.array([30, 200, 70]),
-                  np.array([180, 35, 60]), np.array([25, 150, 75])]
+                  np.array([25, 200, 60]),
+                  np.array([180, 30, 50]),
+                  np.array([30, 120, 65])]
     },
     TissueType.EPITHELIALIZATION: {
         "lower": [np.array([0, 15, 170]), np.array([155, 15, 170]),

@@ -44,6 +44,7 @@ import sys
 import os
 import io
 import time
+import logging
 from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 from dataclasses import dataclass, field
@@ -168,6 +169,8 @@ def cv2_put_text_utf8(
 from src.processing.wound_detector_cv import WoundDetectorCV, DetectionMethod
 from src.processing.tissue_analyzer import TissueAnalyzerCV, TissueType, TISSUE_COLORS
 from src.processing.wound_classifier_cv import WoundClassifierCV
+
+logger = logging.getLogger(__name__)
 
 # Escalas clínicas validadas
 try:
@@ -353,47 +356,47 @@ CLINICAL_TISSUES = {
 
 CLINICAL_HSV_RANGES = {
     "necrosis": [
-        # Preto absoluto — exclui azulados (H 80-140) que são campo cirúrgico
+        # 1. Preto/muito escuro — V ≤ 40, exceto azul/verde cirúrgico
         (np.array([0, 0, 0]), np.array([80, 255, 40])),
         (np.array([140, 0, 0]), np.array([180, 255, 40])),
-        # Marrom muito escuro (H < 30 = vermelho/marrom, não azul)
-        (np.array([5, 30, 15]), np.array([30, 200, 70])),
-        # Escuro com saturação muito baixa (necrose seca / escara)
-        # S < 35 + V < 60  —  restringe para não pegar cinza de maca (S < 25)
-        (np.array([0, 5, 10]), np.array([180, 35, 60])),
-        # Marrom escuro acinzentado
-        (np.array([8, 15, 25]), np.array([25, 150, 75])),
+        # 2. Marrom escuro necrótico — tom marrom (H 5-25), V 15-60
+        #    S ≥ 25 para separar de cinza acromático
+        (np.array([5, 25, 15]), np.array([25, 200, 60])),
+        # 3. Escara seca acromática — S < 30, V < 50
+        (np.array([0, 5, 5]), np.array([180, 30, 50])),
+        # 4. Marrom acinzentado (necrose úmida) — H 8-30, S moderada
+        (np.array([8, 15, 20]), np.array([30, 120, 65])),
     ],
     "slough": [
-        # Amarelo fibrina puro (mais restrito para não pegar pele)
+        # Amarelo fibrina puro
         (np.array([18, 60, 140]), np.array([35, 255, 255])),
         # Branco amarelado (fibrina clara)
-        (np.array([0, 0, 195]), np.array([30, 50, 255])),
+        (np.array([0, 0, 195]), np.array([30, 55, 255])),
         # Cinza-amarelado
         (np.array([15, 20, 130]), np.array([35, 90, 210])),
         # Amarelo-esverdeado (fibrina contaminada)
         (np.array([30, 40, 130]), np.array([45, 180, 230])),
+        # Bege claro (fibrina seca)
+        (np.array([12, 15, 150]), np.array([25, 80, 230])),
     ],
     "granulation": [
-        # Vermelho vivo intenso (H wrap around 0/180)
-        (np.array([0, 120, 80]), np.array([10, 255, 255])),
-        (np.array([165, 120, 80]), np.array([180, 255, 255])),
-        # Vermelho rosado moderado (mais restrito para não pegar epitelização)
-        (np.array([0, 80, 100]), np.array([8, 200, 255])),
-        (np.array([170, 80, 100]), np.array([180, 200, 255])),
-        # Vermelho escuro (granulação madura)
-        (np.array([0, 100, 60]), np.array([12, 255, 150])),
-        (np.array([160, 100, 60]), np.array([180, 255, 150])),
+        # Vermelho vivo intenso — S ≥ 130 (requer alta saturação)
+        (np.array([0, 130, 90]), np.array([10, 255, 255])),
+        (np.array([165, 130, 90]), np.array([180, 255, 255])),
+        # Vermelho moderado — S ≥ 100 (mais restrito para não pegar pele/epi)
+        (np.array([0, 100, 110]), np.array([8, 220, 255])),
+        (np.array([170, 100, 110]), np.array([180, 220, 255])),
+        # Vermelho escuro (granulação madura) — S ≥ 110
+        (np.array([0, 110, 60]), np.array([10, 255, 150])),
+        (np.array([162, 110, 60]), np.array([180, 255, 150])),
     ],
     "epithelialization": [
-        # Rosa claro (mais restrito para não pegar pele sã)
-        (np.array([0, 15, 180]), np.array([12, 60, 255])),
-        (np.array([160, 15, 180]), np.array([180, 60, 255])),
-        # Rosa pálido quase branco
-        (np.array([0, 8, 200]), np.array([10, 40, 255])),
-        (np.array([165, 8, 200]), np.array([180, 40, 255])),
-        # Salmão claro
-        (np.array([2, 25, 190]), np.array([15, 70, 255])),
+        # Rosa claro — S baixa (15-50), V alta (≥ 190)
+        (np.array([0, 15, 190]), np.array([10, 50, 255])),
+        (np.array([165, 15, 190]), np.array([180, 50, 255])),
+        # Rosa pálido quase branco — S muito baixa
+        (np.array([0, 8, 210]), np.array([8, 35, 255])),
+        (np.array([168, 8, 210]), np.array([180, 35, 255])),
     ],
 }
 
@@ -403,10 +406,13 @@ CLINICAL_HSV_RANGES = {
 # B: azul(-) → amarelo(+)
 CLINICAL_LAB_RANGES = {
     "necrosis": [
-        # Muito escuro, qualquer crominância
-        (np.array([0, 100, 100]), np.array([50, 145, 145])),
-        # Marrom escuro (L baixo, a+, b+)
-        (np.array([15, 128, 120]), np.array([65, 160, 160])),
+        # Muito escuro com crominância neutra (escara/necrose)
+        # L < 45 — pele escura saudável geralmente L > 50
+        (np.array([0, 100, 100]), np.array([45, 150, 150])),
+        # Marrom necrótico (L baixo-médio, a+/b+ moderados)
+        (np.array([10, 128, 120]), np.array([55, 165, 165])),
+        # Necrose úmida/esverdeada (L baixo, b desviado)
+        (np.array([5, 120, 105]), np.array([40, 145, 135])),
     ],
     "slough": [
         # Amarelo claro (L alto, b muito positivo)
@@ -445,6 +451,18 @@ class ClinicalWoundAnalyzer:
 
     MIN_WOUND_AREA_RATIO = 0.005   # Mínimo 0.5% da imagem
     MAX_SKIN_RATIO = 0.97          # Se > 97% for pele → inválido
+
+    # Escala de Fitzpatrick aproximada por luminosidade LAB
+    # Usada para adaptar limiares de necrose ao tom de pele do paciente
+    FITZPATRICK_L_THRESHOLDS = {
+        # L médio do periwound -> Fitzpatrick aproximado
+        # I-II: L > 180, III: L 150-180, IV: L 110-150, V: L 70-110, VI: L < 70
+        "very_light": 180,  # I-II
+        "light": 150,       # III
+        "medium": 110,      # IV
+        "dark": 70,         # V
+        # VI: L < 70
+    }
 
     def __init__(self):
         self.detector = WoundDetectorCV(
@@ -1185,24 +1203,24 @@ class ClinicalWoundAnalyzer:
         border_weight = 1.0 - (dist / max_dist)
         border_weight_u8 = (border_weight * 255).astype(np.uint8)
 
-        # Peso alto na borda (>= 70% de peso → V > 180)
-        border_strong = (border_weight_u8 > 180).astype(np.uint8) * 255
+        # Peso alto na borda (>= 80% de peso → V > 200) — mais restrito
+        border_strong = (border_weight_u8 > 200).astype(np.uint8) * 255
 
         # 4. Combinação ponderada:
-        #    Cor rosa: 40% | Gradiente baixo: 30% | Proximidade borda: 30%
+        #    Cor rosa: 50% (mais peso para cor) | Gradiente baixo: 25% | Borda: 25%
         epi_score = np.zeros((h, w), dtype=np.float32)
-        epi_score += (color_mask.astype(np.float32) / 255.0) * 0.40
-        epi_score += (low_gradient.astype(np.float32) / 255.0) * 0.30
-        epi_score += (border_strong.astype(np.float32) / 255.0) * 0.30
+        epi_score += (color_mask.astype(np.float32) / 255.0) * 0.50
+        epi_score += (low_gradient.astype(np.float32) / 255.0) * 0.25
+        epi_score += (border_strong.astype(np.float32) / 255.0) * 0.25
 
-        # Threshold: precisa de pelo menos 2 dos 3 critérios (> 0.55)
-        epithelial_mask = np.where(epi_score > 0.55, 255, 0).astype(np.uint8)
+        # Threshold alto: cor é obrigatória + pelo menos 1 outro critério (> 0.70)
+        epithelial_mask = np.where(epi_score > 0.70, 255, 0).astype(np.uint8)
 
         # Restringe estritamente à zona periférica + outer ring
         epithelial_mask = cv2.bitwise_and(epithelial_mask, epi_roi)
 
-        # Limpeza morfológica
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        # Limpeza morfológica — open maior para remover ruído
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
         epithelial_mask = cv2.morphologyEx(epithelial_mask, cv2.MORPH_OPEN, kernel)
         epithelial_mask = cv2.morphologyEx(epithelial_mask, cv2.MORPH_CLOSE, kernel)
 
@@ -1226,6 +1244,74 @@ class ClinicalWoundAnalyzer:
         peripheral, core, outer = self._create_zone_masks(wound_mask)
         return self._segment_clinical_v3(image, wound_mask, peripheral, core, outer)
 
+    @staticmethod
+    def _estimate_skin_tone(
+        image: np.ndarray,
+        wound_mask: np.ndarray,
+    ) -> Tuple[float, float, float, str]:
+        """
+        Estima o tom de pele do paciente amostrand pixel da região perilesional.
+
+        Amostra pixels no anel de 15-40px ao redor da wound_mask que não sejam
+        fundo cirúrgico (azul/verde/cinza) nem partes da ferida.
+
+        Returns:
+            (L_mean, a_mean, b_mean, fitzpatrick_approx)
+            L_mean: luminosidade média LAB do periwound
+            a_mean: canal a* médio
+            b_mean: canal b* médio
+            fitzpatrick_approx: "I-II", "III", "IV", "V", "VI"
+        """
+        h, w = image.shape[:2]
+
+        # Cria anel perilesional: dilata 40px - dilata 15px
+        kernel_inner = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
+        kernel_outer = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (81, 81))
+        inner_ring = cv2.dilate(wound_mask, kernel_inner)
+        outer_ring = cv2.dilate(wound_mask, kernel_outer)
+        periwound = cv2.bitwise_and(outer_ring, cv2.bitwise_not(inner_ring))
+
+        # Exclui fundo cirúrgico do periwound
+        hsv_raw = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        drape = np.zeros((h, w), dtype=np.uint8)
+        # Azul hospitalar
+        drape = cv2.bitwise_or(drape, cv2.inRange(
+            hsv_raw, np.array([90, 30, 20]), np.array([130, 255, 255])))
+        # Verde cirúrgico
+        drape = cv2.bitwise_or(drape, cv2.inRange(
+            hsv_raw, np.array([35, 30, 30]), np.array([85, 255, 255])))
+        # Cinza acromático (maca/fundo)
+        drape = cv2.bitwise_or(drape, cv2.inRange(
+            hsv_raw, np.array([0, 0, 0]), np.array([180, 20, 100])))
+
+        skin_sample = cv2.bitwise_and(periwound, cv2.bitwise_not(drape))
+
+        # Amostra em LAB
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        skin_pixels = lab[skin_sample > 0]
+
+        if len(skin_pixels) < 50:
+            # Fallback: sem dados suficientes, assume pele média
+            return 140.0, 128.0, 128.0, "III"
+
+        L_mean = float(np.median(skin_pixels[:, 0]))
+        a_mean = float(np.median(skin_pixels[:, 1]))
+        b_mean = float(np.median(skin_pixels[:, 2]))
+
+        # Classificação Fitzpatrick aproximada
+        if L_mean > 180:
+            fitz = "I-II"
+        elif L_mean > 150:
+            fitz = "III"
+        elif L_mean > 110:
+            fitz = "IV"
+        elif L_mean > 70:
+            fitz = "V"
+        else:
+            fitz = "VI"
+
+        return L_mean, a_mean, b_mean, fitz
+
     def _segment_clinical_v3(
         self,
         image: np.ndarray,
@@ -1238,26 +1324,28 @@ class ClinicalWoundAnalyzer:
         Segmentação clínica v3 — multi-espaço de cor + zonas espaciais + gradiente.
 
         Pipeline:
-        1. Denoise bilateral (preserva bordas)
-        2. CLAHE adaptativo (L + canal a*)
-        3. Conversão HSV + LAB
-        4. Segmentação por cor restrita estritamente à wound_mask (ROI)
-        5. Fusão ponderada HSV (60%) + LAB (40%)
-        6. Restrição espacial:
-           - Necrose → viés relaxado (core 1.0, periferia 0.6),
-             com boost por baixa luminância (V < 50) em TODO o ROI.
-             Background já removido espacialmente antes da segmentação.
-           - Esfacelo → forte viés para core_zone
-           - Granulação → wound_mask inteira (core + periferia)
-           - Epitelização → exclusivamente peripheral_zone + outer_ring
-        7. Detecção de epitelização por gradiente de borda (Scharr)
-        8. Boost de necrose por luminância: pixels V < 50 dentro do
-           perímetro anatômico são classificados como necrose, exceto
-           se forem background residual (variância 0 + acromático)
-        9. Análise de textura para resolver ambiguidades
-        10. Exclusão de fundo cirúrgico
-        11. Resolução de sobreposições com prioridade clínica
+        1. Estimação do tom de pele (Fitzpatrick) via periwound
+        2. Denoise bilateral (preserva bordas)
+        3. CLAHE adaptativo (L + canal a*)
+        4. Conversão HSV + LAB
+        5. Segmentação por cor restrita estritamente à wound_mask (ROI)
+        6. Fusão ponderada HSV (60%) + LAB (40%)
+        7. CRIAÇÃO DE MÁSCARA DE PELE SAUDÁVEL para excluir da necrose
+        8. Restrição espacial por zonas
+        9. Detecção de epitelização por gradiente de borda (Scharr)
+        10. Verificação de textura para necrose (necrose real tem textura diferente de pele)
+        11. Exclusão de fundo cirúrgico
+        12. Resolução de sobreposições com prioridade clínica
         """
+        # ── 0. Estimação do tom de pele do paciente ───────────────
+        skin_L, skin_a, skin_b, fitzpatrick = self._estimate_skin_tone(image, wound_mask)
+        is_dark_skin = fitzpatrick in ("V", "VI")
+        is_medium_skin = fitzpatrick in ("IV", "V")
+        logger.debug(
+            f"Tom de pele estimado: Fitzpatrick {fitzpatrick} "
+            f"(L={skin_L:.0f}, a*={skin_a:.0f}, b*={skin_b:.0f})"
+        )
+
         # ── 1. Pré-processamento: denoise + CLAHE ─────────────────────
         denoised = cv2.bilateralFilter(image, d=9, sigmaColor=50, sigmaSpace=50)
         lab_clahe = cv2.cvtColor(denoised, cv2.COLOR_BGR2LAB)
@@ -1309,7 +1397,9 @@ class ClinicalWoundAnalyzer:
 
             combined = (hsv_m.astype(np.float32) * 0.6 +
                         lab_m.astype(np.float32) * 0.4)
-            mask = np.where(combined > 80, 255, 0).astype(np.uint8)
+            # Threshold: HSV sozinho (153) passa; LAB sozinho (102) passa;
+            # ambos parciais precisam de pelo menos ~40% cada
+            mask = np.where(combined > 90, 255, 0).astype(np.uint8)
 
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_l)
@@ -1317,46 +1407,100 @@ class ClinicalWoundAnalyzer:
             mask = cv2.bitwise_and(mask, wound_mask)
             masks[tissue_key] = mask
 
-        # ── 5. Restrição espacial por zonas ──────────────────────────
-        # Necrose: viés RELAXADO — necrose é prioritária em baixa luminância
-        # dentro de TODO o perímetro anatômico (core + periferia).
-        # A separação background-vs-necrose já foi feita espacialmente
-        # por _create_background_mask_spatial(), então pixels escuros
-        # que sobreviveram ao filtro são tecido necrótico confirmado.
-        #
-        # Esfacelo: forte viés para core_zone (fibrina tende a concentrar-se
-        # no leito central, raramente na periferia).
+        # ── 5. Criação de máscara de pele saudável (skin exclusion) ────
+        # Gera uma máscara PRECISA de pixels que se parecem com pele saudável
+        # do paciente (tolerâncias ESTREITAS para não excluir necrose real).
+        lab_for_skin = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2LAB)
 
-        # --- Necrose: viés espacial suave (não penaliza periferia tanto) ---
+        # Tolerâncias ESTREITAS: só exclui pixels MUITO próximos da pele
+        # perilesional. Necrose tem cores diferentes mesmo em pele escura.
+        if is_dark_skin:
+            L_tol, a_tol, b_tol = 18, 10, 10
+        elif is_medium_skin:
+            L_tol, a_tol, b_tol = 15, 8, 8
+        else:
+            L_tol, a_tol, b_tol = 12, 7, 7
+
+        skin_lower = np.array([
+            max(0, skin_L - L_tol),
+            max(0, skin_a - a_tol),
+            max(0, skin_b - b_tol)
+        ], dtype=np.uint8)
+        skin_upper = np.array([
+            min(255, skin_L + L_tol),
+            min(255, skin_a + a_tol),
+            min(255, skin_b + b_tol)
+        ], dtype=np.uint8)
+        skin_exclude_mask = cv2.inRange(lab_for_skin, skin_lower, skin_upper)
+        skin_exclude_mask = cv2.bitwise_and(skin_exclude_mask, wound_mask)
+
+        # Verificação de textura: pele saudável é UNIFORME (variância 50-400)
+        # Necrose tem textura irregular OU muito lisa (escara)
+        gray_tex = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2GRAY)
+        local_variance = cv2.GaussianBlur(
+            (gray_tex.astype(np.float32) ** 2), (11, 11), 0
+        ) - cv2.GaussianBlur(gray_tex.astype(np.float32), (11, 11), 0) ** 2
+        local_variance = np.clip(local_variance, 0, None)
+
+        # Somente textura típica de pele saudável (moderadamente uniforme)
+        smooth_skin = ((local_variance > 50) & (local_variance < 400)).astype(np.uint8) * 255
+        skin_exclude_mask = cv2.bitwise_and(skin_exclude_mask, smooth_skin)
+
+        # Limpeza morfológica
+        kernel_skin = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        skin_exclude_mask = cv2.morphologyEx(skin_exclude_mask, cv2.MORPH_CLOSE, kernel_skin)
+        skin_exclude_mask = cv2.morphologyEx(skin_exclude_mask, cv2.MORPH_OPEN, kernel_skin)
+
+        # Remove pixels de pele saudável da máscara de necrose
+        masks["necrosis"] = cv2.bitwise_and(
+            masks["necrosis"], cv2.bitwise_not(skin_exclude_mask)
+        )
+
+        logger.debug(
+            f"Skin exclusion: {np.sum(skin_exclude_mask > 0)} px excluídos da necrose "
+            f"(Fitzpatrick {fitzpatrick})"
+        )
+
+        # ── 5b. Restrição espacial por zonas ─────────────────────────
+        # Necrose: viés espacial moderado. Em peles escuras, requer
+        # confirmação por textura, mas NÃO restringimos excessivamente.
         necro_spatial = np.zeros((h, w), dtype=np.float32)
         necro_spatial[core_zone > 0] = 1.0
-        necro_spatial[peripheral_zone > 0] = 0.6  # relaxado (era 0.2)
+        if is_dark_skin:
+            # Pele escura: periferia com peso moderado (não bloquear)
+            necro_spatial[peripheral_zone > 0] = 0.45
+        elif is_medium_skin:
+            necro_spatial[peripheral_zone > 0] = 0.5
+        else:
+            necro_spatial[peripheral_zone > 0] = 0.6
 
-        # Boost adicional para pixels de baixa luminância dentro da ROI:
-        # Se V < 50 e está dentro do wound_mask → alta confiança de necrose,
-        # independente da zona espacial. Racional clínico: escara escura
-        # pode cobrir toda a superfície da ferida, inclusive bordas.
+        # Boost por luminância CONDICIONAL: somente pixels escuros
+        # que NÃO são pele saudável do paciente (anti-bias)
         gray_roi = cv2.cvtColor(
             cv2.bitwise_and(denoised_norm, denoised_norm, mask=wound_mask),
             cv2.COLOR_BGR2GRAY
         )
-        low_lum_mask = (gray_roi < 50).astype(np.float32)
-        # Pixels com luminância < 50 dentro do ROI recebem peso máximo
-        necro_spatial = np.maximum(necro_spatial, low_lum_mask * wound_mask.astype(np.float32) / 255.0)
+        low_lum = (gray_roi < 45).astype(np.float32)
+        not_skin_f = (cv2.bitwise_not(skin_exclude_mask) / 255.0).astype(np.float32)
+        # Pixels escuros + não-pele dentro da ROI recebem boost espacial
+        lum_boost = low_lum * not_skin_f * (wound_mask.astype(np.float32) / 255.0)
+        necro_spatial = np.maximum(necro_spatial, lum_boost * 0.8)
 
         m_necro = masks["necrosis"].astype(np.float32)
         m_necro_biased = m_necro * necro_spatial
-        masks["necrosis"] = np.where(m_necro_biased > 80, 255, 0).astype(np.uint8)  # threshold relaxado
+        # Threshold moderado (mesmo para pele escura — a skin exclusion já protege)
+        necro_threshold = 100 if is_dark_skin else (90 if is_medium_skin else 80)
+        masks["necrosis"] = np.where(m_necro_biased > necro_threshold, 255, 0).astype(np.uint8)
         masks["necrosis"] = cv2.bitwise_and(masks["necrosis"], wound_mask)
 
-        # --- Esfacelo: viés forte para core ---
+        # --- Esfacelo: viés moderado para core + periferia interna ---
         core_bias_slough = np.zeros((h, w), dtype=np.float32)
         core_bias_slough[core_zone > 0] = 1.0
-        core_bias_slough[peripheral_zone > 0] = 0.2
+        core_bias_slough[peripheral_zone > 0] = 0.5  # esfacelo pode estar na periferia
 
         m_slough = masks["slough"].astype(np.float32)
         m_slough_biased = m_slough * core_bias_slough
-        masks["slough"] = np.where(m_slough_biased > 120, 255, 0).astype(np.uint8)
+        masks["slough"] = np.where(m_slough_biased > 100, 255, 0).astype(np.uint8)
         masks["slough"] = cv2.bitwise_and(masks["slough"], wound_mask)
 
         # Granulação: presente no leito inteiro (core + periferia)
@@ -1401,30 +1545,22 @@ class ClinicalWoundAnalyzer:
         for _tk in masks:
             masks[_tk] = cv2.bitwise_and(masks[_tk], _not_drape)
 
-        # ── 8. Reforço por textura + luminância (restrito à ROI) ────
-        # 8a. Necrose por luminância: prioriza pixels escuros (V < 50)
-        #     dentro de TODO o perímetro anatômico segmentado.
-        #     Racional: após a exclusão de background espacial, pixels
-        #     escuros remanescentes dentro do wound_mask são necrose.
-        dark_px = (gray < 60).astype(np.uint8) * 255
+        # ── 8. Reforço por textura + luminância (com proteção anti-bias) ─
+        # Combina luminância + textura para reforçar necrose, mas EXCLUI
+        # pixels que correspondem ao tom de pele do paciente.
+
+        # 8a. Pixels escuros dentro da ROI que NÃO são pele saudável
+        dark_px = (gray < 55).astype(np.uint8) * 255
         dark_px = cv2.bitwise_and(dark_px, _not_drape)
+        dark_px = cv2.bitwise_and(dark_px, cv2.bitwise_not(skin_exclude_mask))
 
-        # Necrose baixa luminância: V < 50, dentro do ROI, qualquer zona
-        very_dark_roi = (gray < 50).astype(np.uint8) * 255
-        very_dark_roi = cv2.bitwise_and(very_dark_roi, wound_mask)
-        very_dark_roi = cv2.bitwise_and(very_dark_roi, _not_drape)
-
-        # Proteção: exclui pixels que parecem background residual
-        # (variância local < 10 E acromático puro = provável fundo)
-        local_var_safe = local_var.copy()
-        possible_bg_residual = np.zeros((h, w), dtype=np.uint8)
+        # Proteção background residual
         lab_check = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
         a_ch = lab_check[:, :, 1].astype(np.float32)
         b_ch = lab_check[:, :, 2].astype(np.float32)
         chroma_dev = np.sqrt((a_ch - 128) ** 2 + (b_ch - 128) ** 2)
-        # Acromático puro + variância zero + muito escuro = background residual
         possible_bg_residual = cv2.bitwise_and(
-            ((local_var_safe < 10).astype(np.uint8) * 255),
+            ((local_var < 10).astype(np.uint8) * 255),
             ((chroma_dev < 6).astype(np.uint8) * 255)
         )
         possible_bg_residual = cv2.bitwise_and(
@@ -1432,33 +1568,43 @@ class ClinicalWoundAnalyzer:
             ((gray < 15).astype(np.uint8) * 255)
         )
 
-        # Necrose confirmada por luminância: escuro E não-background
-        necro_lum_boost = cv2.bitwise_and(
-            very_dark_roi,
-            cv2.bitwise_not(possible_bg_residual)
-        )
-        masks["necrosis"] = cv2.bitwise_or(masks["necrosis"], necro_lum_boost)
+        # 8b. Necrose por luminância: V < 45, dentro do ROI, não-pele, não-bg
+        very_dark_roi = (gray < 45).astype(np.uint8) * 255
+        very_dark_roi = cv2.bitwise_and(very_dark_roi, wound_mask)
+        very_dark_roi = cv2.bitwise_and(very_dark_roi, _not_drape)
+        very_dark_roi = cv2.bitwise_and(very_dark_roi, cv2.bitwise_not(skin_exclude_mask))
+        very_dark_roi = cv2.bitwise_and(very_dark_roi, cv2.bitwise_not(possible_bg_residual))
+        masks["necrosis"] = cv2.bitwise_or(masks["necrosis"], very_dark_roi)
 
-        # 8b. Necrose por textura: textura baixa + escuro (original)
+        # 8c. Necrose por textura: baixa textura + escuro + não-pele
         necro_texture_boost = cv2.bitwise_and(
             cv2.bitwise_and(dark_px, wound_mask),
             (low_texture * 255).astype(np.uint8)
         )
-        # Viés para core — necrose por textura no centro é mais confiável
-        necro_texture_boost = cv2.bitwise_and(necro_texture_boost, cv2.bitwise_or(
-            core_zone, cv2.bitwise_and(peripheral_zone, dark_px)
-        ))
+        necro_texture_boost = cv2.bitwise_and(
+            necro_texture_boost, cv2.bitwise_not(possible_bg_residual)
+        )
+        necro_texture_boost = cv2.bitwise_and(
+            necro_texture_boost, cv2.bitwise_not(skin_exclude_mask)
+        )
+        # Viés para core + periferia (necrose pode cobrir toda a ferida)
+        necro_texture_zone = cv2.bitwise_or(core_zone, peripheral_zone)
+        necro_texture_boost = cv2.bitwise_and(necro_texture_boost, necro_texture_zone)
         masks["necrosis"] = cv2.bitwise_or(masks["necrosis"], necro_texture_boost)
 
-        # Granulação: textura alta + vermelho dominante
+        # Granulação: textura alta + vermelho dominante (mais restrito)
         red_channel = denoised_norm[:, :, 2]  # BGR → canal R
+        green_channel = denoised_norm[:, :, 1]
         red_dominant = (
-            (red_channel.astype(np.int16) - denoised_norm[:, :, 1].astype(np.int16)) > 30
+            (red_channel.astype(np.int16) - green_channel.astype(np.int16)) > 40
         ).astype(np.uint8) * 255
+        # Granulação requer ALTA textura + vermelho forte
         gran_boost = cv2.bitwise_and(
             cv2.bitwise_and(red_dominant, wound_mask),
             (high_texture * 255).astype(np.uint8)
         )
+        # Não adicionar granulação onde já tem necrose
+        gran_boost = cv2.bitwise_and(gran_boost, cv2.bitwise_not(masks["necrosis"]))
         masks["granulation"] = cv2.bitwise_or(masks["granulation"], gran_boost)
 
         # ── 9. Resolução de sobreposições — prioridade clínica ───────
@@ -1615,14 +1761,33 @@ class ClinicalWoundAnalyzer:
 
     # -------------------------------------------------------
     def _compute_health_score(self, pcts: Dict[str, float]) -> float:
-        """Score de saúde: granulação/epitelização → bom; necrose → ruim."""
+        """Score de saúde baseado na composição tecidual.
+
+        Critérios clínicos:
+        - Granulação e epitelização são tecidos saudáveis (positivo)
+        - Necrose é o pior indicador (penalidade forte)
+        - Esfacelo indica desvitalização moderada
+        - Tecido não classificado na ferida não conta como saudável
+        """
         gran = pcts.get("granulation", 0)
         epit = pcts.get("epithelialization", 0)
         slough = pcts.get("slough", 0)
         necro = pcts.get("necrosis", 0)
 
-        score = 50 + (gran * 0.8 + epit * 1.5) - (necro * 1.5 + slough * 0.5)
-        return max(0.0, min(100.0, score))
+        # Proporção de tecido saudável vs total classificado
+        total_classified = gran + epit + slough + necro
+        if total_classified < 5:
+            return 50.0  # Sem dados suficientes
+
+        # Tecido não classificado (dentro da ferida) é neutro/negativo
+        unclassified = max(0, 100 - total_classified)
+
+        # Score: peso positivo para saudável, negativo para inviável
+        healthy = gran * 0.6 + epit * 1.0
+        unhealthy = necro * 2.0 + slough * 0.8 + unclassified * 0.3
+
+        score = max(0.0, min(100.0, healthy - unhealthy))
+        return score
 
 
 # ============================================================
@@ -2071,16 +2236,11 @@ class HealAnalyzerApp(QMainWindow):
         # === HEADER ===
         header_layout = QHBoxLayout()
         
-        # Logo/Icon (opcional, usando texto estilizado por enquanto)
-        logo_lbl = QLabel("🏥")
-        logo_lbl.setFont(QFont("Segoe UI", 24))
-        header_layout.addWidget(logo_lbl)
-        
         title_layout = QVBoxLayout()
-        header = QLabel("HEAL+ — Analisador Clínico de Feridas")
+        header = QLabel("HEAL+  —  Analisador Clínico de Feridas")
         header.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        header.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
-        header.setStyleSheet("color: #38bdf8; padding: 0px; margin: 0px;")
+        header.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        header.setStyleSheet("color: #e2e8f0; padding: 0px; margin: 0px;")
         title_layout.addWidget(header)
 
         subtitle = QLabel("Especialista em Estomaterapia e Visão Computacional  ·  Classificação Tecidual Rigorosa")
@@ -2097,7 +2257,8 @@ class HealAnalyzerApp(QMainWindow):
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
-        line.setStyleSheet("background-color: #334155;")
+        line.setFixedHeight(1)
+        line.setStyleSheet("background: #334155; border: none;")
         main_layout.addWidget(line)
 
         # === TOOLBAR ===
@@ -2138,8 +2299,7 @@ class HealAnalyzerApp(QMainWindow):
                 font-weight: bold;
             }
             QTabBar::tab:selected {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #0ea5e9, stop:1 #6366f1);
+                background: #0ea5e9;
                 color: white;
             }
             QTabBar::tab:hover:!selected {
@@ -2151,21 +2311,20 @@ class HealAnalyzerApp(QMainWindow):
         # === TAB 1: ARQUIVO DE IMAGEM ===
         self.tab_image = QWidget()
         self._setup_image_tab()
-        self.tab_widget.addTab(self.tab_image, "📁  Arquivo de Imagem")
+        self.tab_widget.addTab(self.tab_image, "Arquivo de Imagem")
 
         # === TAB 2: TEMPO REAL (WEBCAM) ===
         self.tab_webcam = QWidget()
         self._setup_webcam_tab()
-        self.tab_widget.addTab(self.tab_webcam, "📹  Tempo Real (Webcam)")
+        self.tab_widget.addTab(self.tab_webcam, "Tempo Real (Webcam)")
 
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
         main_layout.addWidget(self.tab_widget, stretch=1)
 
-        # Footer
-        footer = QLabel("HEAL/REDISUS — Plataforma Nacional de Saúde Digital  ·  Cluster REDISUS — RNP/RUTE")
+        footer = QLabel("HEAL/REDISUS  —  Plataforma Nacional de Saúde Digital  ·  Cluster REDISUS  —  RNP/RUTE")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setFont(QFont("Segoe UI", 8))
-        footer.setStyleSheet("color: #475569; padding: 4px;")
+        footer.setStyleSheet("color: #475569; padding: 6px;")
         main_layout.addWidget(footer)
 
     # -------------------------------------------------------
@@ -2195,19 +2354,17 @@ class HealAnalyzerApp(QMainWindow):
 
         # Toolbar da aba
         toolbar = QHBoxLayout()
-        self.btn_open = QPushButton("📂  Abrir Imagem de Ferida")
+        self.btn_open = QPushButton("Abrir Imagem de Ferida")
         self.btn_open.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        self.btn_open.setMinimumHeight(44)
+        self.btn_open.setMinimumHeight(40)
         self.btn_open.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_open.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #0ea5e9, stop:1 #6366f1);
-                color: white; border: none; border-radius: 8px;
+                background: #0ea5e9;
+                color: white; border: none; border-radius: 6px;
                 padding: 0 24px; font-size: 13px;
             }
-            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #38bdf8, stop:1 #818cf8); }
+            QPushButton:hover { background: #38bdf8; }
             QPushButton:pressed { background: #0284c7; }
         """)
         self.btn_open.clicked.connect(self._on_open_image)
@@ -2247,14 +2404,32 @@ class HealAnalyzerApp(QMainWindow):
         right_scroll = QScrollArea()
         right_scroll.setWidgetResizable(True)
         right_scroll.setStyleSheet("""
-            QScrollArea { border: none; background: transparent; }
-            QScrollBar:vertical { background: #1e293b; width: 8px; }
-            QScrollBar::handle:vertical { background: #475569; border-radius: 4px; }
+            QScrollArea {
+                border: none;
+                background: #0f172a;
+            }
+            QScrollBar:vertical {
+                background: #0f172a;
+                width: 8px;
+                margin: 4px 2px;
+            }
+            QScrollBar::handle:vertical {
+                background: #475569;
+                border-radius: 4px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #64748b;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
         """)
         self.right_panel = QWidget()
+        self.right_panel.setStyleSheet("background: #0f172a;")
         self.right_layout = QVBoxLayout(self.right_panel)
-        self.right_layout.setContentsMargins(8, 0, 8, 8)
-        self.right_layout.setSpacing(8)
+        self.right_layout.setContentsMargins(10, 8, 10, 10)
+        self.right_layout.setSpacing(10)
         self.right_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Placeholder
@@ -2269,7 +2444,11 @@ class HealAnalyzerApp(QMainWindow):
         )
         self.lbl_placeholder.setFont(QFont("Segoe UI", 11))
         self.lbl_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_placeholder.setStyleSheet("color: #64748b; padding: 40px;")
+        self.lbl_placeholder.setStyleSheet("""
+            color: #64748b;
+            padding: 40px;
+            background: #0f172a;
+        """)
         self.lbl_placeholder.setWordWrap(True)
         self.right_layout.addWidget(self.lbl_placeholder)
 
@@ -2291,20 +2470,18 @@ class HealAnalyzerApp(QMainWindow):
         toolbar = QHBoxLayout()
 
         # Botão iniciar/parar webcam
-        self.btn_webcam = QPushButton("▶  Iniciar Detecção em Tempo Real")
+        self.btn_webcam = QPushButton("Iniciar Detecção em Tempo Real")
         self.btn_webcam.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        self.btn_webcam.setMinimumHeight(44)
+        self.btn_webcam.setMinimumHeight(40)
         self.btn_webcam.setMinimumWidth(260)
         self.btn_webcam.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_webcam.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #22c55e, stop:1 #16a34a);
-                color: white; border: none; border-radius: 8px;
+                background: #16a34a;
+                color: white; border: none; border-radius: 6px;
                 padding: 0 24px; font-size: 13px;
             }
-            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #4ade80, stop:1 #22c55e); }
+            QPushButton:hover { background: #22c55e; }
             QPushButton:pressed { background: #15803d; }
         """)
         self.btn_webcam.clicked.connect(self._toggle_webcam)
@@ -2328,7 +2505,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # Indicador de status
         toolbar.addSpacing(20)
-        self.lbl_rt_status = QLabel("⬤  Parado")
+        self.lbl_rt_status = QLabel("Parado")
         self.lbl_rt_status.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         self.lbl_rt_status.setStyleSheet("color: #64748b;")
         toolbar.addWidget(self.lbl_rt_status)
@@ -2346,15 +2523,15 @@ class HealAnalyzerApp(QMainWindow):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
 
-        self.lbl_webcam_feed = QLabel("📹  Clique em \"Iniciar Detecção\" para análise em tempo real")
+        self.lbl_webcam_feed = QLabel("Clique em \"Iniciar Detecção\" para análise em tempo real")
         self.lbl_webcam_feed.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_webcam_feed.setMinimumSize(640, 480)
         self.lbl_webcam_feed.setFont(QFont("Segoe UI", 13))
         self.lbl_webcam_feed.setStyleSheet("""
             QLabel {
                 background: #0f172a;
-                border: 2px solid #334155;
-                border-radius: 12px;
+                border: 1px solid #334155;
+                border-radius: 8px;
                 color: #64748b;
             }
         """)
@@ -2374,14 +2551,32 @@ class HealAnalyzerApp(QMainWindow):
         right_scroll = QScrollArea()
         right_scroll.setWidgetResizable(True)
         right_scroll.setStyleSheet("""
-            QScrollArea { border: none; background: transparent; }
-            QScrollBar:vertical { background: #1e293b; width: 8px; }
-            QScrollBar::handle:vertical { background: #475569; border-radius: 4px; }
+            QScrollArea {
+                border: none;
+                background: #0f172a;
+            }
+            QScrollBar:vertical {
+                background: #0f172a;
+                width: 8px;
+                margin: 4px 2px;
+            }
+            QScrollBar::handle:vertical {
+                background: #475569;
+                border-radius: 4px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #64748b;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
         """)
         self.rt_right_panel = QWidget()
+        self.rt_right_panel.setStyleSheet("background: #0f172a;")
         self.rt_right_layout = QVBoxLayout(self.rt_right_panel)
-        self.rt_right_layout.setContentsMargins(8, 0, 8, 8)
-        self.rt_right_layout.setSpacing(8)
+        self.rt_right_layout.setContentsMargins(10, 8, 10, 10)
+        self.rt_right_layout.setSpacing(10)
         self.rt_right_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Placeholder
@@ -2395,7 +2590,11 @@ class HealAnalyzerApp(QMainWindow):
         )
         self.rt_placeholder.setFont(QFont("Segoe UI", 11))
         self.rt_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.rt_placeholder.setStyleSheet("color: #64748b; padding: 40px;")
+        self.rt_placeholder.setStyleSheet("""
+            color: #64748b;
+            padding: 40px;
+            background: #0f172a;
+        """)
         self.rt_placeholder.setWordWrap(True)
         self.rt_right_layout.addWidget(self.rt_placeholder)
 
@@ -2446,20 +2645,18 @@ class HealAnalyzerApp(QMainWindow):
         self._webcam_thread.start()
 
         self._webcam_active = True
-        self.btn_webcam.setText("⏹  Parar Detecção")
+        self.btn_webcam.setText("Parar Detecção")
         self.btn_webcam.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #ef4444, stop:1 #dc2626);
-                color: white; border: none; border-radius: 8px;
+                background: #dc2626;
+                color: white; border: none; border-radius: 6px;
                 padding: 0 24px; font-size: 13px;
             }
-            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #f87171, stop:1 #ef4444); }
+            QPushButton:hover { background: #ef4444; }
             QPushButton:pressed { background: #b91c1c; }
         """)
         self.combo_camera.setEnabled(False)
-        self.lbl_rt_status.setText("⬤  Escaneando")
+        self.lbl_rt_status.setText("Escaneando")
         self.lbl_rt_status.setStyleSheet("color: #22c55e;")
         self.lbl_status.setText("Detecção em tempo real ativa — aponte a câmera para a ferida")
         self.lbl_status.setStyleSheet("color: #22c55e;")
@@ -2497,22 +2694,20 @@ class HealAnalyzerApp(QMainWindow):
                     self._realtime_thread.terminate()
                     self._realtime_thread.wait(1000)
             self._realtime_thread = None
-        self.btn_webcam.setText("▶  Iniciar Detecção em Tempo Real")
+        self.btn_webcam.setText("Iniciar Detecção em Tempo Real")
         self.btn_webcam.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #22c55e, stop:1 #16a34a);
-                color: white; border: none; border-radius: 8px;
+                background: #16a34a;
+                color: white; border: none; border-radius: 6px;
                 padding: 0 24px; font-size: 13px;
             }
-            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #4ade80, stop:1 #22c55e); }
+            QPushButton:hover { background: #22c55e; }
             QPushButton:pressed { background: #15803d; }
         """)
         self.combo_camera.setEnabled(True)
-        self.lbl_webcam_feed.setText("📹  Clique em \"Iniciar Detecção\" para análise em tempo real")
+        self.lbl_webcam_feed.setText("Clique em \"Iniciar Detecção\" para análise em tempo real")
         self.lbl_webcam_feed.setPixmap(QPixmap())
-        self.lbl_rt_status.setText("⬤  Parado")
+        self.lbl_rt_status.setText("Parado")
         self.lbl_rt_status.setStyleSheet("color: #64748b;")
         self.lbl_status.setText("Detecção parada")
         self.lbl_status.setStyleSheet("color: #94a3b8;")
@@ -2542,9 +2737,9 @@ class HealAnalyzerApp(QMainWindow):
 
     def _on_webcam_error(self, error: str):
         """Callback de erro da webcam."""
-        self.lbl_status.setText(f"⚠ Erro: {error}")
+        self.lbl_status.setText(f"Erro: {error}")
         self.lbl_status.setStyleSheet("color: #ef4444;")
-        self.lbl_rt_status.setText("⬤  Erro")
+        self.lbl_rt_status.setText("Erro")
         self.lbl_rt_status.setStyleSheet("color: #ef4444;")
         self._stop_webcam()
 
@@ -2561,14 +2756,14 @@ class HealAnalyzerApp(QMainWindow):
 
         if not report.is_valid_wound:
             # Não mostra erro, apenas continua escaneando
-            self.lbl_rt_status.setText("⬤  Escaneando (sem ferida)")
+            self.lbl_rt_status.setText("Escaneando (sem ferida)")
             self.lbl_rt_status.setStyleSheet("color: #f59e0b;")
             return
 
-        self.lbl_rt_status.setText("⬤  Ferida detectada")
+        self.lbl_rt_status.setText("Ferida detectada")
         self.lbl_rt_status.setStyleSheet("color: #22c55e;")
         self.lbl_status.setText(
-            f"✓ {report.primary_tissue}  ·  Score: {report.health_score:.0f}/100  ·  {report.processing_time_ms:.0f}ms"
+            f"Ferida detectada: {report.primary_tissue}  |  Score: {report.health_score:.0f}/100  |  {report.processing_time_ms:.0f}ms"
         )
         self.lbl_status.setStyleSheet("color: #22c55e;")
 
@@ -2586,7 +2781,7 @@ class HealAnalyzerApp(QMainWindow):
         self._clear_rt_right_panel()
 
         # Classificação principal
-        box_main = self._make_group("🔬 CLASSIFICAÇÃO")
+        box_main = self._make_group("CLASSIFICAÇÃO")
         lbl_primary = QLabel(r.primary_tissue)
         lbl_primary.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         lbl_primary.setStyleSheet("color: #38bdf8; padding: 2px 0;")
@@ -2605,7 +2800,7 @@ class HealAnalyzerApp(QMainWindow):
         self.rt_right_layout.addWidget(box_main)
 
         # Composição tecidual
-        box_tissue = self._make_group("📊 TECIDOS")
+        box_tissue = self._make_group("TECIDOS")
         for t in sorted(r.tissues, key=lambda x: -x.percentage):
             if t.percentage > 1:
                 row = QWidget()
@@ -2625,7 +2820,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # DL prediction
         if r.dl_prediction:
-            box_dl = self._make_group("🧠 IA")
+            box_dl = self._make_group("IA")
             dl = r.dl_prediction
             conf = dl.get("confidence", 0)
             conf_color = "#22c55e" if conf >= 0.7 else ("#fbbf24" if conf >= 0.4 else "#ef4444")
@@ -2636,7 +2831,7 @@ class HealAnalyzerApp(QMainWindow):
             self.rt_right_layout.addWidget(box_dl)
 
         # Ação clínica
-        box_action = self._make_group("💊 AÇÃO")
+        box_action = self._make_group("AÇÃO CLÍNICA")
         dominant = max(r.tissues, key=lambda x: x.percentage)
         lbl_act = QLabel(dominant.clinical_action[:150] + "..." if len(dominant.clinical_action) > 150 else dominant.clinical_action)
         lbl_act.setWordWrap(True)
@@ -2647,7 +2842,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # Escalas Clínicas (PUSH e BWAT) - versão compacta para tempo real
         if HAS_CLINICAL_SCALES and (r.push_score is not None or r.bwat_score is not None):
-            box_scales = self._make_group("📏 ESCALAS")
+            box_scales = self._make_group("ESCALAS")
             
             # PUSH Score compacto
             if r.push_score is not None:
@@ -2716,13 +2911,13 @@ class HealAnalyzerApp(QMainWindow):
         self._current_report = report
 
         if not report.is_valid_wound:
-            self.lbl_status.setText("⚠ Análise concluída — Input Inválido")
+            self.lbl_status.setText("Análise concluída — Input Inválido")
             self.lbl_status.setStyleSheet("color: #ef4444;")
             self._show_invalid(report)
             return
 
         self.lbl_status.setText(
-            f"✓ Análise concluída  ·  {report.processing_time_ms:.0f}ms  ·  "
+            f"Análise concluída  |  {report.processing_time_ms:.0f}ms  |  "
             f"Classificação: {report.primary_tissue}"
         )
         self.lbl_status.setStyleSheet("color: #22c55e;")
@@ -2733,7 +2928,7 @@ class HealAnalyzerApp(QMainWindow):
         if report.original is not None:
             self.lbl_img_original.setPixmap(np_to_qpixmap(report.original, 400))
         self._clear_right_panel()
-        lbl = QLabel(f"⚠ {report.rejection_reason}")
+        lbl = QLabel(report.rejection_reason)
         lbl.setFont(QFont("Segoe UI", 13))
         lbl.setWordWrap(True)
         lbl.setStyleSheet("color: #ef4444; padding: 30px;")
@@ -2754,34 +2949,31 @@ class HealAnalyzerApp(QMainWindow):
         self._clear_right_panel()
 
         # --- CLASSIFICAÇÃO PRINCIPAL ---
-        box_main = self._make_group("🔬 CLASSIFICAÇÃO PRINCIPAL")
+        box_main = self._make_group("CLASSIFICAÇÃO PRINCIPAL")
         
-        # Layout horizontal para ícone e texto
+        # Layout horizontal para texto
         main_hl = QHBoxLayout()
-        
-        # Ícone baseado no tecido
-        icon_map = {
-            "Tecido de Granulação": "❤️",
-            "Epitelização": "✨",
-            "Esfacelo (Fibrina)": "⚠️",
-            "Necrose de Coagulação (Escara)": "💀"
-        }
-        icon_text = icon_map.get(r.primary_tissue, "🔬")
-        lbl_icon = QLabel(icon_text)
-        lbl_icon.setFont(QFont("Segoe UI", 24))
-        main_hl.addWidget(lbl_icon)
         
         # Texto da classificação
         text_vl = QVBoxLayout()
+        # Cor dinâmica baseada no tecido
+        tissue_colors = {
+            "Tecido de Granulação": "#22c55e",
+            "Epitelização": "#a78bfa",
+            "Esfacelo (Fibrina)": "#fbbf24",
+            "Necrose de Coagulação (Escara)": "#ef4444",
+        }
+        primary_color = tissue_colors.get(r.primary_tissue, "#38bdf8")
+
         lbl_primary = QLabel(r.primary_tissue)
         lbl_primary.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        lbl_primary.setStyleSheet("color: #38bdf8; padding: 0px;")
+        lbl_primary.setStyleSheet(f"color: {primary_color}; padding: 0px;")
         text_vl.addWidget(lbl_primary)
 
         lbl_just = QLabel(r.primary_justification)
         lbl_just.setWordWrap(True)
         lbl_just.setFont(QFont("Segoe UI", 10))
-        lbl_just.setStyleSheet("color: #cbd5e1; padding: 2px 0 6px;")
+        lbl_just.setStyleSheet("color: #cbd5e1; padding: 2px 0 6px; line-height: 1.4;")
         text_vl.addWidget(lbl_just)
         
         main_hl.addLayout(text_vl)
@@ -2789,7 +2981,7 @@ class HealAnalyzerApp(QMainWindow):
         self.right_layout.addWidget(box_main)
 
         # --- COMPOSIÇÃO TECIDUAL ---
-        box_tissue = self._make_group("📊 COMPOSIÇÃO TECIDUAL")
+        box_tissue = self._make_group("COMPOSIÇÃO TECIDUAL")
         for t in sorted(r.tissues, key=lambda x: -x.percentage):
             row = QWidget()
             rl = QHBoxLayout(row)
@@ -2810,27 +3002,30 @@ class HealAnalyzerApp(QMainWindow):
 
             # Barra
             bar_bg = QFrame()
-            bar_bg.setFixedHeight(6)
-            bar_bg.setStyleSheet("background: #1e293b; border-radius: 3px;")
+            bar_bg.setFixedHeight(8)
+            bar_bg.setStyleSheet("background: #0f172a; border-radius: 4px;")
             bar_inner = QFrame(bar_bg)
-            bar_inner.setFixedHeight(6)
+            bar_inner.setFixedHeight(8)
             pct_clamped = min(t.percentage, 100)
             bar_inner.setFixedWidth(max(int(pct_clamped * 2.5), 1))
-            bar_inner.setStyleSheet(f"background: {t.color_hex}; border-radius: 3px;")
+            bar_inner.setStyleSheet(f"background: {t.color_hex}; border-radius: 4px;")
             box_tissue.layout().addWidget(bar_bg)
 
         # Score
         score_row = QWidget()
-        sl = QHBoxLayout(score_row)
-        sl.setContentsMargins(0, 12, 0, 0)
-        
-        # Ícone de saúde
-        health_icon = "🟢" if r.health_score >= 60 else ("🟡" if r.health_score >= 30 else "🔴")
-        sl.addWidget(self._styled_label(health_icon, "#e2e8f0", 14))
-        
-        sl.addWidget(self._styled_label("Score de Saúde:", "#94a3b8", 12))
         score_color = "#22c55e" if r.health_score >= 60 else ("#fbbf24" if r.health_score >= 30 else "#ef4444")
-        sl.addWidget(self._styled_label(f"{r.health_score:.0f}/100", score_color, 16, bold=True))
+        score_row.setStyleSheet("""
+            QWidget {
+                background: #0f172a;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                margin-top: 6px;
+            }
+        """)
+        sl = QHBoxLayout(score_row)
+        sl.setContentsMargins(12, 8, 12, 8)
+        sl.addWidget(self._styled_label("Score de Saúde:", "#94a3b8", 11))
+        sl.addWidget(self._styled_label(f"{r.health_score:.0f}/100", score_color, 14, bold=True))
         sl.addStretch()
         box_tissue.layout().addWidget(score_row)
 
@@ -2838,7 +3033,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- CLASSIFICAÇÃO IA (Deep Learning) ---
         if r.dl_prediction:
-            box_dl = self._make_group("🧠 CLASSIFICAÇÃO IA (Deep Learning)")
+            box_dl = self._make_group("CLASSIFICAÇÃO IA (Deep Learning)")
             dl = r.dl_prediction
 
             # Classe principal
@@ -2846,7 +3041,7 @@ class HealAnalyzerApp(QMainWindow):
             lbl_cls.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
             conf = dl.get("confidence", 0)
             conf_color = "#22c55e" if conf >= 0.7 else ("#fbbf24" if conf >= 0.4 else "#ef4444")
-            lbl_cls.setStyleSheet(f"color: {conf_color}; padding: 2px 0;")
+            lbl_cls.setStyleSheet(f"color: {conf_color}; padding: 4px 0;")
             box_dl.layout().addWidget(lbl_cls)
 
             # Confiança
@@ -2875,7 +3070,7 @@ class HealAnalyzerApp(QMainWindow):
 
             # Nota sobre modelo
             if conf < 0.5:
-                note = QLabel("⚠ Confiança baixa — recomenda-se avaliação por especialista")
+                note = QLabel("Confiança baixa — recomenda-se avaliação por especialista")
                 note.setWordWrap(True)
                 note.setFont(QFont("Segoe UI", 9))
                 note.setStyleSheet("color: #fbbf24; padding-top: 4px;")
@@ -2885,18 +3080,18 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- ANÁLISE DE BORDAS ---
         if r.border_analysis:
-            box_border = self._make_group("🔎 ANÁLISE DE BORDAS E PERILESÃO")
+            box_border = self._make_group("ANÁLISE DE BORDAS E PERILESÃO")
             ba = r.border_analysis
 
             flags = []
             if ba.maceration:
-                flags.append(("⚠ Maceração perilesional", "#fbbf24"))
+                flags.append(("Maceração perilesional", "#fbbf24"))
             if ba.inflammation:
-                flags.append(("⚠ Inflamação perilesional", "#ef4444"))
+                flags.append(("Inflamação perilesional", "#ef4444"))
             if not ba.regular_borders:
                 flags.append(("Bordas irregulares", "#f97316"))
             if not flags:
-                flags.append(("✓ Sem alterações perilesionais", "#22c55e"))
+                flags.append(("Sem alterações perilesionais", "#22c55e"))
 
             for text, color in flags:
                 box_border.layout().addWidget(self._styled_label(text, color, 10))
@@ -2909,27 +3104,27 @@ class HealAnalyzerApp(QMainWindow):
             self.right_layout.addWidget(box_border)
 
         # --- AÇÕES CLÍNICAS ---
-        box_actions = self._make_group("💊 RECOMENDAÇÕES CLÍNICAS")
+        box_actions = self._make_group("RECOMENDAÇÕES CLÍNICAS")
         dominant = max(r.tissues, key=lambda x: x.percentage)
         lbl_act = QLabel(dominant.clinical_action)
         lbl_act.setWordWrap(True)
         lbl_act.setFont(QFont("Segoe UI", 10))
-        lbl_act.setStyleSheet("color: #cbd5e1;")
+        lbl_act.setStyleSheet("color: #cbd5e1; padding: 4px 0;")
         box_actions.layout().addWidget(lbl_act)
 
         for t in r.tissues:
             if t.percentage > 10 and t.name != dominant.name:
-                lbl_sec = QLabel(f"• {t.name}: {t.clinical_action}")
+                lbl_sec = QLabel(f"{t.name}: {t.clinical_action}")
                 lbl_sec.setWordWrap(True)
                 lbl_sec.setFont(QFont("Segoe UI", 9))
-                lbl_sec.setStyleSheet("color: #94a3b8; padding-top: 2px;")
+                lbl_sec.setStyleSheet("color: #94a3b8; padding: 2px 0 2px 8px;")
                 box_actions.layout().addWidget(lbl_sec)
 
         self.right_layout.addWidget(box_actions)
 
         # --- ESCALAS CLÍNICAS (PUSH/BWAT) ---
         if r.push_score or r.bwat_score:
-            box_scales = self._make_group("📋 ESCALAS CLÍNICAS")
+            box_scales = self._make_group("ESCALAS CLÍNICAS")
             
             # PUSH Score
             if r.push_score:
@@ -3000,7 +3195,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- ANÁLISE DE IMAGEM (Iluminação e Parte do Corpo) ---
         if r.lighting_analysis or r.body_part:
-            box_img_analysis = self._make_group("📷 ANÁLISE DE IMAGEM")
+            box_img_analysis = self._make_group("ANÁLISE DE IMAGEM")
             
             # Análise de iluminação
             if r.lighting_analysis:
@@ -3022,13 +3217,13 @@ class HealAnalyzerApp(QMainWindow):
                 
                 # Condição de iluminação
                 condition_names = {
-                    "optimal": "✓ Ideal",
-                    "underexposed": "⚠ Subexposta",
-                    "overexposed": "⚠ Superexposta",
-                    "uneven": "⚠ Irregular",
-                    "warm": "⚠ Luz quente",
-                    "cool": "⚠ Luz fria",
-                    "flash": "⚠ Flash detectado",
+                    "optimal": "Ideal",
+                    "underexposed": "Subexposta",
+                    "overexposed": "Superexposta",
+                    "uneven": "Irregular",
+                    "warm": "Luz quente",
+                    "cool": "Luz fria",
+                    "flash": "Flash detectado",
                 }
                 cond_text = condition_names.get(condition, condition)
                 
@@ -3090,7 +3285,7 @@ class HealAnalyzerApp(QMainWindow):
                     warn_row = QWidget()
                     wl = QHBoxLayout(warn_row)
                     wl.setContentsMargins(0, 1, 0, 1)
-                    wl.addWidget(self._styled_label("⚠", "#f97316", 9, bold=True))
+                    wl.addWidget(self._styled_label("Atenção", "#f97316", 9, bold=True))
                     wl.addWidget(self._styled_label(reliability_note[:48], "#f97316", 8))
                     wl.addStretch()
                     box_img_analysis.layout().addWidget(warn_row)
@@ -3100,7 +3295,7 @@ class HealAnalyzerApp(QMainWindow):
                     press_row = QWidget()
                     pl = QHBoxLayout(press_row)
                     pl.setContentsMargins(0, 1, 0, 1)
-                    pl.addWidget(self._styled_label("⚠ Ponto de pressão", "#f97316", 9))
+                    pl.addWidget(self._styled_label("Ponto de pressão", "#f97316", 9))
                     pl.addStretch()
                     box_img_analysis.layout().addWidget(press_row)
                 
@@ -3119,8 +3314,8 @@ class HealAnalyzerApp(QMainWindow):
             self.right_layout.addWidget(box_img_analysis)
 
         # --- METADADOS ---
-        box_meta = self._make_group("ℹ METADADOS")
-        dl_status = "✓ Ativo (TTA)" if r.dl_prediction else "Não disponível"
+        box_meta = self._make_group("METADADOS")
+        dl_status = "Ativo (TTA)" if r.dl_prediction else "Não disponível"
         pipeline_desc = "Detecção (OpenCV) → Segm. HSV+LAB → Textura → DL"
         meta_items = [
             ("Área da ferida", f"{r.wound_area_px:,} px"),
@@ -3143,7 +3338,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- ANÁLISE DE ILUMINAÇÃO ---
         if r.lighting_analysis:
-            box_light = self._make_group("💡 ILUMINAÇÃO")
+            box_light = self._make_group("ILUMINAÇÃO")
             la = r.lighting_analysis
             
             # Condição de iluminação
@@ -3200,7 +3395,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- PARTE DO CORPO ---
         if r.body_part:
-            box_body = self._make_group("🦵 REGIÃO ANATÔMICA")
+            box_body = self._make_group("REGIÃO ANATÔMICA")
             bp = r.body_part
             
             region_name = bp.get("name_pt", "Não identificado")
@@ -3221,7 +3416,7 @@ class HealAnalyzerApp(QMainWindow):
             box_body.layout().addWidget(bp_row)
 
             if not is_reliable and reliability_note:
-                lbl_rel = QLabel(f"⚠ {reliability_note}")
+                lbl_rel = QLabel(reliability_note)
                 lbl_rel.setWordWrap(True)
                 lbl_rel.setFont(QFont("Segoe UI", 8))
                 lbl_rel.setStyleSheet("color: #f97316;")
@@ -3229,7 +3424,7 @@ class HealAnalyzerApp(QMainWindow):
             
             # Ponto de pressão
             if is_pressure:
-                lbl_press = QLabel("⚠ Ponto de pressão - risco de LPP")
+                lbl_press = QLabel("Ponto de pressão - risco de LPP")
                 lbl_press.setFont(QFont("Segoe UI", 9))
                 lbl_press.setStyleSheet("color: #f97316;")
                 box_body.layout().addWidget(lbl_press)
@@ -3253,25 +3448,27 @@ class HealAnalyzerApp(QMainWindow):
     # -------------------------------------------------------
     def _make_group(self, title: str) -> QGroupBox:
         box = QGroupBox(title)
-        box.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        box.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         box.setStyleSheet("""
             QGroupBox {
-                background: rgba(30, 41, 59, 0.7);
+                background: #1e293b;
                 border: 1px solid #334155;
-                border-radius: 10px;
+                border-radius: 8px;
                 margin-top: 12px;
-                padding: 14px 10px 10px;
-                color: #38bdf8;
+                padding: 16px 12px 10px;
+                color: #94a3b8;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 12px;
-                padding: 0 6px;
-                color: #38bdf8;
+                padding: 1px 6px;
+                color: #94a3b8;
+                text-transform: uppercase;
+                letter-spacing: 1px;
             }
         """)
         layout = QVBoxLayout()
-        layout.setSpacing(4)
+        layout.setSpacing(6)
         box.setLayout(layout)
         return box
 
