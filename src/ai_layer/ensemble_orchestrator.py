@@ -58,6 +58,10 @@ class EnsembleClassificationResult:
     all_probabilities: Dict[int, float]   # class_id → prob
     agreement: ModelAgreement
     individual_results: Dict[str, Any]    # model_name → result
+    # Confiança e revisão (baseado no notebook wounds_classifier_embeddings.ipynb)
+    needs_expert_review: bool = False
+    confidence_entropy: float = 0.0       # Entropia normalizada da distribuição fundida
+    confidence_margin: float = 0.0        # Margem entre top-2 classes
 
 
 @dataclass
@@ -244,7 +248,11 @@ class EnsembleOrchestrator:
         dermaintel_result: Optional[DermaIntelResult],
         biomedclip_result: Optional[BiomedCLIPResult],
     ) -> EnsembleClassificationResult:
-        """Fusão por Weighted Soft Voting de até 3 modelos."""
+        """Fusão por Confidence-Weighted Soft Voting de até 3 modelos.
+        
+        Melhorado com pesos adaptativos baseados na confiança individual
+        de cada modelo (técnica inspirada no notebook embeddings).
+        """
 
         fused = np.zeros(5, dtype=np.float64)
         total_weight = 0.0
@@ -253,9 +261,12 @@ class EnsembleOrchestrator:
         # EfficientNet (modelo base REDISUS)
         if efficientnet_probs:
             w = self.weights.get("efficientnet", 0.35)
+            # Confidence-weighted: modelos mais confiantes têm mais peso
+            eff_conf = max(efficientnet_probs.values()) if efficientnet_probs else 0.5
+            adaptive_w = w * (0.5 + 0.5 * eff_conf)  # [w*0.5, w*1.0]
             for cid, p in efficientnet_probs.items():
-                fused[cid] += p * w
-            total_weight += w
+                fused[cid] += p * adaptive_w
+            total_weight += adaptive_w
             eff_best = max(efficientnet_probs, key=efficientnet_probs.get)
             individual["efficientnet"] = REDISUS_NAMES.get(eff_best, "?")
 
@@ -263,19 +274,23 @@ class EnsembleOrchestrator:
         if dermaintel_result:
             w = self.weights.get("dermaintel", 0.40)
             redisus_probs = dermaintel_result.get_redisus_probabilities()
+            di_conf = max(redisus_probs.values()) if redisus_probs else 0.5
+            adaptive_w = w * (0.5 + 0.5 * di_conf)
             for cid, p in redisus_probs.items():
-                fused[cid] += p * w
-            total_weight += w
+                fused[cid] += p * adaptive_w
+            total_weight += adaptive_w
             di_best = max(redisus_probs, key=redisus_probs.get)
             individual["dermaintel"] = REDISUS_NAMES.get(di_best, "?")
 
         # BiomedCLIP
         if biomedclip_result:
             w = self.weights.get("biomedclip", 0.25)
+            bc_conf = max(biomedclip_result.etiology_probs.values()) if biomedclip_result.etiology_probs else 0.5
+            adaptive_w = w * (0.5 + 0.5 * bc_conf)
             for cid, p in biomedclip_result.etiology_probs.items():
                 if 0 <= cid < 5:
-                    fused[cid] += p * w
-            total_weight += w
+                    fused[cid] += p * adaptive_w
+            total_weight += adaptive_w
             bc_best = max(biomedclip_result.etiology_probs, key=biomedclip_result.etiology_probs.get)
             individual["biomedclip"] = REDISUS_NAMES.get(bc_best, "?")
 
@@ -295,6 +310,23 @@ class EnsembleOrchestrator:
 
         all_probs = {i: float(fused[i]) for i in range(5)}
 
+        # Métricas de confiança (do notebook embeddings)
+        eps = 1e-10
+        fused_clipped = np.clip(fused, eps, 1.0)
+        entropy = -np.sum(fused_clipped * np.log(fused_clipped))
+        max_entropy = np.log(5)  # 5 classes
+        norm_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
+
+        sorted_fused = np.sort(fused)[::-1]
+        margin = float(sorted_fused[0] - sorted_fused[1]) if len(sorted_fused) >= 2 else 1.0
+
+        # Revisão especialista: confiança baixa, baixo agreement, ou alta entropia
+        needs_review = (
+            final_confidence < 0.80
+            or not agreement.models_agree
+            or norm_entropy > 0.70
+        )
+
         return EnsembleClassificationResult(
             class_id=best_id,
             class_name=REDISUS_NAMES.get(best_id, "Desconhecido"),
@@ -302,6 +334,9 @@ class EnsembleOrchestrator:
             all_probabilities=all_probs,
             agreement=agreement,
             individual_results=individual,
+            needs_expert_review=needs_review,
+            confidence_entropy=float(norm_entropy),
+            confidence_margin=margin,
         )
 
     # ------------------------------------------------------------------
@@ -326,10 +361,22 @@ class EnsembleOrchestrator:
         )
         agreement_score = pairs_agree / pairs_total if pairs_total > 0 else 1.0
 
-        if all_agree:
-            boost = 1.15
+        # Entropia da distribuição fundida (métrica adicional de incerteza)
+        eps = 1e-10
+        fused_clipped = np.clip(fused, eps, 1.0)
+        fused_entropy = -np.sum(fused_clipped * np.log(fused_clipped))
+        max_entropy = np.log(len(fused))
+        norm_entropy = fused_entropy / max_entropy if max_entropy > 0 else 0.0
+
+        # Boost/Penalty adaptativo com entropia
+        if all_agree and norm_entropy < 0.5:
+            boost = 1.15  # Alta concordância + baixa entropia
+        elif all_agree:
+            boost = 1.08  # Concordância mas alta entropia
         elif agreement_score >= 0.5:
             boost = 1.0
+        elif norm_entropy > 0.7:
+            boost = 0.80  # Baixa concordância + alta entropia = muito incerto
         else:
             boost = 0.85
 

@@ -85,6 +85,11 @@ class TwoStageResult:
     # Flags
     is_wound: bool = False
     model_available: bool = False
+    # Confiança e revisão (baseado no notebook wounds_classifier_embeddings.ipynb)
+    needs_expert_review: bool = False
+    confidence_level: str = ""       # "very_high", "high", "moderate", "low"
+    confidence_entropy: float = 0.0  # Entropia da distribuição
+    confidence_margin: float = 0.0   # Margem entre top-2 classes
 
     def to_dict(self) -> Dict:
         """Serializa para dicionário."""
@@ -94,6 +99,10 @@ class TwoStageResult:
             "final_class_pt": self.final_class_pt,
             "final_confidence": self.final_confidence,
             "model_available": self.model_available,
+            "needs_expert_review": self.needs_expert_review,
+            "confidence_level": self.confidence_level,
+            "confidence_entropy": round(self.confidence_entropy, 4),
+            "confidence_margin": round(self.confidence_margin, 4),
         }
         if self.stage1:
             result["stage1"] = {
@@ -158,6 +167,10 @@ WOUND_CLINICAL_ACTIONS = {
 # Confiança mínima para cada estágio
 STAGE1_CONFIDENCE_THRESHOLD = 0.60
 STAGE2_CONFIDENCE_THRESHOLD = 0.45
+
+# Threshold de confiança para revisão especialista (do notebook embeddings)
+EXPERT_REVIEW_THRESHOLD = 0.80
+HIGH_CONFIDENCE_THRESHOLD = 0.95  # Predições de alta confiança (melhor precision)
 
 
 # ============================================================
@@ -310,11 +323,42 @@ class TwoStageWoundClassifier:
         # Carrega modelos
         self._load_models(stage1_path, stage2_path)
 
-    def _build_resnet50(self, num_classes: int) -> nn.Module:
-        """Constrói ResNet50 com cabeça personalizada (igual ao notebook)."""
+    def _build_resnet50(self, num_classes: int, use_mlp_head: bool = True) -> nn.Module:
+        """
+        Constrói ResNet50 com cabeça personalizada.
+        
+        Baseado no SimpleMLPClassifier do notebook wounds_classifier_embeddings.ipynb:
+        MLP com 2 camadas ocultas, ReLU, Dropout para melhor robustez.
+        
+        Args:
+            num_classes: Número de classes de saída
+            use_mlp_head: Se True, usa MLP head; se False, usa linear simples
+                          (compatibilidade com pesos antigos)
+        """
         model = models.resnet50(weights=None)  # Sem pretrained (vamos carregar pesos)
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, num_classes)
+        num_ftrs = model.fc.in_features  # 2048 para ResNet50
+        
+        if use_mlp_head:
+            # MLP Head inspirado no notebook (SimpleMLPClassifier)
+            # 2 camadas ocultas com dropout progressivo para regularização
+            hidden_size = 256
+            dropout_rate = 0.25
+            model.fc = nn.Sequential(
+                nn.Linear(num_ftrs, hidden_size),
+                nn.BatchNorm1d(hidden_size),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout_rate),
+                nn.Linear(hidden_size, hidden_size),
+                nn.BatchNorm1d(hidden_size),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout_rate * 0.5),  # Dropout menor na 2ª camada
+                nn.Linear(hidden_size, num_classes),
+            )
+            logger.info(f"[ResNet50] MLP head: {num_ftrs}→{hidden_size}→{hidden_size}→{num_classes} (dropout={dropout_rate})")
+        else:
+            # Head linear simples (compatibilidade com pesos legados)
+            model.fc = nn.Linear(num_ftrs, num_classes)
+        
         return model
 
     def _load_models(self, stage1_path: Optional[str], stage2_path: Optional[str]):
@@ -344,9 +388,16 @@ class TwoStageWoundClassifier:
         for path in s1_candidates:
             if path and os.path.exists(path):
                 try:
-                    self._model_s1 = self._build_resnet50(len(self.STAGE1_CLASSES))
+                    # Tenta MLP head primeiro, fallback para linear
+                    self._model_s1 = self._build_resnet50(len(self.STAGE1_CLASSES), use_mlp_head=True)
                     state_dict = torch.load(path, map_location=self._device, weights_only=True)
-                    self._model_s1.load_state_dict(state_dict)
+                    try:
+                        self._model_s1.load_state_dict(state_dict)
+                    except RuntimeError:
+                        # Pesos antigos com head linear — reconstruir sem MLP
+                        logger.info("[ResNet50] Pesos S1 legados detectados, usando head linear")
+                        self._model_s1 = self._build_resnet50(len(self.STAGE1_CLASSES), use_mlp_head=False)
+                        self._model_s1.load_state_dict(state_dict)
                     self._model_s1.to(self._device)
                     self._model_s1.eval()
                     self.stage1_available = True
@@ -360,9 +411,16 @@ class TwoStageWoundClassifier:
         for path in s2_candidates:
             if path and os.path.exists(path):
                 try:
-                    self._model_s2 = self._build_resnet50(len(self.STAGE2_CLASSES))
+                    # Tenta MLP head primeiro, fallback para linear
+                    self._model_s2 = self._build_resnet50(len(self.STAGE2_CLASSES), use_mlp_head=True)
                     state_dict = torch.load(path, map_location=self._device, weights_only=True)
-                    self._model_s2.load_state_dict(state_dict)
+                    try:
+                        self._model_s2.load_state_dict(state_dict)
+                    except RuntimeError:
+                        # Pesos antigos com head linear — reconstruir sem MLP
+                        logger.info("[ResNet50] Pesos S2 legados detectados, usando head linear")
+                        self._model_s2 = self._build_resnet50(len(self.STAGE2_CLASSES), use_mlp_head=False)
+                        self._model_s2.load_state_dict(state_dict)
                     self._model_s2.to(self._device)
                     self._model_s2.eval()
                     self.stage2_available = True
@@ -407,7 +465,11 @@ class TwoStageWoundClassifier:
         self, model: nn.Module, tensor: 'torch.Tensor', num_classes: int
     ) -> Tuple[np.ndarray, int, float]:
         """
-        Predição com Test-Time Augmentation (4 flips, como no notebook).
+        Predição com Test-Time Augmentation aprimorada.
+        
+        Inclui as 4 variações originais (flips) mais 2 variações de
+        brilho/contraste sutis para maior robustez nas predições,
+        totalizando 6 augmentações.
         
         Returns:
             (probabilities_array, predicted_class_idx, confidence)
@@ -432,7 +494,17 @@ class TwoStageWoundClassifier:
             out = F.softmax(model(torch.flip(tensor, [2, 3])), dim=1)
             predictions.append(out)
 
-            # Média das 4 predições
+            # Leve aumento de brilho (+5%) — variação sutil para robustez
+            bright = torch.clamp(tensor * 1.05, 0, 1)
+            out = F.softmax(model(bright), dim=1)
+            predictions.append(out)
+
+            # Leve redução de brilho (-5%)
+            dark = torch.clamp(tensor * 0.95, 0, 1)
+            out = F.softmax(model(dark), dim=1)
+            predictions.append(out)
+
+            # Média das 6 predições
             avg_probs = torch.stack(predictions).mean(dim=0).squeeze(0).cpu().numpy()
 
         pred_idx = int(np.argmax(avg_probs))
@@ -444,18 +516,25 @@ class TwoStageWoundClassifier:
         image_bgr: np.ndarray,
         use_tta: bool = True,
         generate_gradcam: bool = False,
+        confidence_threshold: float = None,
     ) -> TwoStageResult:
         """
         Pipeline completo de classificação em dois estágios.
         
+        Inclui avaliação de confiança baseada no notebook
+        wounds_classifier_embeddings.ipynb (filtragem por threshold,
+        entropia, e margem entre top-2 classes).
+        
         Args:
             image_bgr: Imagem BGR do OpenCV
-            use_tta: Usar Test-Time Augmentation (4 flips)
+            use_tta: Usar Test-Time Augmentation (6 augmentações)
             generate_gradcam: Gerar mapa Grad-CAM para explicabilidade
+            confidence_threshold: Threshold customizado (default: EXPERT_REVIEW_THRESHOLD)
             
         Returns:
-            TwoStageResult com classificação e opcionalmente Grad-CAM
+            TwoStageResult com classificação, confiança calibrada, e Grad-CAM
         """
+        review_threshold = confidence_threshold or EXPERT_REVIEW_THRESHOLD
         result = TwoStageResult(model_available=self.available)
 
         if not self.available or not _TORCH_AVAILABLE:
@@ -497,6 +576,8 @@ class TwoStageWoundClassifier:
                     result.final_class = "Normal"
                     result.final_class_pt = WOUND_TYPE_PT["Normal"]
                     result.final_confidence = conf_s1
+                    result.needs_expert_review = conf_s1 < review_threshold
+                    self._set_confidence_metrics(result, probs_s1)
                     return result
 
             except Exception as e:
@@ -551,15 +632,27 @@ class TwoStageWoundClassifier:
                 result.final_class_pt = WOUND_TYPE_PT.get(wound_type, wound_type)
                 result.final_confidence = conf_s2
 
+                # ── Avaliação de confiança (do notebook embeddings) ──
+                result.needs_expert_review = conf_s2 < review_threshold
+                self._set_confidence_metrics(result, probs_s2)
+
+                if result.needs_expert_review:
+                    logger.info(
+                        f"[ResNet50] Revisão recomendada: {wound_type} "
+                        f"(conf={conf_s2:.3f} < {review_threshold:.2f})"
+                    )
+
             except Exception as e:
                 logger.error(f"[ResNet50] Erro no Estágio 2: {e}")
                 result.final_class = "Wound"
                 result.final_class_pt = WOUND_TYPE_PT["Wound"]
                 result.final_confidence = result.stage1.confidence if result.stage1 else 0.5
+                result.needs_expert_review = True
         else:
             result.final_class = "Wound"
             result.final_class_pt = WOUND_TYPE_PT["Wound"]
             result.final_confidence = result.stage1.confidence if result.stage1 else 0.5
+            result.needs_expert_review = True
 
         # ── GRAD-CAM (opcional) ──
         if generate_gradcam:
@@ -570,6 +663,43 @@ class TwoStageWoundClassifier:
                 logger.warning(f"[ResNet50] Erro no Grad-CAM: {e}")
 
         return result
+
+    @staticmethod
+    def _set_confidence_metrics(result: 'TwoStageResult', probs: np.ndarray):
+        """
+        Define métricas de confiança no resultado.
+        
+        Baseado nas técnicas do notebook wounds_classifier_embeddings.ipynb:
+        - Entropia normalizada (incerteza da distribuição)
+        - Margem entre top-2 classes (dispersão)
+        - Nível de confiança categórico
+        """
+        # Entropia normalizada
+        eps = 1e-10
+        probs_clipped = np.clip(probs, eps, 1.0)
+        entropy = -np.sum(probs_clipped * np.log(probs_clipped))
+        max_entropy = np.log(len(probs))
+        if max_entropy > 0:
+            entropy /= max_entropy
+        result.confidence_entropy = float(entropy)
+
+        # Margem entre top-2
+        if len(probs) >= 2:
+            sorted_p = np.sort(probs)[::-1]
+            result.confidence_margin = float(sorted_p[0] - sorted_p[1])
+        else:
+            result.confidence_margin = 1.0
+
+        # Nível categórico
+        conf = result.final_confidence
+        if conf >= HIGH_CONFIDENCE_THRESHOLD:
+            result.confidence_level = "very_high"
+        elif conf >= EXPERT_REVIEW_THRESHOLD:
+            result.confidence_level = "high"
+        elif conf >= STAGE1_CONFIDENCE_THRESHOLD:
+            result.confidence_level = "moderate"
+        else:
+            result.confidence_level = "low"
 
     def _generate_gradcam(
         self,

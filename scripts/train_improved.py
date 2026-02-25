@@ -147,8 +147,9 @@ class Config:
     MIXUP_PROB = 0.0                          # Desabilitado
     MAX_CLASS_WEIGHT = 3.0                    # Cap nos pesos de classe (evita viés para minoria)
 
-    PATIENCE = 12                             # Mais paciência
+    PATIENCE = 15                             # Mais paciência (notebooks mostram ganhos até epoch 29+)
     PIN_MEMORY = False                        # False para CPU (evita warning)
+    CONFIDENCE_THRESHOLD = 0.95               # Threshold de confiança alta (do notebook embeddings)
 
 
 # ============================================================================
@@ -362,15 +363,22 @@ class WoundClassifierV2(nn.Module):
             feat_dim = self.backbone(dummy).shape[-1]
         print(f"  Backbone feature dim: {feat_dim}")
 
-        # Cabeca de classificacao (simples e eficaz)
+        # Cabeca de classificacao MLP robusta (inspirada no SimpleMLPClassifier
+        # do notebook wounds_classifier_embeddings.ipynb)
+        # 3 camadas com BatchNorm + Dropout progressivo para melhor regularização
+        hidden_size = 256
         self.head = nn.Sequential(
             nn.BatchNorm1d(feat_dim),
             nn.Dropout(dropout),
-            nn.Linear(feat_dim, 256),
+            nn.Linear(feat_dim, hidden_size),
+            nn.BatchNorm1d(hidden_size),
             nn.ReLU(inplace=True),
-            nn.BatchNorm1d(256),
-            nn.Dropout(dropout * 0.5),
-            nn.Linear(256, num_classes),
+            nn.Dropout(dropout * 0.6),
+            nn.Linear(hidden_size, hidden_size),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.Dropout(dropout * 0.3),  # Menos dropout nas camadas finais
+            nn.Linear(hidden_size, num_classes),
         )
 
     def forward(self, x):
@@ -594,8 +602,12 @@ def train_phase(
 # ============================================================================
 
 @torch.no_grad()
-def evaluate_with_tta(model, val_loader, device, class_names):
-    """Avalia com Test Time Augmentation (4 flips)."""
+def evaluate_with_tta(model, val_loader, device, class_names, confidence_threshold=0.95):
+    """Avalia com Test Time Augmentation aprimorada (6 augmentações).
+    
+    Inclui análise de confiança baseada no notebook wounds_classifier_embeddings.ipynb:
+    compara métricas gerais vs. métricas filtradas por threshold de confiança.
+    """
     model.eval()
     all_probs = []
     all_labels = []
@@ -620,7 +632,17 @@ def evaluate_with_tta(model, val_loader, device, class_names):
         out = torch.softmax(model(torch.flip(images, [2, 3])), dim=1)
         batch_preds.append(out)
 
-        # Media TTA
+        # Brilho +5% (variação de iluminação)
+        bright = torch.clamp(images * 1.05, 0, 1)
+        out = torch.softmax(model(bright), dim=1)
+        batch_preds.append(out)
+
+        # Brilho -5%
+        dark = torch.clamp(images * 0.95, 0, 1)
+        out = torch.softmax(model(dark), dim=1)
+        batch_preds.append(out)
+
+        # Media TTA (6 augmentações)
         avg_pred = torch.stack(batch_preds).mean(dim=0)
         all_probs.extend(avg_pred.cpu().numpy())
         all_labels.extend(labels.numpy())
@@ -628,6 +650,7 @@ def evaluate_with_tta(model, val_loader, device, class_names):
     all_probs = np.array(all_probs)
     all_labels = np.array(all_labels)
     all_preds = np.argmax(all_probs, axis=1)
+    all_confs = np.max(all_probs, axis=1)
 
     # Accuracy
     acc = np.mean(all_preds == all_labels)
@@ -641,7 +664,7 @@ def evaluate_with_tta(model, val_loader, device, class_names):
     top3_acc = top3_correct / len(all_labels)
 
     print(f"\n{'='*60}")
-    print(f"  AVALIACAO FINAL (com TTA 4x)")
+    print(f"  AVALIACAO FINAL (com TTA 6x)")
     print(f"{'='*60}")
     print(f"  Accuracy:     {acc:.2%}")
     print(f"  Top-3 Acc:    {top3_acc:.2%}")
@@ -665,6 +688,34 @@ def evaluate_with_tta(model, val_loader, device, class_names):
             confusions[(class_names[t], class_names[p])] += 1
     for (tc, pc), count in confusions.most_common(8):
         print(f"    {tc:25s} -> {pc:25s} ({count}x)")
+
+    # ── Análise de confiança filtrada (do notebook embeddings) ──
+    high_conf_mask = all_confs >= confidence_threshold
+    n_high = high_conf_mask.sum()
+    if n_high > 0:
+        high_acc = np.mean(all_preds[high_conf_mask] == all_labels[high_conf_mask])
+        coverage = n_high / len(all_labels)
+        print(f"\n  {'─'*50}")
+        print(f"  FILTRAGEM POR CONFIANÇA (threshold={confidence_threshold:.0%})")
+        print(f"  {'─'*50}")
+        print(f"  Amostras com alta confiança: {n_high}/{len(all_labels)} ({coverage:.1%})")
+        print(f"  Accuracy (filtrado):         {high_acc:.2%} (vs. {acc:.2%} geral)")
+        per_class["_high_confidence"] = {
+            "threshold": confidence_threshold,
+            "coverage": float(coverage),
+            "accuracy_filtered": float(high_acc),
+            "accuracy_all": float(acc),
+        }
+    else:
+        print(f"\n  [WARN] Nenhuma predição com confiança >= {confidence_threshold:.0%}")
+
+    # Entropia média (incerteza do modelo)
+    eps = 1e-10
+    entropies = -np.sum(all_probs * np.log(np.clip(all_probs, eps, 1.0)), axis=1)
+    max_entropy = np.log(len(class_names))
+    norm_entropies = entropies / max_entropy if max_entropy > 0 else entropies
+    print(f"\n  Entropia média normalizada: {norm_entropies.mean():.4f} (0=confiante, 1=incerto)")
+    print(f"  Confiança média:            {all_confs.mean():.4f}")
 
     return acc, top3_acc, per_class, all_probs, all_labels, all_preds
 
