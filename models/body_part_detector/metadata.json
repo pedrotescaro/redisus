@@ -8,6 +8,12 @@
   ],
   "num_classes": 5,
   "image_size": 224,
-  "best_val_acc": 0.97131,
-  "architecture": "mobilenet_v3_small"
+  "best_val_acc": 0.96311,
+  "architecture": "mobilenet_v3_small",
+  "adversarial_training": {
+    "enabled": false,
+    "method": "fgsm",
+    "epsilon": 0.0,
+    "alpha": 0.5
+  }
 }

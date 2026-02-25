@@ -62,14 +62,78 @@ def split_indices(size: int, val_split: float, seed: int = 42) -> Tuple[List[int
     return train_idx, val_idx
 
 
+def _find_empty_class_dirs(dataset_dir: str) -> List[str]:
+    """Find class dirs with no valid image files."""
+    skipped: List[str] = []
+    root = Path(dataset_dir)
+    image_exts = {".jpg", ".jpeg", ".png", ".ppm", ".bmp", ".pgm", ".tif", ".tiff", ".webp"}
+    for entry in sorted(root.iterdir()):
+        if not entry.is_dir():
+            continue
+        has_images = any(
+            f.suffix.lower() in image_exts
+            for f in entry.rglob("*") if f.is_file()
+        )
+        if not has_images:
+            skipped.append(entry.name)
+    return skipped
+
+
+from contextlib import contextmanager
+
+@contextmanager
+def _hide_empty_class_dirs(dataset_dir: str, empty_classes: List[str]):
+    """Temporarily move empty class dirs out so ImageFolder doesn't fail."""
+    dataset_path = Path(dataset_dir)
+    # Place tmp dir OUTSIDE the dataset folder so ImageFolder won't scan it
+    tmp_dir = dataset_path.parent / f"__empty_classes_tmp_{dataset_path.name}__"
+    if empty_classes:
+        tmp_dir.mkdir(exist_ok=True)
+        for name in empty_classes:
+            src = dataset_path / name
+            if src.exists():
+                src.rename(tmp_dir / name)
+    try:
+        yield
+    finally:
+        if empty_classes and tmp_dir.exists():
+            for name in empty_classes:
+                src = tmp_dir / name
+                dst = dataset_path / name
+                if src.exists():
+                    src.rename(dst)
+            try:
+                tmp_dir.rmdir()
+            except OSError:
+                pass
+
+
 def make_loaders(cfg: Config):
     train_tf, val_tf = build_transforms(cfg.image_size)
 
-    base_ds = datasets.ImageFolder(cfg.dataset_dir)
+    # Check for empty class directories (no valid images)
+    empty_classes = _find_empty_class_dirs(cfg.dataset_dir)
+    if empty_classes:
+        import warnings
+        warnings.warn(
+            f"As seguintes pastas de classe estão vazias (sem imagens válidas) e serão ignoradas: {empty_classes}. "
+            "Adicione imagens (.jpg/.png/etc.) ou remova essas pastas."
+        )
+
+    with _hide_empty_class_dirs(cfg.dataset_dir, empty_classes):
+        base_ds = datasets.ImageFolder(cfg.dataset_dir)
+
+    if len(base_ds) == 0:
+        raise RuntimeError(
+            f"Nenhuma imagem encontrada em {cfg.dataset_dir}. "
+            "Adicione imagens nas subpastas de classe."
+        )
+
     train_idx, val_idx = split_indices(len(base_ds), cfg.val_split)
 
-    train_ds = datasets.ImageFolder(cfg.dataset_dir, transform=train_tf)
-    val_ds = datasets.ImageFolder(cfg.dataset_dir, transform=val_tf)
+    with _hide_empty_class_dirs(cfg.dataset_dir, empty_classes):
+        train_ds = datasets.ImageFolder(cfg.dataset_dir, transform=train_tf)
+        val_ds = datasets.ImageFolder(cfg.dataset_dir, transform=val_tf)
 
     train_subset = torch.utils.data.Subset(train_ds, train_idx)
     val_subset = torch.utils.data.Subset(val_ds, val_idx)
