@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-HEAL+ / REDISUS — Analisador Clínico de Feridas v2.0 (Desktop PyQt6)
+HEAL+ / REDISUS — Analisador Clínico de Feridas v3.0 (Desktop PyQt6)
 =====================================================================
 
 Aplicação especialista em Estomaterapia com Visão Computacional + IA.
@@ -11,11 +11,18 @@ Taxonomia clínica rigorosa:
   3. Tecido de Granulação             — vermelho brilhante, úmido, granulado
   4. Epitelização                     — rosa claro/translúcido, avança das bordas
 
+Classificação Etiológica (ResNet50 Two-Stage):
+  Estágio 1: Normal vs. Ferida (classificação binária)
+  Estágio 2: Tipo de Ferida (Diabética, Pressão, Venosa)
+  Explicabilidade: Grad-CAM sobre layer4 do ResNet50
+
 Pipeline v3:
   Imagem → Validação → Detecção → ROI Contorno → Zonas (Periferia/Core)
         → Segmentação Multi-Espaço (HSV+LAB) restrita à ROI
         → Gradiente de Borda (Scharr) → Epitelização Periférica
         → Análise de Textura → Classificação DL (EfficientNet + TTA)
+        → ResNet50 Two-Stage (Normal/Ferida + Tipo) com TTA 4-flip
+        → Grad-CAM (explicabilidade)
         → Análise de Bordas → Laudo Clínico
 
 Melhorias v3 vs v2:
@@ -212,6 +219,17 @@ try:
 except ImportError:
     HAS_DL_MODULES = False
 
+# Classificador ResNet50 de dois estágios (do notebook de treinamento)
+try:
+    from src.diagnosis.resnet_wound_classifier import (
+        TwoStageWoundClassifier, TwoStageResult, GradCAM,
+        create_two_stage_classifier, WOUND_TYPE_PT,
+        WOUND_CLINICAL_ACTIONS, WOUND_TO_ETIOLOGY,
+    )
+    HAS_RESNET_CLASSIFIER = True
+except ImportError:
+    HAS_RESNET_CLASSIFIER = False
+
 
 # ============================================================
 # TAXONOMIA CLÍNICA — Estomaterapia
@@ -261,6 +279,10 @@ class ClinicalReport:
 
     # Deep Learning prediction (quando disponível)
     dl_prediction: Optional[Dict] = None
+
+    # Classificação ResNet50 dois estágios (Normal/Ferida + Tipo)
+    resnet_prediction: Optional[Dict] = None
+    grad_cam_overlay: Optional[np.ndarray] = None
 
     # Escalas clínicas (PUSH, BWAT) - calculadas automaticamente
     push_score: Optional[Dict] = None
@@ -484,6 +506,28 @@ class ClinicalWoundAnalyzer:
         self._dl_metadata = None
         self._dl_available = False
         self._load_dl_model()
+
+        # Classificador ResNet50 de dois estágios (do notebook)
+        self._resnet_classifier = None
+        self._resnet_available = False
+        self._load_resnet_classifier()
+
+    def _load_resnet_classifier(self):
+        """Carrega o classificador ResNet50 de dois estágios."""
+        if not HAS_RESNET_CLASSIFIER:
+            print("[HEAL+] Módulo ResNet50 não disponível")
+            return
+        try:
+            self._resnet_classifier = create_two_stage_classifier()
+            self._resnet_available = self._resnet_classifier.available
+            if self._resnet_available:
+                status = self._resnet_classifier.get_status()
+                print(f"[HEAL+] ResNet50 Two-Stage: S1={status['stage1_available']}, S2={status['stage2_available']} ({status['device']})")
+            else:
+                print("[HEAL+] ResNet50: Modelos não encontrados (classificação por heurística)")
+        except Exception as e:
+            print(f"[HEAL+] Erro ao carregar ResNet50: {e}")
+            self._resnet_available = False
 
     def _load_dl_model(self):
         """Tenta carregar modelo DL treinado (PyTorch) para classificação."""
@@ -748,8 +792,46 @@ class ClinicalWoundAnalyzer:
         if dl_result:
             report.dl_prediction = dl_result
 
+        # 11. ResNet50 Two-Stage — classificação Normal/Ferida + Tipo
+        resnet_result = self._predict_resnet(image)
+        if resnet_result:
+            report.resnet_prediction = resnet_result
+            # Se Grad-CAM foi gerado, inclui no report
+            if isinstance(resnet_result, dict) and resnet_result.get('grad_cam_overlay') is not None:
+                report.grad_cam_overlay = resnet_result.pop('grad_cam_overlay')
+
         report.processing_time_ms = (time.perf_counter() - t0) * 1000
         return report
+
+    def _predict_resnet(self, image: np.ndarray) -> Optional[Dict]:
+        """Classificação ResNet50 de dois estágios com Grad-CAM."""
+        if not self._resnet_available or self._resnet_classifier is None:
+            return None
+        try:
+            result = self._resnet_classifier.predict(
+                image, use_tta=True, generate_gradcam=True
+            )
+            if not result.model_available:
+                return None
+
+            output = result.to_dict()
+
+            # Inclui Grad-CAM overlay no resultado
+            if result.grad_cam_overlay is not None:
+                output['grad_cam_overlay'] = result.grad_cam_overlay
+
+            # Mapeia para etiologia do sistema
+            if result.stage2 and result.final_class in WOUND_TO_ETIOLOGY:
+                output['mapped_etiology'] = WOUND_TO_ETIOLOGY[result.final_class]
+
+            # Ação clínica recomendada
+            if result.final_class in WOUND_CLINICAL_ACTIONS:
+                output['clinical_action'] = WOUND_CLINICAL_ACTIONS[result.final_class]
+
+            return output
+        except Exception as e:
+            print(f"[HEAL+] Erro ResNet50: {e}")
+            return None
 
     # -------------------------------------------------------
     @staticmethod
@@ -2243,7 +2325,7 @@ class HealAnalyzerApp(QMainWindow):
         header.setStyleSheet("color: #e2e8f0; padding: 0px; margin: 0px;")
         title_layout.addWidget(header)
 
-        subtitle = QLabel("Especialista em Estomaterapia e Visão Computacional  ·  Classificação Tecidual Rigorosa")
+        subtitle = QLabel("Estomaterapia + Visão Computacional  ·  ResNet50 Two-Stage + Grad-CAM  ·  Classificação Tecidual e Etiológica")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         subtitle.setFont(QFont("Segoe UI", 10))
         subtitle.setStyleSheet("color: #94a3b8; padding: 0px; margin: 0px;")
@@ -2386,11 +2468,13 @@ class HealAnalyzerApp(QMainWindow):
         self.lbl_img_detection = self._make_image_panel("Detecção de Feridas")
         self.lbl_img_segmentation = self._make_image_panel("Mapa de Segmentação")
         self.lbl_img_overlay = self._make_image_panel("Overlay Tecidual")
+        self.lbl_img_gradcam = self._make_image_panel("Grad-CAM (Explicabilidade)")
 
         img_grid = QHBoxLayout()
         col1 = QVBoxLayout()
         col1.addWidget(self.lbl_img_original)
         col1.addWidget(self.lbl_img_segmentation)
+        col1.addWidget(self.lbl_img_gradcam)
         col2 = QVBoxLayout()
         col2.addWidget(self.lbl_img_detection)
         col2.addWidget(self.lbl_img_overlay)
@@ -2760,10 +2844,18 @@ class HealAnalyzerApp(QMainWindow):
             self.lbl_rt_status.setStyleSheet("color: #f59e0b;")
             return
 
+        # Monta status realtime com ResNet50
+        rt_resnet_tag = ""
+        if report.resnet_prediction:
+            rn = report.resnet_prediction
+            final_pt = rn.get("final_class_pt", "")
+            if final_pt:
+                rt_resnet_tag = f"  |  {final_pt}"
+
         self.lbl_rt_status.setText("Ferida detectada")
         self.lbl_rt_status.setStyleSheet("color: #22c55e;")
         self.lbl_status.setText(
-            f"Ferida detectada: {report.primary_tissue}  |  Score: {report.health_score:.0f}/100  |  {report.processing_time_ms:.0f}ms"
+            f"Ferida: {report.primary_tissue}  |  Score: {report.health_score:.0f}/100{rt_resnet_tag}  |  {report.processing_time_ms:.0f}ms"
         )
         self.lbl_status.setStyleSheet("color: #22c55e;")
 
@@ -2829,6 +2921,37 @@ class HealAnalyzerApp(QMainWindow):
             lbl_cls.setStyleSheet(f"color: {conf_color};")
             box_dl.layout().addWidget(lbl_cls)
             self.rt_right_layout.addWidget(box_dl)
+
+        # ResNet50 Two-Stage prediction (tempo real)
+        if r.resnet_prediction:
+            rn = r.resnet_prediction
+            box_rn = self._make_group("ETIOLOGIA (ResNet50)")
+
+            s1 = rn.get("stage1", {})
+            if s1:
+                s1_wound = s1.get("is_wound", True)
+                s1_conf = s1.get("confidence", 0)
+                s1_text = "Ferida" if s1_wound else "Normal"
+                s1_color = "#ef4444" if s1_wound else "#22c55e"
+                s1_row = QWidget()
+                s1l = QHBoxLayout(s1_row)
+                s1l.setContentsMargins(0, 1, 0, 1)
+                s1l.addWidget(self._styled_label("Triagem:", "#94a3b8", 9))
+                s1l.addWidget(self._styled_label(f"{s1_text} ({s1_conf:.0%})", s1_color, 9, bold=True))
+                s1l.addStretch()
+                box_rn.layout().addWidget(s1_row)
+
+            s2 = rn.get("stage2", {})
+            if s2:
+                s2_pt = s2.get("wound_type_pt", "")
+                s2_conf = s2.get("confidence", 0)
+                s2_color = "#22c55e" if s2_conf >= 0.7 else ("#fbbf24" if s2_conf >= 0.45 else "#ef4444")
+                lbl_type = QLabel(f"{s2_pt} ({s2_conf:.0%})")
+                lbl_type.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+                lbl_type.setStyleSheet(f"color: {s2_color};")
+                box_rn.layout().addWidget(lbl_type)
+
+            self.rt_right_layout.addWidget(box_rn)
 
         # Ação clínica
         box_action = self._make_group("AÇÃO CLÍNICA")
@@ -2916,9 +3039,18 @@ class HealAnalyzerApp(QMainWindow):
             self._show_invalid(report)
             return
 
+        # Monta status final com ResNet50 se disponível
+        resnet_tag = ""
+        if report.resnet_prediction:
+            rn = report.resnet_prediction
+            final_pt = rn.get("final_class_pt", "")
+            final_conf = rn.get("final_confidence", 0)
+            if final_pt:
+                resnet_tag = f"  |  Etiologia: {final_pt} ({final_conf:.0%})"
+
         self.lbl_status.setText(
             f"Análise concluída  |  {report.processing_time_ms:.0f}ms  |  "
-            f"Classificação: {report.primary_tissue}"
+            f"Tecido: {report.primary_tissue}{resnet_tag}"
         )
         self.lbl_status.setStyleSheet("color: #22c55e;")
         self._show_results(report)
@@ -2945,6 +3077,10 @@ class HealAnalyzerApp(QMainWindow):
             self.lbl_img_segmentation.setPixmap(np_to_qpixmap(r.segmentation_map, 400))
         if r.tissue_overlay is not None:
             self.lbl_img_overlay.setPixmap(np_to_qpixmap(r.tissue_overlay, 400))
+        if r.grad_cam_overlay is not None:
+            self.lbl_img_gradcam.setPixmap(np_to_qpixmap(r.grad_cam_overlay, 400))
+        else:
+            self.lbl_img_gradcam.setText("Grad-CAM (modelo não carregado)")
 
         self._clear_right_panel()
 
@@ -3077,6 +3213,103 @@ class HealAnalyzerApp(QMainWindow):
                 box_dl.layout().addWidget(note)
 
             self.right_layout.addWidget(box_dl)
+
+        # --- CLASSIFICAÇÃO RESNET50 (Dois Estágios) ---
+        if r.resnet_prediction:
+            rn = r.resnet_prediction
+            box_rn = self._make_group("CLASSIFICAÇÃO ETIOLÓGICA (ResNet50)")
+
+            # Estágio 1 — Normal vs Ferida
+            s1 = rn.get("stage1", {})
+            if s1:
+                s1_conf = s1.get("confidence", 0)
+                s1_wound = s1.get("is_wound", True)
+                s1_text = "Ferida Detectada" if s1_wound else "Pele Normal"
+                s1_color = "#ef4444" if s1_wound else "#22c55e"
+
+                s1_row = QWidget()
+                s1l = QHBoxLayout(s1_row)
+                s1l.setContentsMargins(0, 2, 0, 2)
+                s1l.addWidget(self._styled_label("Triagem:", "#94a3b8", 10))
+                s1l.addWidget(self._styled_label(s1_text, s1_color, 11, bold=True))
+                s1l.addWidget(self._styled_label(f"({s1_conf:.0%})", "#64748b", 9))
+                s1l.addStretch()
+                box_rn.layout().addWidget(s1_row)
+
+            # Estágio 2 — Tipo de Ferida
+            s2 = rn.get("stage2", {})
+            if s2:
+                wound_type_pt = s2.get("wound_type_pt", "")
+                s2_conf = s2.get("confidence", 0)
+                s2_color = "#22c55e" if s2_conf >= 0.7 else ("#fbbf24" if s2_conf >= 0.45 else "#ef4444")
+
+                lbl_type = QLabel(wound_type_pt)
+                lbl_type.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+                lbl_type.setStyleSheet(f"color: {s2_color}; padding: 4px 0;")
+                box_rn.layout().addWidget(lbl_type)
+
+                # Confiança
+                conf_row = QWidget()
+                crl = QHBoxLayout(conf_row)
+                crl.setContentsMargins(0, 2, 0, 2)
+                crl.addWidget(self._styled_label("Confiança:", "#94a3b8", 10))
+                crl.addWidget(self._styled_label(f"{s2_conf:.1%}", s2_color, 11, bold=True))
+                crl.addStretch()
+                box_rn.layout().addWidget(conf_row)
+
+                # Diagnósticos diferenciais
+                top_preds = s2.get("top_predictions", [])
+                if len(top_preds) > 1:
+                    box_rn.layout().addWidget(self._styled_label("Diagnósticos diferenciais:", "#64748b", 9))
+                    for pred in top_preds[1:]:
+                        p_conf = pred.get("confidence", 0)
+                        p_name = pred.get("class_pt", pred.get("class", ""))
+                        row = QWidget()
+                        rl = QHBoxLayout(row)
+                        rl.setContentsMargins(8, 0, 0, 0)
+                        rl.addWidget(self._styled_label(f"• {p_name}", "#94a3b8", 9))
+                        rl.addStretch()
+                        rl.addWidget(self._styled_label(f"{p_conf:.1%}", "#64748b", 9))
+                        box_rn.layout().addWidget(row)
+
+            # Ação clínica específica da etiologia
+            clinical_action = rn.get("clinical_action", "")
+            if clinical_action:
+                lbl_action = QLabel(clinical_action)
+                lbl_action.setWordWrap(True)
+                lbl_action.setFont(QFont("Segoe UI", 9))
+                lbl_action.setStyleSheet("color: #cbd5e1; padding-top: 6px;")
+                box_rn.layout().addWidget(lbl_action)
+
+            # Nota de confiança baixa
+            final_conf = rn.get("final_confidence", 0)
+            if final_conf < 0.5:
+                note = QLabel("Confiança baixa — recomenda-se avaliação por especialista em estomaterapia")
+                note.setWordWrap(True)
+                note.setFont(QFont("Segoe UI", 9))
+                note.setStyleSheet("color: #fbbf24; padding-top: 4px;")
+                box_rn.layout().addWidget(note)
+
+            self.right_layout.addWidget(box_rn)
+
+        # --- GRAD-CAM (Explicabilidade) ---
+        if r.grad_cam_overlay is not None:
+            box_gcam = self._make_group("GRAD-CAM (Explicabilidade IA)")
+            lbl_gcam_desc = QLabel(
+                "Mapa de calor indicando as regiões da imagem que mais "
+                "influenciaram a decisão do modelo de classificação."
+            )
+            lbl_gcam_desc.setWordWrap(True)
+            lbl_gcam_desc.setFont(QFont("Segoe UI", 9))
+            lbl_gcam_desc.setStyleSheet("color: #94a3b8;")
+            box_gcam.layout().addWidget(lbl_gcam_desc)
+
+            lbl_gcam_img = QLabel()
+            lbl_gcam_img.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_gcam_img.setPixmap(np_to_qpixmap(r.grad_cam_overlay, 320))
+            lbl_gcam_img.setStyleSheet("border: 1px solid #334155; border-radius: 4px; padding: 4px;")
+            box_gcam.layout().addWidget(lbl_gcam_img)
+            self.right_layout.addWidget(box_gcam)
 
         # --- ANÁLISE DE BORDAS ---
         if r.border_analysis:
@@ -3316,14 +3549,17 @@ class HealAnalyzerApp(QMainWindow):
         # --- METADADOS ---
         box_meta = self._make_group("METADADOS")
         dl_status = "Ativo (TTA)" if r.dl_prediction else "Não disponível"
-        pipeline_desc = "Detecção (OpenCV) → Segm. HSV+LAB → Textura → DL"
+        resnet_status = "ResNet50 Two-Stage (TTA + Grad-CAM)" if r.resnet_prediction else "Não disponível"
+        pipeline_desc = "Detecção → Segm. HSV+LAB → Textura → ResNet50 → Grad-CAM"
         meta_items = [
             ("Área da ferida", f"{r.wound_area_px:,} px"),
             ("Tempo de processamento", f"{r.processing_time_ms:.0f} ms"),
             ("Pipeline", pipeline_desc),
             ("Segmentação", "Multi-espaço (HSV 60% + LAB 40%) + Textura"),
-            ("Modelo DL", dl_status),
-            ("Versão", "HEAL+ v2.0 — Análise Clínica Avançada"),
+            ("Classificação DL", dl_status),
+            ("Etiologia ResNet50", resnet_status),
+            ("Explicabilidade", "Grad-CAM (layer4 ResNet50)"),
+            ("Versão", "HEAL+ v3.0 — ResNet50 Two-Stage + Grad-CAM"),
         ]
         for k, v in meta_items:
             row = QWidget()

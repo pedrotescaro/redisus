@@ -55,7 +55,7 @@ class HEALPlatform:
     Cluster REDISUS — RNP/RUTE
     """
 
-    VERSION = "1.0.0"
+    VERSION = "3.0.0"
     CODENAME = "HEAL"
 
     # 5 Eixos Estruturantes
@@ -65,8 +65,11 @@ class HEALPlatform:
             "description": "IA para detecção, classificação e monitoramento de feridas crônicas",
             "modules": [
                 "Detecção em tempo real (YOLO)",
-                "Segmentação de tecidos (U-Net)",
-                "Classificação etiológica (EfficientNet)",
+                "Segmentação de tecidos (U-Net + HSV/LAB multi-espaço)",
+                "Classificação etiológica (ResNet50 Two-Stage + EfficientNet)",
+                "Triagem Normal/Ferida (ResNet50 Estágio 1)",
+                "Classificação de tipo (Diabética/Pressão/Venosa — Estágio 2)",
+                "Explicabilidade com Grad-CAM (layer4 ResNet50)",
                 "Monitoramento de sinais vitais",
                 "Estratificação de risco",
             ],

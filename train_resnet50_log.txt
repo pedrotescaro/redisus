@@ -1,0 +1,75 @@
+============================================================
+  REDISUS — Treinamento ResNet50 Dois Estágios
+============================================================
+Device: cpu
+Dataset: C:\Users\aluno\Documents\redisus\dataset\medetec
+Output:  C:\Users\aluno\Documents\redisus\models\wound_classifier_v2
+
+--- Preparando Estágio 2 (Diabética / Pressão / Venosa) ---
+  Total de imagens Estágio 2: 411
+    Diabetic Wounds: 98
+    Pressure Wounds: 177
+    Venous Wounds: 136
+
+============================================================
+  TREINANDO: Estágio 2 — Tipo de Ferida
+  Epochs: 12 | LR: 0.0001 | Device: cpu
+  Train: 330 | Val: 81
+============================================================
+  Epoch 01/12 | Train Loss: 0.7449 Acc: 0.6909 | Val Loss: 0.5430 Acc: 0.7284 | 114.1s
+    -> Salvo checkpoint: modelo_estagio2_semAugmentation.pth (acc=0.7284)
+  Epoch 02/12 | Train Loss: 0.3535 Acc: 0.8697 | Val Loss: 0.4421 Acc: 0.7901 | 113.7s
+    -> Salvo checkpoint: modelo_estagio2_semAugmentation.pth (acc=0.7901)
+  Epoch 03/12 | Train Loss: 0.2030 Acc: 0.9394 | Val Loss: 0.3663 Acc: 0.8642 | 87.1s
+    -> Salvo checkpoint: modelo_estagio2_semAugmentation.pth (acc=0.8642)
+  Epoch 04/12 | Train Loss: 0.2076 Acc: 0.9212 | Val Loss: 0.3100 Acc: 0.9136 | 94.3s
+    -> Salvo checkpoint: modelo_estagio2_semAugmentation.pth (acc=0.9136)
+  Epoch 05/12 | Train Loss: 0.1512 Acc: 0.9455 | Val Loss: 0.3651 Acc: 0.8395 | 89.4s
+  Epoch 06/12 | Train Loss: 0.1966 Acc: 0.9212 | Val Loss: 0.3648 Acc: 0.8519 | 81.9s
+  Epoch 07/12 | Train Loss: 0.1227 Acc: 0.9545 | Val Loss: 0.2729 Acc: 0.9012 | 69.8s
+  Epoch 08/12 | Train Loss: 0.0831 Acc: 0.9667 | Val Loss: 0.2982 Acc: 0.8765 | 79.3s
+  Epoch 09/12 | Train Loss: 0.1027 Acc: 0.9576 | Val Loss: 0.2608 Acc: 0.9012 | 79.0s
+  Epoch 10/12 | Train Loss: 0.0975 Acc: 0.9636 | Val Loss: 0.2522 Acc: 0.9012 | 78.1s
+  Epoch 11/12 | Train Loss: 0.0561 Acc: 0.9818 | Val Loss: 0.2444 Acc: 0.9012 | 78.6s
+  Epoch 12/12 | Train Loss: 0.0965 Acc: 0.9727 | Val Loss: 0.2511 Acc: 0.9012 | 78.8s
+  Early stopping na epoch 12 (melhor val_acc: 0.9136)
+  Melhor Val Accuracy: 0.9136
+ Accuracy: 0.9012
+  ✓ Salvo: C:\Users\aluno\Documents\redisus\models\wound_classifier_v2\modelo_estagio2_semAugmentation.pth
+  ✓ Cópia: C:\Users\aluno\Documents\redisus\models\wound_classifier_v2\modelo_estagio2.pth
+
+--- Preparando Estágio 1 (Normal vs Ferida) ---
+  Imagens de ferida: 834
+  Gerando 300 amostras 'Normal' (recortes perilesionais + sintético)...
+  Amostras Normal geradas: 300
+  Total Estágio 1: 1134 (Normal: 300, Wound: 834)
+
+============================================================
+  TREINANDO: Estágio 1 — Normal vs Ferida
+  Epochs: 6 | LR: 0.0001 | Device: cpu
+  Train: 908 | Val: 226
+============================================================
+  Epoch 01/6 | Train Loss: 0.1732 Acc: 0.9339 | Val Loss: 0.0361 Acc: 0.9912 | 219.9s
+    -> Salvo checkpoint: modelo_estagio1.pth (acc=0.9912)
+  Epoch 02/6 | Train Loss: 0.0352 Acc: 0.9890 | Val Loss: 0.0412 Acc: 0.9823 | 204.7s
+  Epoch 03/6 | Train Loss: 0.0426 Acc: 0.9879 | Val Loss: 0.0217 Acc: 0.9912 | 117.1s
+  Epoch 04/6 | Train Loss: 0.0293 Acc: 0.9879 | Val Loss: 0.0159 Acc: 0.9912 | 116.2s
+  Epoch 05/6 | Train Loss: 0.0176 Acc: 0.9934 | Val Loss: 0.0070 Acc: 1.0000 | 115.9s
+    -> Salvo checkpoint: modelo_estagio1.pth (acc=1.0000)
+  Epoch 06/6 | Train Loss: 0.0174 Acc: 0.9934 | Val Loss: 0.0124 Acc: 0.9956 | 118.3s
+  Melhor Val Accuracy: 1.0000
+  ✓ Salvo: C:\Users\aluno\Documents\redisus\models\wound_classifier_v2\modelo_estagio1.pth
+
+============================================================
+  TREINAMENTO CONCLUÍDO
+============================================================
+  Estágio 1 (Normal/Ferida):  Val Acc = 1.0000
+  Estágio 2 (Tipo de Ferida): Val Acc = 0.9012
+
+  Modelos salvos em: C:\Users\aluno\Documents\redisus\models\wound_classifier_v2
+    - modelo_estagio1.pth
+    - modelo_estagio2_semAugmentation.pth
+    - modelo_estagio2.pth
+
+  O heal_analyzer.py agora carregará automaticamente.
+============================================================

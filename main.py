@@ -1,12 +1,15 @@
 """
 REDISUS - Sistema de Diagnóstico de Feridas
-Pipeline Principal Integrado
+Pipeline Principal Integrado v3.0
 
 Este arquivo contém o pipeline completo que integra todos os módulos:
 - Captura de vídeo em tempo real
 - Detecção de feridas (YOLO)
-- Segmentação de tecidos (U-Net)
-- Classificação de etiologia (EfficientNet)
+- Segmentação de tecidos (U-Net + HSV/LAB multi-espaço)
+- Classificação etiológica de dois estágios (ResNet50):
+    * Estágio 1: Normal vs. Ferida
+    * Estágio 2: Diabética / Pressão / Venosa
+- Explicabilidade via Grad-CAM (layer4 ResNet50)
 - Recomendação de tratamento
 - Tracking de evolução
 

@@ -241,15 +241,16 @@ class FingerDetector:
         
         # Score de dedo
         finger_score = (
-            (0.3 if elongated else 0) +
-            (0.2 if high_solidity else 0) +
-            (0.2 if low_circularity else 0) +
-            (0.15 if has_parallel_edges else 0) +
-            (0.15 if uniform_color else 0)
+            (0.25 if elongated else 0) +
+            (0.15 if high_solidity else 0) +
+            (0.15 if low_circularity else 0) +
+            (0.20 if has_parallel_edges else 0) +
+            (0.25 if uniform_color else 0)
         )
         features["finger_score"] = finger_score
         
-        is_finger = finger_score >= 0.6
+        # Exige score mais alto para confirmar dedo (evita falsos)
+        is_finger = finger_score >= 0.75
         
         return is_finger, finger_score, features
 
@@ -331,19 +332,21 @@ class DeviceDetector:
         local_var = cv2.Laplacian(gray, cv2.CV_64F).var()
         features["texture_variance"] = local_var
         
-        # Textura muito baixa (uniforme) ou muito alta (reflexo)
-        artificial_texture = local_var < 50 or local_var > 3000
+        # Textura muito baixa (uniforme) - threshold mais conservador
+        # Feridas reais podem ter alta variancia, entao nao penalizar alta variancia
+        artificial_texture = local_var < 30
         
-        # Score de dispositivo
+        # Score de dispositivo (pesos rebalanceados, threshold mais alto)
         device_score = (
-            (0.3 if artificial_ratio > 0.3 else artificial_ratio) +
-            (0.25 if straight_lines >= 4 else straight_lines * 0.05) +
-            (0.25 if right_angles >= 3 else 0) +
+            (0.3 if artificial_ratio > 0.4 else artificial_ratio * 0.7) +
+            (0.25 if straight_lines >= 6 else straight_lines * 0.03) +
+            (0.25 if right_angles >= 4 else 0) +
             (0.2 if artificial_texture else 0)
         )
         features["device_score"] = device_score
         
-        is_device = device_score >= 0.5
+        # Exige score mais alto para confirmar dispositivo
+        is_device = device_score >= 0.65
         
         return is_device, device_score, features
 
@@ -563,10 +566,10 @@ class FalsePositiveFilter:
     
     def __init__(
         self,
-        min_biological_score: float = 0.3,
-        min_perilesional_score: float = 0.2,
-        max_finger_score: float = 0.5,
-        max_device_score: float = 0.4
+        min_biological_score: float = 0.15,
+        min_perilesional_score: float = 0.10,
+        max_finger_score: float = 0.70,
+        max_device_score: float = 0.60
     ):
         """
         Args:
@@ -701,6 +704,7 @@ class FalsePositiveFilter:
         confidence_adjustment = min(1.5, max(0.1, base_adjustment))
         
         # Decisao final
+        # Rejeicoes criticas podem ser sobrepostas por alta pontuacao biologica
         critical_rejections = {
             RejectionReason.FINGER_SHAPE,
             RejectionReason.DEVICE_EDGE
@@ -708,10 +712,14 @@ class FalsePositiveFilter:
         
         has_critical = bool(set(rejection_reasons) & critical_rejections)
         
+        # Alta pontuacao biologica (>= 0.45) permite sobrepor rejeicoes criticas
+        # Isso evita que feridas reais sejam descartadas por forma similar a dedo/dispositivo
+        bio_override = biological_score >= 0.45
+        
         is_valid = (
-            not has_critical and
+            (not has_critical or bio_override) and
             biological_score >= self.min_biological_score and
-            len(rejection_reasons) <= 2
+            len(rejection_reasons) <= 3
         )
         
         return ValidationResult(
