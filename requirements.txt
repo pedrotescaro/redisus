@@ -89,3 +89,17 @@ flask>=3.0.0
 # Body-Part Detection (MediaPipe)
 # ============================================================
 mediapipe>=0.10.0
+
+# ============================================================
+# Camada Adicional de IA (Ensemble Multi-Modelo)
+# ============================================================
+# DermaIntel ViT - Classificador de feridas (Hugging Face)
+transformers>=4.35.0
+
+# BiomedCLIP - Análise zero-shot multimodal (Microsoft)
+open_clip_torch>=2.23.0
+
+# MedSAM - Segmentação médica (bowang-lab)
+# Instalar via: pip install git+https://github.com/facebookresearch/segment-anything.git
+# O checkpoint medsam_vit_b.pth deve ser baixado separadamente de:
+# https://huggingface.co/medsam/medsam_vit_b

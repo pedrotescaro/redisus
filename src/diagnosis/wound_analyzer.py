@@ -3,6 +3,8 @@ REDISUS - Sistema de Diagnóstico de Feridas
 Analisador de Feridas Integrado
 
 Este módulo integra segmentação e classificação para análise completa.
+Inclui EnhancedWoundAnalyzer com suporte a ensemble multi-modelo
+(DermaIntel ViT + MedSAM + BiomedCLIP).
 """
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -378,3 +380,89 @@ class WoundAnalyzer:
             )
         
         return canvas
+
+
+class EnhancedWoundAnalyzer(WoundAnalyzer):
+    """
+    Analisador de feridas aprimorado com ensemble multi-modelo.
+
+    Adiciona camada de IA pré-treinada sobre o WoundAnalyzer base:
+      - DermaIntel ViT (classificação)
+      - MedSAM (segmentação)
+      - BiomedCLIP (zero-shot: classificação + infecção + severidade)
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._ensemble = None
+        self._ensemble_loaded = False
+
+    def _load_ensemble(self):
+        """Carrega modelos do ensemble (camada adicional)."""
+        try:
+            from ..ai_layer import (
+                EnsembleOrchestrator,
+                DermaIntelClassifier,
+                MedSAMSegmenter,
+                BiomedCLIPAnalyzer,
+            )
+            self._ensemble = EnsembleOrchestrator(
+                dermaintel=DermaIntelClassifier(),
+                medsam=MedSAMSegmenter(),
+                biomedclip=BiomedCLIPAnalyzer(),
+            )
+            status = self._ensemble.load_all_models()
+            self._ensemble_loaded = True
+            logger.info(f"Ensemble carregado: {status}")
+        except Exception as e:
+            logger.warning(f"Ensemble indisponível: {e}")
+            self._ensemble_loaded = False
+
+    def analyze_ensemble(
+        self,
+        image: np.ndarray,
+        pixels_per_cm: Optional[float] = None,
+        bbox: Optional[tuple] = None,
+    ):
+        """
+        Análise completa: base + ensemble.
+
+        Returns:
+            (WoundAnalysisResult, EnsembleResult ou None)
+        """
+        base_result = self.analyze(image, pixels_per_cm)
+
+        if not self._ensemble_loaded:
+            self._load_ensemble()
+
+        ensemble_result = None
+        if self._ensemble is not None:
+            try:
+                eff_probs = {
+                    p.class_id: p.confidence
+                    for p in base_result.classification.all_predictions
+                }
+                ensemble_result = self._ensemble.predict(
+                    image=image,
+                    bbox=bbox,
+                    efficientnet_probs=eff_probs,
+                    unet_mask=base_result.segmentation.mask,
+                )
+            except Exception as e:
+                logger.error(f"Ensemble prediction error: {e}")
+
+        return base_result, ensemble_result
+
+    @property
+    def ensemble_available(self) -> bool:
+        return self._ensemble_loaded and self._ensemble is not None
+
+    @property
+    def models_status(self) -> Dict[str, bool]:
+        if self._ensemble is None:
+            return {}
+        return {
+            "dermaintel": self._ensemble.dermaintel.is_loaded,
+            "medsam": self._ensemble.medsam.is_loaded,
+            "biomedclip": self._ensemble.biomedclip.is_loaded,
+        }

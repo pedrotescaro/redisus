@@ -298,6 +298,13 @@ class ClinicalReport:
     # Zonas espaciais da ferida (periferia, core, anel externo)
     wound_zones: Optional[Dict] = None
 
+    # Ensemble Multi-Modelo (camada adicional de IA pré-treinada)
+    ensemble_classification: Optional[Dict] = None
+    ensemble_agreement: Optional[Dict] = None
+    ensemble_infection: Optional[Dict] = None
+    ensemble_severity: Optional[float] = None
+    ensemble_models_loaded: Optional[Dict] = None
+
     # Imagens processadas
     original: Optional[np.ndarray] = None
     detection_overlay: Optional[np.ndarray] = None
@@ -512,6 +519,11 @@ class ClinicalWoundAnalyzer:
         self._resnet_available = False
         self._load_resnet_classifier()
 
+        # Ensemble Multi-Modelo (camada adicional de IA pré-treinada)
+        self._ensemble = None
+        self._ensemble_available = False
+        self._load_ensemble()
+
     def _load_resnet_classifier(self):
         """Carrega o classificador ResNet50 de dois estágios."""
         if not HAS_RESNET_CLASSIFIER:
@@ -571,6 +583,92 @@ class ClinicalWoundAnalyzer:
                     break
                 except Exception:
                     pass
+
+    def _load_ensemble(self):
+        """Carrega o ensemble multi-modelo (DermaIntel + MedSAM + BiomedCLIP)."""
+        try:
+            from src.ai_layer import (
+                EnsembleOrchestrator,
+                DermaIntelClassifier,
+                MedSAMSegmenter,
+                BiomedCLIPAnalyzer,
+            )
+            self._ensemble = EnsembleOrchestrator(
+                dermaintel=DermaIntelClassifier(),
+                medsam=MedSAMSegmenter(),
+                biomedclip=BiomedCLIPAnalyzer(),
+            )
+            status = self._ensemble.load_all_models()
+            self._ensemble_available = True
+            loaded = sum(1 for v in status.values() if v)
+            print(f"[HEAL+] Ensemble multi-modelo: {loaded}/3 modelos ({status})")
+        except Exception as e:
+            print(f"[HEAL+] Ensemble indisponível: {e}")
+            self._ensemble_available = False
+
+    def _predict_ensemble(
+        self,
+        image: np.ndarray,
+        detections=None,
+        dl_probs: Optional[Dict[int, float]] = None,
+        wound_mask: Optional[np.ndarray] = None,
+    ) -> Optional[Dict]:
+        """Predição via ensemble multi-modelo (quando disponível).
+
+        Args:
+            image: imagem BGR
+            detections: lista de detecções (com bbox)
+            dl_probs: probabilidades do modelo DL base (5 classes REDISUS)
+            wound_mask: máscara de segmentação do pipeline base
+        """
+        if not self._ensemble_available or self._ensemble is None:
+            return None
+        try:
+            # Determina bbox a partir das detecções
+            bbox = None
+            if detections:
+                best = max(detections, key=lambda d: d.get("confidence", d.get("score", 0))
+                           if isinstance(d, dict) else getattr(d, "confidence", 0))
+                if isinstance(best, dict):
+                    bbox = best.get("bbox")
+                else:
+                    bbox = getattr(best, "bbox", None)
+
+            result = self._ensemble.predict(
+                image=image,
+                bbox=bbox,
+                efficientnet_probs=dl_probs,
+                unet_mask=wound_mask,
+            )
+
+            # Converte para dicts simples para armazenar no ClinicalReport
+            cls = result.classification
+            agr = cls.agreement
+
+            return {
+                "ensemble": {
+                    "classification": {
+                        "class_id": cls.class_id,
+                        "class_name": cls.class_name,
+                        "confidence": cls.confidence,
+                        "all_probabilities": cls.all_probabilities,
+                    },
+                    "agreement": {
+                        "models_agree": agr.models_agree,
+                        "agreement_score": agr.agreement_score,
+                        "individual_predictions": agr.individual_predictions,
+                        "confidence_boost": agr.confidence_boost,
+                    },
+                    "models_loaded": result.models_loaded,
+                },
+                "infection": result.infection_scores,
+                "infection_risk": result.infection_risk,
+                "severity": result.severity_index,
+                "severity_scores": result.severity_scores,
+            }
+        except Exception as e:
+            print(f"[HEAL+] Ensemble prediction error: {e}")
+            return None
 
     def _predict_dl(self, image: np.ndarray) -> Optional[Dict]:
         """Predição com modelo DL PyTorch (se disponível)."""
@@ -799,6 +897,22 @@ class ClinicalWoundAnalyzer:
             # Se Grad-CAM foi gerado, inclui no report
             if isinstance(resnet_result, dict) and resnet_result.get('grad_cam_overlay') is not None:
                 report.grad_cam_overlay = resnet_result.pop('grad_cam_overlay')
+
+        # 12. Ensemble Multi-Modelo — camada adicional de IA pré-treinada
+        #     Passa probabilidades DL e máscara de segmentação para fusão cruzada
+        dl_probs = None
+        if dl_result and "probabilities" in dl_result:
+            dl_probs = dl_result["probabilities"]
+        ensemble_result = self._predict_ensemble(
+            image, detections, dl_probs=dl_probs, wound_mask=wound_mask,
+        )
+        if ensemble_result:
+            ens = ensemble_result.get("ensemble", {})
+            report.ensemble_classification = ens.get("classification")
+            report.ensemble_agreement = ens.get("agreement")
+            report.ensemble_infection = ensemble_result.get("infection")
+            report.ensemble_severity = ensemble_result.get("severity")
+            report.ensemble_models_loaded = ens.get("models_loaded")
 
         report.processing_time_ms = (time.perf_counter() - t0) * 1000
         return report
@@ -3310,6 +3424,153 @@ class HealAnalyzerApp(QMainWindow):
             lbl_gcam_img.setStyleSheet("border: 1px solid #334155; border-radius: 4px; padding: 4px;")
             box_gcam.layout().addWidget(lbl_gcam_img)
             self.right_layout.addWidget(box_gcam)
+
+        # --- ENSEMBLE MULTI-MODELO (IA Pré-Treinada) ---
+        if r.ensemble_classification:
+            box_ens = self._make_group("ENSEMBLE MULTI-MODELO (IA Pré-Treinada)")
+            ec = r.ensemble_classification
+
+            # Classe principal
+            ens_name = ec.get("class_name", "N/A")
+            ens_conf = ec.get("confidence", 0)
+            ens_color = "#22c55e" if ens_conf >= 0.7 else ("#fbbf24" if ens_conf >= 0.4 else "#ef4444")
+
+            lbl_ens = QLabel(ens_name)
+            lbl_ens.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+            lbl_ens.setStyleSheet(f"color: {ens_color}; padding: 4px 0;")
+            box_ens.layout().addWidget(lbl_ens)
+
+            # Confiança + agreement
+            conf_row = QWidget()
+            cr = QHBoxLayout(conf_row)
+            cr.setContentsMargins(0, 2, 0, 2)
+            cr.addWidget(self._styled_label("Confiança ensemble:", "#94a3b8", 10))
+            cr.addWidget(self._styled_label(f"{ens_conf:.1%}", ens_color, 11, bold=True))
+            cr.addStretch()
+            box_ens.layout().addWidget(conf_row)
+
+            # Agreement
+            if r.ensemble_agreement:
+                agr = r.ensemble_agreement
+                agr_score = agr.get("agreement_score", 0)
+                agr_icon = "Concordam" if agr.get("models_agree") else "Divergem"
+                agr_color = "#22c55e" if agr.get("models_agree") else "#fbbf24"
+
+                agr_row = QWidget()
+                al = QHBoxLayout(agr_row)
+                al.setContentsMargins(0, 2, 0, 2)
+                al.addWidget(self._styled_label(f"Modelos: {agr_icon} ({agr_score:.0%})", agr_color, 10))
+                al.addStretch()
+                box_ens.layout().addWidget(agr_row)
+
+                # Predições individuais
+                indiv = agr.get("individual_predictions", {})
+                if indiv:
+                    box_ens.layout().addWidget(self._styled_label("Predições por modelo:", "#64748b", 9))
+                    for model_name, pred_cls in indiv.items():
+                        row = QWidget()
+                        rl = QHBoxLayout(row)
+                        rl.setContentsMargins(8, 0, 0, 0)
+                        rl.addWidget(self._styled_label(f"• {model_name}:", "#94a3b8", 9))
+                        rl.addWidget(self._styled_label(pred_cls, "#e2e8f0", 9, bold=True))
+                        rl.addStretch()
+                        box_ens.layout().addWidget(row)
+
+            # Modelos carregados
+            if r.ensemble_models_loaded:
+                loaded_str = ", ".join(
+                    f"{k}={'OK' if v else 'OFF'}" for k, v in r.ensemble_models_loaded.items()
+                )
+                box_ens.layout().addWidget(self._styled_label(f"Modelos: {loaded_str}", "#475569", 8))
+
+            # Probabilidades
+            all_probs = ec.get("all_probabilities", {})
+            if all_probs:
+                box_ens.layout().addWidget(self._styled_label("Probabilidades:", "#64748b", 9))
+                etiology_names = {
+                    0: "Úlcera Venosa", 1: "Úlcera Arterial", 2: "Pé Diabético",
+                    3: "Lesão por Pressão", 4: "Ferida Cirúrgica"
+                }
+                sorted_probs = sorted(all_probs.items(), key=lambda x: x[1], reverse=True)
+                for cid_str, prob in sorted_probs:
+                    cid = int(cid_str) if isinstance(cid_str, str) else cid_str
+                    name = etiology_names.get(cid, f"Classe {cid}")
+                    p_color = "#22c55e" if prob >= 0.3 else "#94a3b8"
+                    row = QWidget()
+                    rl = QHBoxLayout(row)
+                    rl.setContentsMargins(8, 0, 0, 0)
+                    rl.addWidget(self._styled_label(f"• {name}", "#94a3b8", 9))
+                    rl.addStretch()
+                    rl.addWidget(self._styled_label(f"{prob:.1%}", p_color, 9))
+                    box_ens.layout().addWidget(row)
+
+            self.right_layout.addWidget(box_ens)
+
+        # --- ANÁLISE DE INFECÇÃO E GRAVIDADE (BiomedCLIP) ---
+        if r.ensemble_infection or r.ensemble_severity is not None:
+            box_inf = self._make_group("ANÁLISE DE INFECÇÃO E GRAVIDADE")
+
+            # Severidade
+            if r.ensemble_severity is not None:
+                sev = r.ensemble_severity
+                if sev < 0.25:
+                    sev_text, sev_color = "Leve", "#22c55e"
+                elif sev < 0.50:
+                    sev_text, sev_color = "Moderada", "#fbbf24"
+                elif sev < 0.75:
+                    sev_text, sev_color = "Grave", "#f97316"
+                else:
+                    sev_text, sev_color = "Crítica", "#ef4444"
+
+                sev_row = QWidget()
+                sl = QHBoxLayout(sev_row)
+                sl.setContentsMargins(0, 2, 0, 2)
+                sl.addWidget(self._styled_label("Gravidade:", "#94a3b8", 10))
+                sl.addWidget(self._styled_label(f"{sev_text} ({sev:.0%})", sev_color, 11, bold=True))
+                sl.addStretch()
+                box_inf.layout().addWidget(sev_row)
+
+            # Infecção
+            if r.ensemble_infection:
+                inf_scores = r.ensemble_infection
+                infected = inf_scores.get("Infectada", 0) + inf_scores.get("Celulite", 0)
+                clean = inf_scores.get("Limpa", 0)
+                risk = infected / (infected + clean + 1e-8)
+
+                if risk >= 0.6:
+                    risk_text, risk_color = "ALTO", "#ef4444"
+                elif risk >= 0.35:
+                    risk_text, risk_color = "MODERADO", "#fbbf24"
+                else:
+                    risk_text, risk_color = "BAIXO", "#22c55e"
+
+                inf_row = QWidget()
+                il = QHBoxLayout(inf_row)
+                il.setContentsMargins(0, 2, 0, 2)
+                il.addWidget(self._styled_label("Risco de infecção:", "#94a3b8", 10))
+                il.addWidget(self._styled_label(f"{risk_text} ({risk:.0%})", risk_color, 11, bold=True))
+                il.addStretch()
+                box_inf.layout().addWidget(inf_row)
+
+                if risk >= 0.6:
+                    alert = QLabel("ALERTA: Sinais de infecção detectados — encaminhar para avaliação")
+                    alert.setWordWrap(True)
+                    alert.setFont(QFont("Segoe UI", 9))
+                    alert.setStyleSheet("color: #ef4444; padding-top: 4px;")
+                    box_inf.layout().addWidget(alert)
+
+                # Scores individuais
+                box_inf.layout().addWidget(self._styled_label("Detalhes:", "#475569", 8))
+                for lbl, sc in inf_scores.items():
+                    row = QWidget()
+                    rl = QHBoxLayout(row)
+                    rl.setContentsMargins(8, 0, 0, 0)
+                    rl.addWidget(self._styled_label(f"• {lbl}", "#94a3b8", 8))
+                    rl.addStretch()
+                    rl.addWidget(self._styled_label(f"{sc:.0%}", "#64748b", 8))
+                    box_inf.layout().addWidget(row)
+
+            self.right_layout.addWidget(box_inf)
 
         # --- ANÁLISE DE BORDAS ---
         if r.border_analysis:
