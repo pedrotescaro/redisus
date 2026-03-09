@@ -31,7 +31,14 @@
 10. [Guia de Execução](#10-guia-de-execução)
 11. [Estrutura do Projeto](#11-estrutura-do-projeto)
 12. [Trabalhos Futuros e Hipóteses de Pesquisa](#12-trabalhos-futuros-e-hipóteses-de-pesquisa)
-13. [Referências Bibliográficas](#13-referências-bibliográficas)
+13. [Contextualização na Rede REDI-SUS](#13-contextualização-na-rede-redi-sus)
+14. [Papel da Fatec Ferraz no Projeto](#14-papel-da-fatec-ferraz-no-projeto)
+15. [Entregas e Cronograma do HEAL+](#15-entregas-e-cronograma-do-heal)
+16. [Integração com Módulos da Rede REDI-SUS](#16-integração-com-módulos-da-rede-redi-sus)
+17. [Interoperabilidade Federada com o SUS Digital (PT7)](#17-interoperabilidade-federada-com-o-sus-digital-pt7)
+18. [Governança de Dados e Conformidade LGPD](#18-governança-de-dados-e-conformidade-lgpd)
+19. [Validação Clínica e Escalabilidade (PT6)](#19-validação-clínica-e-escalabilidade-pt6)
+20. [Referências Bibliográficas](#20-referências-bibliográficas)
 
 ---
 
@@ -54,6 +61,26 @@
 **Contribuição.** A plataforma integra ainda interoperabilidade com o SUS (HL7 FHIR R4, e-SUS PEC, DATASUS/SIGTAP), escalas clínicas validadas (PUSH Tool 3.0, BWAT, Braden), gêmeo digital do paciente (Twin@Home) e base de conhecimento via RAG com níveis de evidência Oxford CEBM.
 
 **Palavras-chave:** Visão Computacional, *Deep Learning*, Segmentação de Feridas, Classificação Etiológica, U-Net, YOLOv8, ResNet50, Estomaterapia, SUS, FHIR.
+
+### Abstract
+
+**Background.** Chronic wounds (venous ulcers, pressure injuries, diabetic foot ulcers) represent a major global public health burden, with an estimated prevalence of 1–2% in developed countries and costs reaching up to 3% of healthcare budgets (Sen et al., 2009; Järbrink et al., 2017). In Brazil, the Unified Health System (SUS) faces additional challenges of scale and infrastructure heterogeneity, where wound assessment largely depends on the subjective experience of wound care specialists.
+
+**Objective.** This work presents **HEAL+** (REDISUS), a computer-aided diagnosis platform for chronic wounds that integrates Computer Vision and Deep Learning into a complete end-to-end pipeline: from image capture to automated clinical reporting with evidence-based treatment recommendations.
+
+**Methods.** The system employs a two-stage architecture:
+- **Stage 1 — Real-time detection:** YOLOv8 Nano for wound localization in the camera frame (latency < 30 ms on GPU).
+- **Stage 2 — Deep diagnosis (parallel processing):**
+  - **Tissue segmentation:** U-Net with EfficientNet-B0 encoder (input 512×512, 5 classes: background, granulation, slough, necrosis, periwound).
+  - **Two-stage etiological classification:** ResNet50 with transfer learning (ImageNet) — Stage 1: Normal vs. Wound (binary); Stage 2: Diabetic / Pressure / Venous (3 classes). Explainability via Grad-CAM on `layer4`.
+  - **Multi-model ensemble:** EfficientNet-B3 (0.35) + DermaIntel ViT (0.40) + BiomedCLIP (0.25) with soft voting.
+  - **Boundary segmentation:** MedSAM (ViT-Base, trained on 1.6M medical image-mask pairs) for precise wound delineation.
+
+**Target results.** mAP@0.5 > 0.85 (detection), Dice > 0.80 per class (segmentation), Accuracy > 0.90 and AUC-ROC > 0.92 (classification).
+
+**Contribution.** The platform further integrates interoperability with Brazil's public health system (HL7 FHIR R4, e-SUS PEC, DATASUS/SIGTAP), validated clinical scales (PUSH Tool 3.0, BWAT, Braden), a patient digital twin (Twin@Home), and an evidence-based clinical knowledge base via RAG with Oxford CEBM evidence levels.
+
+**Keywords:** Computer Vision, Deep Learning, Wound Segmentation, Etiological Classification, U-Net, YOLOv8, ResNet50, Wound Care Nursing, SUS, FHIR.
 
 ---
 
@@ -885,7 +912,457 @@ As seguintes hipóteses e linhas de investigação são sugeridas para **Inicia�
 
 ---
 
-## 13. Referências Bibliográficas
+## 13. Contextualização na Rede REDI-SUS
+
+### 13.1 Visão Geral da Rede
+
+O **REDI-SUS** (Rede de Saúde Digital Inteligente) é um projeto de pesquisa cooperativa (Cluster 7) financiado no âmbito da Rede Nacional de Ensino e Pesquisa (RNP), em parceria com a Rede RUTE e programas de Telessaúde. Seu objetivo é desenvolver uma **plataforma modular e interoperável** que apoie profissionais de saúde e pacientes em toda a jornada de cuidado — do diagnóstico ao acompanhamento de longo prazo —, integrando dispositivos médicos, aplicações móveis, inteligência artificial e gêmeos digitais.
+
+A rede articula múltiplas instituições de pesquisa (UFRGS, FURG, Fatec Ferraz, Nutes/UEPB, ISI-EQ, entre outras), hospitais universitários, Unidades Básicas de Saúde (UBS) e serviços de atenção domiciliar, atuando em conformidade com o SUS Digital e a LGPD.
+
+### 13.2 Jornada do Paciente — Três Etapas
+
+A plataforma REDI-SUS organiza-se em três etapas que refletem a jornada típica do paciente no SUS:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    JORNADA DO PACIENTE — REDI-SUS                            │
+│                                                                              │
+│   ETAPA 1                  ETAPA 2                    ETAPA 3                │
+│   DIAGNOSTICAR             PLANO DE CUIDADO           MONITORAR              │
+│                                                                              │
+│   ┌──────────────┐        ┌──────────────┐           ┌──────────────┐       │
+│   │  DermaSUS    │        │  REDE VIVA   │           │  TAKERE      │       │
+│   │  REDE VIVA   │        │  TAKERE      │           │  Twin@Home   │       │
+│   │  HEAL+       │        │  HEAL+       │           │  HEAL+       │       │
+│   └──────────────┘        └──────────────┘           └──────────────┘       │
+│                                                                              │
+│   Detecção precoce,        Elaboração e gestão        Adesão ao              │
+│   classificação,           de planos de cuidado       tratamento,            │
+│   triagem digital          personalizados             desfechos clínicos     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **O HEAL+ é o único módulo presente em todas as três etapas**, atuando como eixo transversal de diagnóstico por imagem, apoio à decisão clínica e monitoramento da evolução de feridas crônicas.
+
+### 13.3 Módulos da Rede
+
+| Módulo | Foco Principal | Etapas |
+|--------|---------------|--------|
+| **DermaSUS** | Classificação de lesões cutâneas (dermatologia) | Diagnosticar |
+| **REDE VIVA** | Vigilância digital, esporotricose, testes rápidos, georreferenciamento | Diagnosticar, Plano de Cuidado |
+| **HEAL+** | Diagnóstico de feridas crônicas por visão computacional e IA; apoio à decisão clínica; monitoramento de evolução | **Diagnosticar, Plano de Cuidado, Monitorar** |
+| **TAKERE** | Plataforma mHealth para geração de planos de cuidado individualizados via linguagem natural | Plano de Cuidado, Monitorar |
+| **Twin@Home** | Gêmeo digital para monitoramento domiciliar com reconstrução 3D, sensores IoT e alertas preditivos | Monitorar |
+
+### 13.4 Objetivos Específicos do REDI-SUS (Contribuição do HEAL+)
+
+| # | Objetivo da Rede | Contribuição do HEAL+ |
+|---|---|---|
+| 1 | Plataforma unificada expansível e interoperável com o SUS | Módulo de diagnóstico por imagem integrado via FHIR R4; arquitetura conceitual (PT2) |
+| 2 | Dispositivos e protocolos rápidos de diagnóstico | Protocolos de coleta e calibração de imagens clínicas de feridas |
+| 3 | IA em imagens clínicas e sinais vitais | Pipeline completo: YOLOv8 + U-Net + ResNet50 + Ensemble + MedSAM + Grad-CAM |
+| 4 | Gêmeo digital para monitoramento domiciliar | Integração com Twin@Home via dados longitudinais de feridas |
+| 5 | Plataforma mHealth com planos de cuidado | Interface com TAKERE para planos de cuidado baseados em diagnóstico HEAL+ |
+| 6 | Gestão clínica e painéis de acompanhamento | Painéis preditivos, escalas clínicas (PUSH, BWAT, Braden), exportação FHIR |
+| 7 | Fortalecimento de equipes multiprofissionais | Estratificação de risco, alertas, recomendações baseadas em evidências (RAG clínico) |
+
+---
+
+## 14. Papel da Fatec Ferraz no Projeto
+
+A **Fatec Ferraz de Vasconcelos** (liderada por Márcia Bissaco) possui papel estratégico na rede REDI-SUS, com **liderança de dois pacotes de trabalho** e participação ativa em todos os demais:
+
+### 14.1 Pacotes de Trabalho Liderados
+
+| PT | Nome | Período | Escopo |
+|----|------|---------|--------|
+| **PT2** | Requisitos e Arquitetura Conceitual | M1–M6 (T1–T2) | Levantamento unificado de requisitos técnicos e clínicos junto ao SUS; definição de parâmetros de monitoramento (sinais vitais, imagens médicas, geolocalização); perfis de usuários; arquitetura conceitual de interoperabilidade; dicionário de dados |
+| **PT7** | Interoperabilidade Federada com o SUS Digital | M9–M24 (T3–T8) | Infraestrutura federada; Gateway FHIR; aprendizado federado com preservação de privacidade (LGPD); comunicação segura entre dispositivos, modelos de IA e sistemas SUS (e-SUS, PEC, RNDS) |
+
+### 14.2 Participação nos Demais Pacotes
+
+| PT | Nome | Papel da Fatec / HEAL+ |
+|----|------|------------------------|
+| **PT1** | Gestão, Governança e Disseminação | Participação nos workshops, relatórios trimestrais e conformidade LGPD |
+| **PT3** | Dispositivos e Aquisição de Dados | Protocolos de coleta e calibração de imagens; bases de dados clínicos com imagens rotuladas; módulos de coleta de dados; infraestrutura de coleta |
+| **PT4** | IA para Cuidado Personalizado | Modelos de segmentação e classificação de imagens; biblioteca federada de modelos de IA; sistema integrado de IA com painéis preditivos |
+| **PT5** | Experiência do Paciente | Protótipos de interface do processo diagnóstico; jornadas de usuário validadas; testes de usabilidade |
+| **PT6** | Validação Clínica e Escalabilidade | Pilotos multicêntricos; relatório de validação; modelo de transferência tecnológica |
+
+### 14.3 Todos os Pacotes de Trabalho do REDI-SUS
+
+| PT | Nome | Líder | Período |
+|----|------|-------|---------|
+| PT1 | Gestão, Governança e Disseminação Científica | UFRGS (Érika Cota) / FURG (Vinícius Menezes) | T1–T8 |
+| PT2 | Requisitos e Arquitetura Conceitual | **Fatec Ferraz (Márcia Bissaco)** | M1–M6 |
+| PT3 | Dispositivos e Aquisição de Dados Clínicos | FURG (Vinícius Menezes) | T2–T5 |
+| PT4 | IA para Cuidado Personalizado e Suporte à Decisão | Nutes/UEPB (Robson de Sousa) | T3–T7 |
+| PT5 | Experiência do Paciente e Humanização | UFRGS (Érika Cota) | T4–T7 |
+| PT6 | Validação Clínica, Escalabilidade e Replicação | ISI-EQ (Camila Proença) | T5–T8 |
+| PT7 | Interoperabilidade Federada com o SUS Digital | **Fatec Ferraz (Márcia Bissaco)** | T3–T8 |
+
+---
+
+## 15. Entregas e Cronograma do HEAL+
+
+### 15.1 Cronograma Geral (24 meses, 8 trimestres)
+
+```
+T1 ──── T2 ──── T3 ──── T4 ──── T5 ──── T6 ──── T7 ──── T8
+ │       │       │       │       │       │       │       │
+ │       │       │       │       │       │       │       └─ Manual técnico
+ │       │       │       │       │       │       │          Relatório final validação
+ │       │       │       │       │       │       │          Workshop Resultados Finais
+ │       │       │       │       │       │       │
+ │       │       │       │       │       │       └─ Sistema IA + Painéis Preditivos
+ │       │       │       │       │       │          Plataforma interoperável SUS
+ │       │       │       │       │       │          Materiais capacitação digital
+ │       │       │       │       │       │
+ │       │       │       │       │       └─ Biblioteca Federada Modelos IA
+ │       │       │       │       │          Protótipos funcionais + usabilidade
+ │       │       │       │       │          Pilotos Multicêntricos
+ │       │       │       │       │
+ │       │       │       │       └─ Gateway FHIR operacional
+ │       │       │       │          Bases de dados consolidadas
+ │       │       │       │          Protótipos interface diagnóstico
+ │       │       │       │
+ │       │       │       └─ Protótipos IA + Bases imagens rotuladas
+ │       │       │          Módulos de coleta de dados
+ │       │       │          Workshop Resultados Parciais
+ │       │       │
+ │       │       └─ Protocolos coleta e calibração HEAL+
+ │       │
+ │       └─ Arquitetura Conceitual + Dicionário Dados
+ │
+ └─ Documento Requisitos Técnicos e Clínicos
+```
+
+### 15.2 Entregas Específicas do HEAL+ por Trimestre
+
+| Trimestre | Entrega | PT |
+|-----------|---------|-----|
+| **T1** | Documento de Requisitos Técnicos e Clínicos do REDI-SUS (liderança Fatec) | PT2 |
+| **T2** | Relatório Técnico da Arquitetura Conceitual e Dicionário de Dados (liderança Fatec) | PT2 |
+| **T3** | Protocolos de coleta e calibração de imagens clínicas de feridas | PT3 |
+| **T4** | Bases de dados clínicos com imagens rotuladas (Medetec, FUSeg, Wseg, DFUC) | PT3 |
+| **T4** | Módulos de coleta de dados (pipeline de captura e pré-processamento) | PT3 |
+| **T4** | Protótipos iniciais de modelos de IA e relatório de arquiteturas (YOLOv8, U-Net, ResNet50, Ensemble) | PT4 |
+| **T5** | Infraestrutura de coleta de dados consolidada | PT3 |
+| **T5** | Bases de dados clínicos consolidadas e expandidas | PT3 |
+| **T5** | Protótipos de interface do processo diagnóstico e jornadas de usuário validadas | PT5 |
+| **T5** | Gateway FHIR operacional (liderança Fatec) | PT7 |
+| **T6** | Biblioteca Federada de Modelos de IA e Módulos de Apoio à Decisão | PT4 |
+| **T6** | Protótipos funcionais e relatório de testes de usabilidade | PT5 |
+| **T6** | Relatório de Início dos Pilotos Multicêntricos e Plano de Avaliação | PT6 |
+| **T7** | Sistema Integrado de IA com Painéis Preditivos e Relatório de Validação | PT4 |
+| **T7** | Plataforma interoperável com o SUS Digital, dashboards de rastreabilidade e documentação de arquitetura (liderança Fatec) | PT7 |
+| **T7** | Materiais de capacitação digital | PT5 |
+| **T7** | Relatório da percepção do usuário (satisfação, usabilidade, autoeficácia) | PT5 |
+| **T8** | Relatório final de validação e modelo de transferência tecnológica | PT6 |
+| **T8** | Manual técnico de operação (liderança Fatec) | PT7 |
+
+### 15.3 Mapeamento Entrega × Componente de Software
+
+| Entrega | Componentes do Repositório |
+|---------|---------------------------|
+| Requisitos e Arquitetura (PT2) | `docs/ARCHITECTURE.md`, dicionário de dados, especificações FHIR |
+| Protocolos de coleta e calibração | `src/processing/image_processor.py`, `src/processing/image_enhancer.py`, `scripts/preprocess_dataset.py` |
+| Bases de dados com imagens rotuladas | `scripts/medetec_scraper.py`, `scripts/prepare_yolo_dataset.py`, `dataset/` |
+| Módulos de coleta de dados | `src/capture/video_stream.py`, `src/detection/realtime_detector.py`, pipeline de pré-processamento |
+| Protótipos de modelos de IA | `src/diagnosis/`, `src/ai_layer/`, `scripts/train_*.py` |
+| Infraestrutura de coleta consolidada | Pipeline completo: captura → pré-processamento → detecção → análise |
+| Biblioteca Federada de Modelos de IA | `src/ai_layer/ensemble_orchestrator.py`, modelos ONNX exportados, aprendizado federado |
+| Sistema Integrado de IA + Painéis Preditivos | `heal_platform.py`, `src/risk/stratification.py`, `src/clinical/scales.py`, dashboards |
+| Gateway FHIR | `src/interoperability/fhir_client.py`, `src/interoperability/datasus_integration.py`, `src/interoperability/esus_integration.py` |
+| Plataforma interoperável com SUS Digital | Integração RNDS, e-SUS PEC, SIGTAP; documentação de APIs |
+| Manual técnico de operação | `docs/`, README, guias de instalação e configuração |
+
+---
+
+## 16. Integração com Módulos da Rede REDI-SUS
+
+### 16.1 Diagrama de Integração entre Módulos
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         PLATAFORMA REDI-SUS                                   │
+│                                                                               │
+│                      ┌──────────────────┐                                    │
+│                      │     HEAL+        │                                    │
+│                      │  (Fatec Ferraz)  │                                    │
+│                      │  Diagnóstico de  │                                    │
+│                      │  Feridas por IA  │                                    │
+│                      └─────┬──┬──┬──────┘                                    │
+│                            │  │  │                                           │
+│          ┌─────────────────┘  │  └──────────────────┐                        │
+│          │                    │                      │                        │
+│          ▼                    ▼                      ▼                        │
+│  ┌───────────────┐   ┌───────────────┐   ┌──────────────────┐               │
+│  │   DermaSUS    │   │   TAKERE      │   │   Twin@Home      │               │
+│  │  Lesões       │   │   mHealth     │   │   Gêmeo Digital  │               │
+│  │  Cutâneas     │   │   Planos de   │   │   Monitoramento  │               │
+│  │               │   │   Cuidado     │   │   Domiciliar     │               │
+│  └───────┬───────┘   └───────┬───────┘   └──────┬───────────┘               │
+│          │                   │                    │                           │
+│          └───────────┬───────┘                    │                           │
+│                      │                            │                           │
+│                      ▼                            ▼                           │
+│              ┌───────────────┐           ┌──────────────────┐                │
+│              │   REDE VIVA   │           │   Sensores IoT   │                │
+│              │  Vigilância   │           │   Dispositivos   │                │
+│              │  Digital      │           │   Vestíveis      │                │
+│              └───────────────┘           └──────────────────┘                │
+│                                                                               │
+│  ═══════════════════════════════════════════════════════════════════════════  │
+│                    CAMADA DE INTEROPERABILIDADE (PT7 — Fatec)                 │
+│              Gateway FHIR R4 │ e-SUS PEC │ RNDS │ DATASUS/SIGTAP            │
+│              Aprendizado Federado │ LGPD │ Comunicação Segura               │
+│  ═══════════════════════════════════════════════════════════════════════════  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 16.2 Interfaces de Serviço entre Módulos
+
+| Interface | De → Para | Dados Trocados | Padrão |
+|-----------|-----------|----------------|--------|
+| **HEAL+ → DermaSUS** | Diagnóstico de ferida → Triagem dermatológica | Imagem segmentada, classificação etiológica, scores de confiança | FHIR DiagnosticReport |
+| **HEAL+ → TAKERE** | Diagnóstico → Plano de cuidado | Composição tecidual (%), tipo de ferida, escalas (PUSH, BWAT, Braden), recomendações de tratamento | FHIR CarePlan + Observation |
+| **HEAL+ → Twin@Home** | Dados longitudinais de ferida → Simulação de cicatrização | Série temporal de Health Score, área da ferida, evolução tecidual | FHIR Observation (série temporal) |
+| **HEAL+ → REDE VIVA** | Dados epidemiológicos → Vigilância digital | Classificação de feridas por região, geolocalização, dados agregados | FHIR Encounter + Location |
+| **HEAL+ ← Twin@Home** | Alertas preditivos → Reavaliação | Alerta de deterioração, previsão de cicatrização | FHIR Flag + RiskAssessment |
+| **HEAL+ ← TAKERE** | Plano de cuidado ativo → Contexto clínico | Plano de cuidado vigente, medicamentos, curativos prescritos | FHIR CarePlan |
+
+### 16.3 Dados e Infraestrutura Compartilhados
+
+| Recurso Compartilhado | Módulos | Descrição |
+|------------------------|---------|-----------|
+| **Gateway FHIR R4** | Todos | Barramento central de interoperabilidade (PT7 — Fatec) |
+| **Infraestrutura de Aprendizado Federado** | HEAL+, DermaSUS, REDE VIVA | Treinamento de modelos distribuídos sem compartilhar dados de pacientes |
+| **Dicionário de Dados Unificado** | Todos | Definido no PT2; terminologias SNOMED CT, LOINC, ICD-10, CID-10 |
+| **Base de Dados Clínicos** | HEAL+, DermaSUS | Imagens médicas rotuladas, anotações de especialistas |
+| **Protocolos de Segurança** | Todos | Criptografia, autenticação, trilha de auditoria (LGPD) |
+
+---
+
+## 17. Interoperabilidade Federada com o SUS Digital (PT7)
+
+Este pacote de trabalho, **liderado pela Fatec Ferraz**, define a infraestrutura federada que conecta todos os módulos da rede ao ecossistema do SUS Digital.
+
+### 17.1 Arquitetura de Interoperabilidade
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                     CAMADA DE INTEROPERABILIDADE PT7                          │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │                       GATEWAY FHIR R4                                    │ │
+│  │                                                                          │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │ │
+│  │  │ Patient  │  │Observat. │  │Diagnost. │  │CarePlan  │  │ RiskAss. │ │ │
+│  │  │ Resource │  │ Resource │  │ Report   │  │ Resource │  │ Resource │ │ │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘ │ │
+│  │                                                                          │ │
+│  │  Terminologias: SNOMED CT │ LOINC │ ICD-10 │ CID-10 │ SIGTAP          │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                    │                                         │
+│           ┌────────────────────────┼────────────────────────┐               │
+│           ▼                        ▼                        ▼               │
+│  ┌─────────────────┐    ┌──────────────────┐    ┌──────────────────┐       │
+│  │    e-SUS PEC    │    │      RNDS        │    │  DATASUS/SIGTAP  │       │
+│  │  Prontuário     │    │  Rede Nacional   │    │  Procedimentos   │       │
+│  │  Eletrônico     │    │  de Dados em     │    │  BPA / SISAB     │       │
+│  │                 │    │  Saúde           │    │  CNES            │       │
+│  └─────────────────┘    └──────────────────┘    └──────────────────┘       │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │              APRENDIZADO FEDERADO (Federated Learning)                   │ │
+│  │                                                                          │ │
+│  │   Hospital A ─┐                                                          │ │
+│  │   Hospital B ──┼── Agregação de Gradientes ── Modelo Global Atualizado  │ │
+│  │   UBS C ──────┘    (sem troca de dados)       (privacidade preservada)  │ │
+│  │                                                                          │ │
+│  │   Protocolo: FedAvg │ Comunicação: TLS 1.3 │ Privacidade: LGPD         │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │              SEGURANÇA E GOVERNANÇA                                      │ │
+│  │  • Autenticação: OAuth 2.0 / OpenID Connect                            │ │
+│  │  • Criptografia: AES-256 (em repouso) + TLS 1.3 (em trânsito)        │ │
+│  │  • Auditoria: log de acesso imutável (LGPD Art. 37)                   │ │
+│  │  • Consentimento: termo digital rastreável (LGPD Art. 7–8)            │ │
+│  │  • Anonimização: k-anonimato + differential privacy para dados agre.  │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 17.2 Recursos FHIR Implementados no HEAL+
+
+| Recurso FHIR | Uso no HEAL+ | Módulo de Código |
+|---------------|-------------|------------------|
+| **Patient** | Dados demográficos do paciente (anonimizados para pesquisa) | `src/interoperability/fhir_client.py` |
+| **Observation** | Composição tecidual (%), Health Score, sinais vitais, área da ferida | `src/interoperability/fhir_client.py` |
+| **DiagnosticReport** | Laudo clínico automatizado com classificação etiológica e escalas | `src/interoperability/fhir_client.py` |
+| **Condition** | Diagnóstico codificado (ICD-10, SNOMED CT) | `src/interoperability/fhir_client.py` |
+| **Media** | Imagem da ferida (referência, não embarcada) | `src/interoperability/fhir_client.py` |
+| **CarePlan** | Plano de cuidado recomendado (integração TAKERE) | `src/interoperability/fhir_client.py` |
+| **RiskAssessment** | Estratificação de risco (Braden, risco de amputação) | `src/risk/stratification.py` |
+| **Procedure** | Procedimentos realizados (códigos SIGTAP) | `src/interoperability/datasus_integration.py` |
+
+### 17.3 Integração com Sistemas SUS
+
+| Sistema | Integração | Status | Módulo |
+|---------|-----------|--------|--------|
+| **e-SUS PEC** | Envio de dados ao Prontuário Eletrônico do Cidadão | Implementado (endpoint) | `src/interoperability/esus_integration.py` |
+| **DATASUS/SIGTAP** | Consulta de procedimentos; geração de BPA (Boletim de Produção Ambulatorial) | Implementado | `src/interoperability/datasus_integration.py` |
+| **SISAB** | Envio de dados para o Sistema de Informação em Saúde da Atenção Básica | Planejado | `src/interoperability/datasus_integration.py` |
+| **CNES** | Consulta de estabelecimentos de saúde | Implementado | `src/interoperability/datasus_integration.py` |
+| **RNDS** | Publicação na Rede Nacional de Dados em Saúde | Em desenvolvimento | `src/interoperability/fhir_client.py` |
+
+### 17.4 Entregas do PT7
+
+| Trimestre | Entrega |
+|-----------|---------|
+| **T5** | Gateway FHIR R4 operacional com suporte aos recursos Patient, Observation, DiagnosticReport |
+| **T7** | Plataforma interoperável com o SUS Digital; dashboards de rastreabilidade; documentação completa de arquitetura |
+| **T8** | Manual técnico de operação para implantação e manutenção do gateway em ambientes SUS |
+
+---
+
+## 18. Governança de Dados e Conformidade LGPD
+
+### 18.1 Princípios de Governança
+
+O HEAL+ segue os princípios de governança de dados definidos pelo REDI-SUS em conformidade com a **Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018)** e as normas do **CEP/CONEP** para pesquisa com seres humanos:
+
+| Princípio LGPD | Implementação no HEAL+ |
+|-----------------|------------------------|
+| **Finalidade** (Art. 6°, I) | Dados utilizados exclusivamente para diagnóstico, tratamento e pesquisa aprovada pelo CEP |
+| **Adequação** (Art. 6°, II) | Coleta limitada aos dados estritamente necessários (imagens de feridas, dados clínicos mínimos) |
+| **Necessidade** (Art. 6°, III) | Minimização de dados pessoais; prioridade para dados anonimizados |
+| **Livre acesso** (Art. 6°, IV) | Paciente pode consultar e solicitar exclusão de seus dados |
+| **Qualidade dos dados** (Art. 6°, V) | Validação de qualidade de imagem; protocolos de calibração |
+| **Transparência** (Art. 6°, VI) | Laudo explicável (Grad-CAM); transparência algorítmica |
+| **Segurança** (Art. 6°, VII) | Criptografia AES-256; TLS 1.3; controle de acesso |
+| **Prevenção** (Art. 6°, VIII) | Privacy by design; avaliação de impacto à proteção de dados |
+| **Não discriminação** (Art. 6°, IX) | Monitoramento de viés em datasets (Fitzpatrick I–VI) |
+
+### 18.2 Protocolos de Compartilhamento Seguro de Dados
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                  FLUXO DE DADOS — LGPD COMPLIANT                    │
+│                                                                     │
+│  Paciente ──→ Consentimento ──→ Coleta de     ──→ Anonimização    │
+│               Informado          Imagem/Dados      (k-anonimato)   │
+│               (TCLE digital)                                        │
+│                                       │                             │
+│                                       ▼                             │
+│                              ┌─────────────────┐                   │
+│                              │  Armazenamento   │                   │
+│                              │  Local (SQLite)  │                   │
+│                              │  Criptografado   │                   │
+│                              └────────┬────────┘                   │
+│                                       │                             │
+│                        ┌──────────────┼──────────────┐             │
+│                        ▼              ▼              ▼             │
+│                   Diagnóstico    Pesquisa        Integração        │
+│                   Local (IA)     (dados anon.)   SUS (FHIR)        │
+│                        │              │              │             │
+│                        ▼              ▼              ▼             │
+│                   Laudo para     FL (gradientes  RNDS / e-SUS      │
+│                   profissional   sem dados)      (dados mín.)      │
+│                                                                     │
+│  Trilha de Auditoria: todos os acessos são registrados (Art. 37)   │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### 18.3 Aprendizado Federado e Privacidade
+
+O módulo de aprendizado federado permite que múltiplas instituições treinem modelos de IA colaborativamente **sem compartilhar dados de pacientes**:
+
+| Aspecto | Especificação |
+|---------|---------------|
+| **Protocolo** | Federated Averaging (FedAvg) — McMahan et al., 2017 |
+| **Comunicação** | Apenas gradientes/pesos agregados trafegam entre nós |
+| **Privacidade** | Differential privacy (ε-DP) adicionada aos gradientes |
+| **Infraestrutura** | Cada instituição mantém seus dados localmente; servidor de agregação na RNP |
+| **Modelos federados** | U-Net (segmentação), ResNet50 (classificação), EfficientNet (ensemble) |
+| **Conformidade** | LGPD Art. 12 (anonimização) + Art. 46 (medidas de segurança) |
+
+### 18.4 Ética em Pesquisa (CEP/CONEP)
+
+| Documento | Descrição | Status |
+|-----------|-----------|--------|
+| Protocolo de pesquisa | Submetido à Plataforma Brasil | Requerido antes de coleta |
+| TCLE (Termo de Consentimento Livre e Esclarecido) | Versão digital com assinatura eletrônica | Template disponível |
+| DPIA (Data Protection Impact Assessment) | Avaliação de impacto à proteção de dados pessoais | Em elaboração |
+| Relatório de conformidade LGPD | Documentação de medidas técnicas e organizacionais | Trimestral (PT1) |
+
+---
+
+## 19. Validação Clínica e Escalabilidade (PT6)
+
+### 19.1 Estratégia de Validação Multicêntrica
+
+O HEAL+ será validado em ambientes reais do SUS seguindo protocolo multicêntrico coordenado pelo PT6 (ISI-EQ):
+
+| Fase | Período | Ambiente | Objetivo |
+|------|---------|----------|----------|
+| **Pré-piloto** | T4–T5 | Laboratório / ambiente simulado | Validação técnica dos modelos de IA; calibração de thresholds |
+| **Piloto** | T6–T7 | Hospitais universitários, UBS | Validação clínica com pacientes reais; concordância com especialistas |
+| **Escala** | T7–T8 | Múltiplos centros via RUTE/Telessaúde | Replicação; avaliação de generalização; custo-benefício |
+
+### 19.2 Protocolo de Validação do HEAL+
+
+| Critério | Método | Métrica |
+|----------|--------|---------|
+| **Acurácia diagnóstica** | Comparação com anotações de estomaterapeutas (gold standard) | Sensibilidade, Especificidade, AUC-ROC |
+| **Concordância inter-observador** | HEAL+ vs. 2–3 especialistas em estomaterapia | Cohen's Kappa (κ ≥ 0.61 = bom) |
+| **Segmentação tecidual** | Comparação com máscaras manuais de especialistas | Dice Score, IoU por classe |
+| **Tempo de diagnóstico** | Tempo HEAL+ vs. tempo profissional sem auxílio | Redução percentual |
+| **Aceitação profissional** | Questionário SUS (System Usability Scale) + TAM | Score SUS ≥ 68; TAM positivo |
+| **Impacto clínico** | Decisão do profissional com vs. sem HEAL+ | Mudança no plano de tratamento |
+
+### 19.3 Nível de Maturidade Tecnológica (TRL)
+
+| TRL | Descrição | Status HEAL+ |
+|-----|-----------|-------------|
+| TRL 1 | Princípios básicos observados | ✅ Completo |
+| TRL 2 | Conceito tecnológico formulado | ✅ Completo |
+| TRL 3 | Prova de conceito experimental | ✅ Completo |
+| TRL 4 | Validação em ambiente laboratorial | ✅ Em andamento (atual) |
+| TRL 5 | Validação em ambiente relevante | 🔄 Planejado (T6–T7) |
+| TRL 6 | Demonstração em ambiente relevante | 🔄 Planejado (T7–T8) |
+| TRL 7–9 | Qualificação, demonstração e operação | Pós-projeto (ANVISA SaMD) |
+
+### 19.4 Escalabilidade e Modelo de Transferência Tecnológica
+
+| Estratégia | Descrição |
+|------------|-----------|
+| **Modularidade** | Arquitetura de microsserviços permite deploy independente de cada componente |
+| **Modelos ONNX** | Formato agnóstico de plataforma; inferência otimizada em CPU, GPU ou edge |
+| **TFLite** | Conversão para dispositivos Android (Atenção Primária) com quantização INT8 |
+| **Docker** | Containerização para deploy padronizado em diferentes ambientes SUS |
+| **Documentação** | Manual técnico de operação (PT7, T8) com guias de instalação, configuração e manutenção |
+| **Capacitação** | Materiais de capacitação digital (PT5, T7) para treinamento de profissionais de saúde |
+| **Replicação via RUTE** | Disseminação nacional através da Rede Universitária de Telemedicina |
+| **Código aberto** | Repositório público para revisão por pares e contribuições da comunidade |
+
+### 19.5 Resultados Esperados
+
+| Indicador | Meta |
+|-----------|------|
+| Decisões clínicas mais assertivas e precoces | Redução do tempo de diagnóstico em estomaterapia |
+| Redução de internações evitáveis | Detecção precoce de deterioração via monitoramento contínuo |
+| Aumento da adesão a tratamentos | Acompanhamento individualizado com alertas e planos personalizados |
+| Equidade no acesso | Municípios remotos com acesso a diagnóstico especializado via IA |
+| Padronização do cuidado | Protocolo de avaliação reprodutível e objetivo (vs. subjetividade) |
+| Fortalecimento da Atenção Primária | Deploy mobile em UBS sem especialista em estomaterapia |
+
+---
+
+## 20. Referências Bibliográficas
 
 1. **Sen, C. K., et al.** (2009). Human skin wounds: A major and snowballing threat to public health and the economy. *Wound Repair and Regeneration*, 17(6), 763–771.
 2. **Järbrink, K., et al.** (2017). The humanistic and economic burden of chronic wounds: a protocol for a systematic review. *Systematic Reviews*, 6(1), 15.
@@ -903,21 +1380,45 @@ As seguintes hipóteses e linhas de investigação são sugeridas para **Inicia�
 14. **Wang, C., et al.** (2023). Wound Segmentation Network (WSNet). *WACV 2023*. *(Wseg dataset — 2686 imagens)*
 15. **Cassidy, B., et al.** (2021). The DFUC 2020 dataset: Analysis towards diabetic foot ulcer detection. *BioMedical Engineering OnLine*. *(DFUC Challenge)*
 
+### Referências da Proposta REDI-SUS
+
+16. **Botelho, S. S. C., et al.** (2024). Performance-watt analysis of GPU-based digital twin simulations. In: *IECON 2024 — 50th Annual Conference of the IEEE Industrial Electronics Society* (USA).
+17. **Niemiec, W.; Cota, E.** (2025). Towards a component-based framework for mHealth apps: Bridging the gap between the nursing domain language and the computation domain. *Journal of Systems and Software*, 230:112497. https://doi.org/10.1016/j.jss.2025.112497 *(TAKERE)*
+18. **Niemiec, W.; Tavares, A. R.; Cota, E.** (2025). Leveraging Natural Language Processing for mHealth Development: A Component-Based Approach Using Nursing Taxonomies. *Proc. IEEE CBMS*. doi:10.1109/CBMS65348.2025.00084 *(TAKERE/NLP)*
+19. **Oliveira, V. M., et al.** (2024). Digital Twin Across Industry 5.0: Integrating Dimensional Analysis to a Rotor Inspection Module. In: *2024 IEEE 22nd Int. Conf. on Industrial Informatics*, Beijing. *(Twin@Home)*
+20. **Carvalho, R.; Sampaio, A. F.; Vasconcelos, M. J. M.** (2025). Automating Tissue Segmentation and Quantification for Wound Healing Assessment. In: *2025 IEEE 38th CBMS*, Madrid, p. 160–166. doi:10.1109/CBMS65348.2025.00042
+21. **Bahadır, E. B.; Sezgintürk, M. K.** (2016). Lateral flow assays: principles, designs and labels. *TrAC Trends in Analytical Chemistry*. *(REDE VIVA)*
+22. **Pias, M. R., et al.** (2025). On the scaling of digital twins by aggregation. *Data & Policy*, 7:e9. *(Twin@Home)*
+23. **Gomis-Pastor, M., et al.** Improving patients' experience and medication adherence after heart failure treatment: mixed methods study. *(Experiência do Paciente)*
+24. **INCA.** (2021). *Detecção precoce do câncer*. Rio de Janeiro: INCA. 72 p. ISBN 978-65-88517-22-2. *(DermaSUS)*
+25. **Jakob, R., et al.** (2022). Factors Influencing Adherence to mHealth Apps for Prevention or Management of Noncommunicable Diseases: Systematic Review. *J Med Internet Res*, 24(5):e35371. doi:10.2196/35371 *(mHealth/Adesão)*
+26. **Laubenbacher, R., et al.** (2024). Digital twins in medicine. *Nature Computational Science*. *(Twin@Home)*
+27. **Liu, Y., et al.** (2019). A Novel Cloud-Based Framework for the Elderly Healthcare Services Using Digital Twin. *IEEE Access*. *(Twin@Home)*
+28. **Orofino-Costa, R., et al.** (2017). Sporotrichosis: an update on epidemiology, etiopathogenesis, laboratory and clinical therapeutics. *An Bras Dermatol*. *(REDE VIVA)*
+29. **Sehat Ullah, et al.** (2025). Machine Learning and Digital-Twins-Based Internet of Robotic Things for Remote Patient Monitoring. *IEEE Journals & Magazine*. *(Twin@Home/IoT)*
+30. **Shamsuddeen, A., et al.** (2024). The future of skin cancer diagnosis: a comprehensive systematic review of ML and DL models. *Cogent Engineering*, 11(1):2395425. https://doi.org/10.1080/23311916.2024.2395425 *(DermaSUS)*
+31. **Somfai, E., et al.** (2023). Handling dataset dependence with model ensembles for skin lesion classification from dermoscopic and clinical images. *Int J Imaging Syst Technol*, 33(2):556–571. *(Ensemble/DermaSUS)*
+32. **Tambella, A. M., et al.** (2025). Avanços na medição sem contato da área da ferida usando aplicativo móvel. *Skin Wound Care*, 38(7):360–366. doi:10.1097/ASW.0000000000000296 *(Medição de feridas/mHealth)*
+33. **McMahan, B., et al.** (2017). Communication-Efficient Learning of Deep Networks from Decentralized Data. *AISTATS*. *(Federated Learning)*
+
 ---
 
 ## Aviso Legal
 
 > Este software é uma ferramenta de **auxílio ao diagnóstico** e **não substitui a avaliação clínica profissional**. Todas as decisões terapêuticas devem ser validadas por profissionais de saúde qualificados.  
 > Consulte o Comitê de Ética em Pesquisa (CEP) de sua instituição antes de qualquer uso clínico.  
-> O projeto encontra-se em nível TRL 4–5 (validação em ambiente laboratorial / ambiente relevante simulado).
+> O projeto encontra-se em nível TRL 4–5 (validação em ambiente laboratorial / ambiente relevante simulado).  
+> Dados de pacientes devem ser tratados em conformidade com a LGPD (Lei 13.709/2018) e aprovados pelo CEP/CONEP da instituição responsável.
 
 ## Licença
 
-Este projeto é destinado ao uso em **pesquisa acadêmica e desenvolvimento em saúde**. Para uso comercial ou clínico, entre em contato com os autores e verifique conformidade regulatória (ANVISA, LGPD).
+Este projeto é destinado ao uso em **pesquisa acadêmica e desenvolvimento em saúde**, no âmbito da Rede REDI-SUS (Cluster 7 — RNP/RUTE). Para uso comercial ou clínico, entre em contato com os autores e verifique conformidade regulatória (ANVISA, LGPD).
 
 ---
 
 <p align="center">
-  <strong>HEAL+ / REDISUS</strong> — Cluster REDISUS — RNP/RUTE<br>
-  Plataforma Nacional de Saúde Digital Integrada
+  <strong>HEAL+ / REDISUS</strong> — Cluster 7 REDI-SUS — RNP/RUTE<br>
+  Rede de Pesquisa em Saúde Digital Inteligente<br>
+  Diagnóstico, Planos de Cuidado e Acompanhamento Remoto<br>
+  <em>Fatec Ferraz de Vasconcelos — Módulo HEAL+ (PT2 + PT7)</em>
 </p>
