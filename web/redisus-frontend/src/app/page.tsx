@@ -4,39 +4,39 @@ import Image from "next/image";
 const featureItems = [
   {
     icon: "auto_awesome",
-    title: "Analise Inteligente",
+    title: "Análise Inteligente",
     description:
-      "Medicao de feridas baseada em imagem com suporte de IA para avaliar tecido, profundidade e evolucao clinica.",
+      "Pipeline em dois estágios (detecção + diagnóstico) para apoiar a avaliação tecidual e etiológica de feridas crônicas.",
   },
   {
     icon: "description",
-    title: "Relatorios Automaticos",
+    title: "Laudo Clínico Estruturado",
     description:
-      "Gere documentos clinicos em segundos, com padrao para auditoria e exportacao PDF.",
+      "Geração de relatório com composição tecidual, classificação e indicadores clínicos para apoiar conduta e rastreabilidade.",
   },
   {
-    icon: "manage_search",
-    title: "Hub de Busca IA",
+    icon: "hub",
+    title: "Integração com Ecossistema REDI-SUS",
     description:
-      "Busque informacoes em historicos e condutas com linguagem natural em um unico painel.",
+      "Conexão com módulos de diagnóstico, plano de cuidado e monitoramento dentro da jornada digital em saúde.",
   },
 ];
 
 const benefits = [
   {
     icon: "schedule",
-    title: "Tempo de Cuidado",
-    text: "Reduza tarefas manuais e aumente o foco no paciente durante toda a jornada de tratamento.",
+    title: "Padronização do Cuidado",
+    text: "Reduz subjetividade na avaliação por imagem e apoia decisões clínicas mais consistentes entre equipes.",
   },
   {
     icon: "biotech",
-    title: "Precisao Clinica",
-    text: "Padronize avaliacao e reduza subjetividade com dados mais consistentes e rastreaveis.",
+    title: "Pesquisa Translacional",
+    text: "Conecta pesquisa aplicada, validação multicêntrica e evolução tecnológica para uso real no SUS.",
   },
   {
     icon: "rebase_edit",
-    title: "Workflow Simplificado",
-    text: "Experiencia fluida que se adapta a rotina de clinicas, hospitais e equipes multiprofissionais.",
+    title: "Interoperabilidade e Escala",
+    text: "Arquitetura com HL7 FHIR R4, e-SUS, DATASUS e trilhas para integração progressiva com RNDS.",
   },
 ];
 
@@ -64,20 +64,26 @@ export default function HomePage() {
           </Link>
 
           <div className="hidden items-center gap-8 md:flex">
-            <a href="#funcionalidades" className="text-sm font-semibold text-primary">
+            <a
+              href="#funcionalidades"
+              className="group relative text-sm font-semibold text-on-surface-variant transition-colors hover:text-primary focus:text-primary focus:outline-none"
+            >
               Funcionalidades
+              <span className="absolute -bottom-1 left-0 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 group-hover:scale-x-100 group-focus:scale-x-100" />
             </a>
             <a
               href="#beneficios"
-              className="text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-colors"
+              className="group relative text-sm font-semibold text-on-surface-variant transition-colors hover:text-primary focus:text-primary focus:outline-none"
             >
-              Beneficios
+              Benefícios
+              <span className="absolute -bottom-1 left-0 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 group-hover:scale-x-100 group-focus:scale-x-100" />
             </a>
             <a
               href="#sobre"
-              className="text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-colors"
+              className="group relative text-sm font-semibold text-on-surface-variant transition-colors hover:text-primary focus:text-primary focus:outline-none"
             >
               Sobre
+              <span className="absolute -bottom-1 left-0 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 group-hover:scale-x-100 group-focus:scale-x-100" />
             </a>
           </div>
 
@@ -92,7 +98,7 @@ export default function HomePage() {
               href="/login"
               className="rounded-xl bg-primary-container px-5 py-2.5 text-sm font-bold text-on-primary-container shadow-ambient"
             >
-              Comecar
+              Começar
             </Link>
           </div>
         </div>
@@ -104,27 +110,27 @@ export default function HomePage() {
           <div className="relative z-10 mx-auto max-w-5xl text-center">
             <div className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary ghost-border">
               <span className="material-symbols-outlined text-sm">auto_awesome</span>
-              A proxima geracao de cuidado clinico
+              Pesquisa aplicada em saúde digital
             </div>
             <h1 className="mt-6 text-5xl font-extrabold tracking-tight font-headline md:text-7xl">
-              A Revolucao na Gestao de <span className="text-primary">Feridas com IA</span>
+              HEAL+ no REDI-SUS: <span className="text-primary">IA para avaliação de feridas</span>
             </h1>
             <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-on-surface-variant md:text-xl">
-              Otimize o cuidado clinico, automatize relatorios e melhore desfechos com o modulo Heal+ dentro do
-              ecossistema Redi-SUS.
+              Plataforma de pesquisa para apoio ao diagnóstico e monitoramento de feridas crônicas, com visão
+              computacional, modelos de deep learning e foco em interoperabilidade com o SUS Digital.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
                 href="/login"
                 className="w-full rounded-xl bg-primary-container px-10 py-4 text-center text-lg font-bold text-on-primary-container shadow-ambient sm:w-auto"
               >
-                Comecar Gratis
+                Acessar Plataforma
               </Link>
               <a
                 href="#funcionalidades"
                 className="w-full rounded-xl border border-outline-variant/20 px-10 py-4 text-center text-lg font-bold hover:bg-surface-container-low transition-colors sm:w-auto"
               >
-                Ver Demonstracao
+                Ver Funcionalidades
               </a>
             </div>
           </div>
@@ -135,7 +141,7 @@ export default function HomePage() {
                 <div className="text-center">
                   <span className="material-symbols-outlined text-6xl text-primary">monitoring</span>
                   <p className="mt-3 text-sm font-semibold tracking-wide text-on-surface-variant">
-                    Dashboard Clinico Heal+ no Redi-SUS
+                    Dashboard clínico do HEAL+ no REDI-SUS
                   </p>
                 </div>
               </div>
@@ -145,9 +151,9 @@ export default function HomePage() {
 
         <section id="funcionalidades" className="mx-auto max-w-7xl px-6 py-20">
           <div className="mb-12 space-y-3 text-center">
-            <h2 className="text-3xl font-bold font-headline md:text-4xl">Tecnologia que Salva Vidas</h2>
+            <h2 className="text-3xl font-bold font-headline md:text-4xl">Tecnologia para Cuidado Baseado em Evidências</h2>
             <p className="mx-auto max-w-2xl text-on-surface-variant">
-              Ferramentas de precisao desenhadas para a realidade do profissional de saude moderno.
+              Componentes alinhados ao escopo técnico-científico do projeto e à jornada clínica no SUS.
             </p>
           </div>
 
@@ -156,13 +162,15 @@ export default function HomePage() {
               <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                 <span className="material-symbols-outlined">auto_awesome</span>
               </div>
-              <h3 className="mt-5 text-2xl font-bold font-headline">Analise Inteligente</h3>
+              <h3 className="mt-5 text-2xl font-bold font-headline">Pipeline de IA em Dois Estágios</h3>
               <p className="mt-3 max-w-xl text-on-surface-variant">
-                Medicao de feridas com apoio de IA para avaliar padroes de cicatrizacao e apoiar decisoes baseadas em
-                evidencias.
+                Detecção em tempo real para localização da lesão e diagnóstico aprofundado para segmentação,
+                classificação e apoio à decisão clínica.
               </p>
               <div className="mt-8 rounded-xl bg-surface-container-high p-8">
-                <p className="text-sm text-on-surface-variant">Visao assistida para acompanhamento longitudinal.</p>
+                <p className="text-sm text-on-surface-variant">
+                  YOLO, U-Net, ResNet/Ensemble, MedSAM e explicabilidade com Grad-CAM.
+                </p>
               </div>
             </article>
 
@@ -170,13 +178,13 @@ export default function HomePage() {
               <div className="w-12 h-12 rounded-xl bg-tertiary/10 text-tertiary flex items-center justify-center">
                 <span className="material-symbols-outlined">description</span>
               </div>
-              <h3 className="mt-5 text-2xl font-bold font-headline">Relatorios Automaticos</h3>
+              <h3 className="mt-5 text-2xl font-bold font-headline">Interoperabilidade Clínica</h3>
               <p className="mt-3 text-on-surface-variant">
-                Gere documentacao clinica completa em segundos, pronta para auditoria e compartilhamento.
+                Estrutura de dados para integração com serviços de saúde e troca padronizada de informações clínicas.
               </p>
               <div className="mt-6 space-y-2 border-t border-outline-variant/15 pt-4">
-                <p className="text-xs uppercase tracking-widest text-primary">Padronizacao TISS/TUSS</p>
-                <p className="text-xs uppercase tracking-widest text-primary">Exportacao PDF</p>
+                <p className="text-xs uppercase tracking-widest text-primary">HL7 FHIR R4</p>
+                <p className="text-xs uppercase tracking-widest text-primary">e-SUS / DATASUS / RNDS</p>
               </div>
             </article>
 
@@ -207,23 +215,24 @@ export default function HomePage() {
         <section className="px-6 py-24">
           <div className="mx-auto max-w-4xl rounded-2xl border border-outline-variant/10 bg-surface-container/50 p-12 text-center shadow-ambient">
             <h2 className="text-3xl font-extrabold font-headline md:text-5xl">
-              Pronto para elevar o padrao do seu cuidado clinico?
+              Plataforma acadêmica em evolução contínua
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-on-surface-variant">
-              Junte-se a equipes que estao transformando a gestao de feridas com o Heal+ no Redi-SUS.
+              O HEAL+ está em nível TRL 4-5 e é destinado a pesquisa e apoio à decisão. Não substitui avaliação
+              clínica profissional.
             </p>
             <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
               <Link
                 href="/login"
                 className="rounded-xl bg-primary-container px-12 py-4 text-lg font-bold text-on-primary-container"
               >
-                Agendar Demonstracao
+                Entrar no Sistema
               </Link>
               <Link
                 href="/login"
                 className="rounded-xl border border-outline-variant/30 px-12 py-4 text-lg font-bold hover:bg-surface-container-high transition-colors"
               >
-                Falar com Especialista
+                Ver Módulos Internos
               </Link>
             </div>
           </div>
@@ -235,7 +244,7 @@ export default function HomePage() {
           <div>
             <p className="text-lg font-bold font-headline text-primary">Heal+</p>
             <p className="text-xs uppercase tracking-widest text-on-surface-variant">
-              Modulo Redi-SUS para cuidado clinico e gestao de feridas.
+              Módulo REDI-SUS para apoio ao diagnóstico, plano de cuidado e monitoramento.
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-xs uppercase tracking-widest text-on-surface-variant">
@@ -246,7 +255,7 @@ export default function HomePage() {
               Funcionalidades
             </a>
             <a href="#beneficios" className="hover:text-on-surface transition-colors">
-              Beneficios
+              Benefícios
             </a>
           </div>
         </div>

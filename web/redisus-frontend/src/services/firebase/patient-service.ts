@@ -38,8 +38,16 @@ export async function listPatients(options?: { forceRefresh?: boolean }): Promis
     return {
       id: item.id,
       name: data.name,
+      birthDate: data.birthDate ?? "",
+      phone: data.phone ?? "",
+      email: data.email ?? "",
+      profession: data.profession ?? "",
+      maritalStatus: data.maritalStatus ?? "",
       age: data.age,
       clinicalHistory: data.clinicalHistory,
+      hppItems: data.hppItems ?? [],
+      comorbidities: data.comorbidities ?? [],
+      medicationsInUse: data.medicationsInUse ?? [],
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     };

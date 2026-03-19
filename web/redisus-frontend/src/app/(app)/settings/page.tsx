@@ -37,43 +37,26 @@ export default function SettingsPage() {
 
           {/* Theme Options */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Light Mode */}
+            {/* Light Mode (temporarily blocked) */}
             <button
-              onClick={() => setTheme("light")}
-              className={`relative overflow-hidden p-4 rounded-2xl transition-all ${
-                theme === "light"
-                  ? "ghost-border bg-primary/10"
-                  : "ghost-border hover:bg-surface-container-high/50"
-              }`}
+              disabled
+              aria-disabled="true"
+              className="relative overflow-hidden p-4 rounded-2xl ghost-border opacity-50 cursor-not-allowed"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-white/45 to-primary/5 pointer-events-none" />
               <div className="flex flex-col items-center gap-3">
                 <div
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    theme === "light"
-                      ? "bg-primary-container text-on-primary-container shadow-ambient"
-                      : "bg-surface-container text-on-surface-variant"
-                  }`}
+                  className="w-12 h-12 rounded-xl flex items-center justify-center bg-surface-container text-on-surface-variant"
                 >
                   <span className="material-symbols-outlined text-2xl">
                     light_mode
                   </span>
                 </div>
-                <span
-                  className={`font-semibold ${
-                    theme === "light" ? "text-primary" : "text-on-surface"
-                  }`}
-                >
-                  Claro
-                </span>
+                <span className="font-semibold text-on-surface-variant">Claro</span>
               </div>
-              {theme === "light" && (
-                <div className="absolute top-2 right-2">
-                  <span className="material-symbols-outlined text-primary text-sm">
-                    check_circle
-                  </span>
-                </div>
-              )}
+              <span className="absolute top-2 right-2 text-[10px] font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">
+                BLOQUEADO
+              </span>
             </button>
 
             {/* Dark Mode */}

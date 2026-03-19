@@ -16,15 +16,45 @@ import {
 type PatientFormState = {
   id?: string;
   name: string;
-  age: string;
+  birthDate: string;
+  phone: string;
+  email: string;
+  profession: string;
+  maritalStatus: string;
   clinicalHistory: string;
+  hppItems: string[];
+  comorbidities: string[];
+  medicationsInUse: Array<{
+    name: string;
+    dose: string;
+  }>;
 };
 
 const emptyForm: PatientFormState = {
   name: "",
-  age: "",
+  birthDate: "",
+  phone: "",
+  email: "",
+  profession: "",
+  maritalStatus: "",
   clinicalHistory: "",
+  hppItems: [],
+  comorbidities: [],
+  medicationsInUse: [{ name: "", dose: "" }],
 };
+
+function getAgeFromBirthDate(birthDate: string) {
+  if (!birthDate) return null;
+  const birth = new Date(`${birthDate}T12:00:00`);
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const hasNotHadBirthdayYet =
+    today.getMonth() < birth.getMonth() ||
+    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate());
+  if (hasNotHadBirthdayYet) age -= 1;
+  return age >= 0 ? age : null;
+}
 
 export function PatientDashboard() {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -82,12 +112,30 @@ export function PatientDashboard() {
     try {
       const payload = {
         name: form.name.trim(),
-        age: Number(form.age),
+        birthDate: form.birthDate,
+        phone: form.phone.trim(),
+        email: form.email.trim().toLowerCase(),
+        profession: form.profession.trim(),
+        maritalStatus: form.maritalStatus.trim(),
+        age: getAgeFromBirthDate(form.birthDate) ?? undefined,
+        hppItems: form.hppItems,
+        comorbidities: form.comorbidities,
+        medicationsInUse: form.medicationsInUse.filter(
+          (item) => item.name.trim() && item.dose.trim()
+        ),
         clinicalHistory: form.clinicalHistory.trim(),
       };
 
-      if (!payload.name || !payload.clinicalHistory || Number.isNaN(payload.age)) {
-        throw new Error("Preencha nome, idade e historico clinico corretamente.");
+      if (
+        !payload.name ||
+        !payload.birthDate ||
+        !payload.phone ||
+        !payload.email ||
+        !payload.profession ||
+        !payload.maritalStatus ||
+        !payload.clinicalHistory
+      ) {
+        throw new Error("Preencha os dados obrigatorios do paciente corretamente.");
       }
 
       if (isEditing && form.id) {
@@ -131,7 +179,7 @@ export function PatientDashboard() {
 
     filteredPatients.slice(0, 20).forEach((patient, index) => {
       const y = 40 + index * 10;
-      pdf.text(`${patient.name} | ${patient.age} anos`, 14, y);
+      pdf.text(`${patient.name} | ${patient.age ?? getAgeFromBirthDate(patient.birthDate) ?? "-"} anos`, 14, y);
     });
 
     pdf.save("pacientes-healplus.pdf");
@@ -198,7 +246,7 @@ export function PatientDashboard() {
                 filteredPatients.map((patient) => (
                   <tr key={patient.id} className="border-b border-slate-100 align-top">
                     <td className="py-4 pr-4 font-medium text-slate-800">{patient.name}</td>
-                    <td className="py-4 pr-4 text-slate-700">{patient.age}</td>
+                    <td className="py-4 pr-4 text-slate-700">{patient.age ?? getAgeFromBirthDate(patient.birthDate) ?? "-"}</td>
                     <td className="py-4 pr-4 text-slate-700">{patient.clinicalHistory}</td>
                     <td className="py-4 text-right">
                       <div className="inline-flex gap-1">
@@ -208,8 +256,18 @@ export function PatientDashboard() {
                             setForm({
                               id: patient.id,
                               name: patient.name,
-                              age: String(patient.age),
+                              birthDate: patient.birthDate ?? "",
+                              phone: patient.phone ?? "",
+                              email: patient.email ?? "",
+                              profession: patient.profession ?? "",
+                              maritalStatus: patient.maritalStatus ?? "",
                               clinicalHistory: patient.clinicalHistory,
+                              hppItems: patient.hppItems ?? [],
+                              comorbidities: patient.comorbidities ?? [],
+                              medicationsInUse:
+                                patient.medicationsInUse && patient.medicationsInUse.length > 0
+                                  ? patient.medicationsInUse
+                                  : [{ name: "", dose: "" }],
                             });
                           }}
                         >
@@ -246,15 +304,63 @@ export function PatientDashboard() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700" htmlFor="patient-age">
-              Idade
+            <label className="text-sm font-medium text-slate-700" htmlFor="patient-birth-date">
+              Data de nascimento
             </label>
             <Input
-              id="patient-age"
-              type="number"
-              min={0}
-              value={form.age}
-              onChange={(event) => setForm((curr) => ({ ...curr, age: event.target.value }))}
+              id="patient-birth-date"
+              type="date"
+              value={form.birthDate}
+              onChange={(event) => setForm((curr) => ({ ...curr, birthDate: event.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700" htmlFor="patient-phone">
+              Telefone
+            </label>
+            <Input
+              id="patient-phone"
+              value={form.phone}
+              onChange={(event) => setForm((curr) => ({ ...curr, phone: event.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700" htmlFor="patient-email">
+              Email
+            </label>
+            <Input
+              id="patient-email"
+              type="email"
+              value={form.email}
+              onChange={(event) => setForm((curr) => ({ ...curr, email: event.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700" htmlFor="patient-profession">
+              Profissao
+            </label>
+            <Input
+              id="patient-profession"
+              value={form.profession}
+              onChange={(event) => setForm((curr) => ({ ...curr, profession: event.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700" htmlFor="patient-marital-status">
+              Estado civil
+            </label>
+            <Input
+              id="patient-marital-status"
+              value={form.maritalStatus}
+              onChange={(event) => setForm((curr) => ({ ...curr, maritalStatus: event.target.value }))}
               required
             />
           </div>

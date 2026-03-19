@@ -16,21 +16,16 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <meta charSet="UTF-8" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
                   var key = "healplus-theme";
-                  var stored = localStorage.getItem(key);
-                  var theme = stored || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-                  if (theme === "dark") {
-                    document.documentElement.classList.add("dark");
-                    document.documentElement.style.colorScheme = "dark";
-                  } else {
-                    document.documentElement.classList.remove("dark");
-                    document.documentElement.style.colorScheme = "light";
-                  }
+                  localStorage.setItem(key, "dark");
+                  document.documentElement.classList.add("dark");
+                  document.documentElement.style.colorScheme = "dark";
                 } catch (e) {}
               })();
             `,
