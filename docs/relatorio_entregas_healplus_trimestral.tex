@@ -1,0 +1,177 @@
+\documentclass[
+    12pt,
+    openright,
+    oneside,
+    a4paper,
+    chapter=TITLE,
+    section=TITLE,
+    brazil,
+    sumario=tradicional,
+    hidelinks
+]{abntex2}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{iftex}
+\ifPDFTeX
+\usepackage[scaled]{helvet}
+\renewcommand\familydefault{\sfdefault}
+\else
+\usepackage{fontspec}
+\setmainfont{Arial}
+\setsansfont{Arial}
+\fi
+\usepackage{microtype}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0.2cm}
+\OnehalfSpacing
+\setlist[itemize]{leftmargin=1.2cm}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\titulo{Relatório Técnico de Entregas Trimestrais - HEAL+ / REDI-SUS}
+\autor{Equipe HEAL+ (Fatec Ferraz)}
+\local{Suzano - SP}
+\data{Março de 2026}
+\instituicao{%
+    Faculdade de Tecnologia de Ferraz de Vasconcelos\\
+  Projeto REDI-SUS
+}
+\tipotrabalho{Relatório técnico}
+\preambulo{Documento de alinhamento interno das entregas trimestrais do módulo de diagnóstico do HEAL+ no contexto do REDI-SUS.}
+
+\begin{document}
+
+\imprimircapa
+\imprimirfolhaderosto*
+
+\begin{resumo}
+Este relatório detalha, por trimestre (T1 a T8), as entregas previstas para o HEAL+ no contexto do REDI-SUS, com foco no módulo de diagnóstico por imagem e na interação com os pacotes correlatos DermaSUS e REDE VIVA. O documento organiza o escopo por pacote de trabalho (PT), define evidências mínimas por entrega e apresenta uma matriz de interação para alinhamento entre equipes. Também propõe checklist de validação para reunião técnica, critérios transversais de aceite e encaminhamentos para consolidação pós-reunião.
+
+\textbf{Palavras-chave}: HEAL+, REDI-SUS, entregas trimestrais, diagnóstico por imagem, interoperabilidade.
+\end{resumo}
+
+\pdfbookmark[0]{\contentsname}{toc}
+\tableofcontents*
+\cleardoublepage
+
+\textual
+
+\section{Objetivo do documento}
+Detalhar, por trimestre (T1 a T8), as entregas do HEAL+ no contexto do REDI-SUS, com foco no módulo de diagnóstico por imagem e na interação com os pacotes correlatos (DermaSUS e REDE VIVA). Este documento é uma base de trabalho para reunião de alinhamento e consolidação de evidências de entrega.
+
+\section{Escopo e recorte HEAL+}
+\begin{itemize}
+    \item Eixo principal: diagnóstico e monitoramento de feridas com IA (captura, pré-processamento, detecção, segmentação, classificação e suporte à decisão).
+    \item Pacotes de trabalho com maior impacto no módulo de diagnóstico: PT2, PT3, PT4, PT5, PT6 e PT7.
+    \item Interdependências diretas: padronização de dados clínicos, interoperabilidade FHIR e validação em cenários reais.
+\end{itemize}
+
+\section{Mapa trimestral de entregas HEAL+ (T1--T8)}
+\noindent\textit{Mapa ajustado para leitura em relatório técnico: colunas com melhor distribuição e quebra de linha automática.}
+
+{\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{L{0.9cm}L{1.1cm}L{3.2cm}L{4.2cm}L{3.1cm}}
+\toprule
+\textbf{Trim} & \textbf{PT} & \textbf{Entrega (produto)} & \textbf{Detalhamento do que será entregue} & \textbf{Evidência mínima esperada} \\
+\midrule
+\endhead
+
+T1 & PT2 & Documento de Requisitos Técnicos e Clínicos do REDI-SUS & Especificação de requisitos funcionais e não funcionais para captura de imagem, trilha de diagnóstico, perfis de usuário e segurança/LGPD. & Documento versionado + matriz de requisitos + rastreabilidade inicial. \\
+
+T2 & PT2 & Relatório Técnico da Arquitetura Conceitual e Dicionário de Dados & Definição da arquitetura do módulo de diagnóstico, contratos de dados e padrões terminológicos (CID-10, SNOMED CT, LOINC quando aplicável). & Relatório técnico + modelo de dados + dicionário de campos clínicos. \\
+
+T3 & PT3 & Protocolos de coleta e calibração de imagens clínicas de feridas & Protocolo de captura (distância, iluminação, enquadramento, qualidade), critérios de exclusão e rotinas de controle de qualidade de imagem. & Protocolo operacional + checklist de coleta + formulário de auditoria. \\
+
+T4 & PT3 & Bases de dados clínicos com imagens rotuladas (Heal+) & Base inicial curada com classes clínicas e metadados padronizados para treinamento/validação do módulo de diagnóstico. & Inventário de base + estatísticas de rótulos + relatório de curadoria. \\
+
+T4 & PT3 & Módulos de coleta de dados (REDE VIVA; Heal+; DermaSUS) & Fluxo de ingestão e pré-processamento para dados multimodais (imagem e dados clínicos associados). & Pipeline executável + registros de execução + especificação técnica. \\
+
+T4 & PT4 & Protótipos iniciais de modelos de IA e relatório de arquiteturas & Protótipo de detecção e classificação de lesões com métricas preliminares e comparativo de arquiteturas. & Modelos treinados (versão inicial) + métricas baseline + relatório técnico. \\
+
+T5 & PT3 & Bases de dados clínicos consolidadas (REDE VIVA; Heal+; DermaSUS) & Consolidação da base multicentro com controle de qualidade, deduplicação e padronização de metadados clínicos. & Relatório de consolidação + versão oficial de dataset + log de qualidade. \\
+
+T5 & PT5 & Protótipos de interface diagnóstica e jornadas validadas & Protótipos de interface do processo diagnóstico para profissional de saúde e validação preliminar de fluxo de uso. & Protótipo navegável + roteiro de teste + devolutiva dos usuários. \\
+
+T5 & PT7 & Gateway FHIR operacional & Interoperabilidade para troca estruturada de dados clínicos e resultados de diagnóstico com sistemas SUS. & Endpoints ativos + testes de integração + documentação API. \\
+
+T6 & PT4 & Biblioteca federada de modelos de IA e módulos de apoio à decisão & Versões de modelos com governança de publicação, metadados de treino e estratégia de atualização/federação. & Catálogo de modelos + artefatos versionados + guia de uso. \\
+
+T6 & PT5 & Protótipos funcionais e relatório de usabilidade & Protótipo funcional do fluxo diagnóstico com avaliação de usabilidade e pontos de melhoria priorizados. & Relatório SUS/NPS/escala de usabilidade + backlog priorizado. \\
+
+T6 & PT6 & Relatório de início dos pilotos multicêntricos e plano de avaliação & Definição dos pilotos, critérios de inclusão, indicadores e plano de monitoramento de desempenho clínico-operacional. & Plano de avaliação + cronograma de piloto + termo de governança. \\
+
+T7 & PT4 & Sistema integrado de IA com painéis preditivos e validação & Integração dos modelos em ambiente de uso e painel de indicadores para apoio à decisão clínica. & Sistema integrado + painel operacional + relatório de validação. \\
+
+T7 & PT5 & Materiais de capacitação digital e percepção do usuário & Materiais de treinamento para profissionais e relatório de satisfação/usabilidade/autoeficácia. & Kit de capacitação + relatório analítico de percepção. \\
+
+T7 & PT7 & Plataforma interoperável com SUS digital e rastreabilidade & Evolução da camada de interoperabilidade com rastreabilidade de eventos clínicos e técnicos. & Dashboard de rastreabilidade + documentação arquitetural. \\
+
+T8 & PT6 & Relatório final de validação e transferência tecnológica & Consolidação dos resultados dos pilotos, limites do modelo e proposta de transferência/escala. & Relatório final + plano de transferência + recomendações de escala. \\
+\bottomrule
+\end{longtable}
+}
+
+\section{Recorte para reunião: módulo de diagnóstico (Heal+ x DermaSUS x REDE VIVA)}
+\textbf{Objetivo da reunião}: confirmar o que cada equipe realmente já concluiu, o que está parcialmente pronto e o que ainda precisa de ajuste para aderência ao REDI-SUS.
+
+\subsection{Matriz de interação entre pacotes}
+{\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{L{0.9cm}L{2.7cm}L{3.3cm}L{3.3cm}L{2.8cm}}
+\toprule
+\textbf{Trim} & \textbf{Entrega foco (diagnóstico)} & \textbf{Contribuição esperada DermaSUS} & \textbf{Contribuição esperada REDE VIVA} & \textbf{Ponto de validação na reunião} \\
+\midrule
+\endhead
+
+T3 & Protocolo de coleta/calibração & Padrão de captura dermatológica e rotulação de lesões de pele. & Procedimentos de campo e contexto epidemiológico para coleta consistente. & Confirmar protocolo único (ou tabela de equivalência entre protocolos). \\
+
+T4 & Módulos de coleta e base rotulada inicial & Dados dermatológicos curados + revisão de qualidade de rótulo. & Dados de campo e metadados clínico-epidemiológicos com padrão mínimo. & Verificar formato único de metadados e processo de QA compartilhado. \\
+
+T5 & Base consolidada e interface diagnóstica & Validação de classes dermatológicas e testes de uso com especialistas. & Casos reais de uso e validação de fluxo em cenários externos. & Fechar critério de aceite conjunto para dataset e UI. \\
+
+T6 & Biblioteca federada + pilotos & Contribuir com modelos/parâmetros e validação cruzada dermatológica. & Contribuir com cenários de piloto e eventos de monitoramento de desempenho. & Confirmar versão de modelo por parceiro e regra de atualização. \\
+
+T7 & Sistema integrado de IA + painéis & Insumos para análise clínica comparativa e confiabilidade do diagnóstico. & Indicadores de campo para vigilância e tomada de decisão. & Definir KPI final por parceiro e painel único de acompanhamento. \\
+\bottomrule
+\end{longtable}
+}
+
+\subsection{Checklist rápido para coleta de status (amanhã)}
+\begin{itemize}
+    \item O que já está pronto e demonstrável por equipe (arquivo, protótipo, API, base, relatório)?
+    \item O que existe, mas ainda não está aderente ao escopo REDI-SUS?
+    \item Quais evidências faltam para considerar a entrega concluída no trimestre?
+    \item Quais dependências externas impedem fechamento imediato?
+    \item Quem valida tecnicamente cada entrega e em qual prazo?
+\end{itemize}
+
+\section{Critérios de aceite transversais (sugestão para o grupo)}
+\begin{itemize}
+    \item \textbf{Rastreabilidade}: cada entrega deve apontar requisito de origem, artefato e responsável.
+    \item \textbf{Reprodutibilidade}: processo de geração de resultados deve poder ser repetido por outra equipe.
+    \item \textbf{Interoperabilidade}: dados clínicos e resultados de IA devem seguir contrato de dados comum (FHIR quando aplicável).
+    \item \textbf{Qualidade de dados}: bases devem ter documentação de cobertura, distribuição de classes e controle de inconsistências.
+    \item \textbf{Usabilidade e segurança}: para entregas de interface, incluir evidências de teste de usabilidade e requisitos de privacidade/LGPD.
+\end{itemize}
+
+\section{Encaminhamento pós-reunião}
+\begin{itemize}
+    \item Consolidar status por trimestre: \textit{Concluído}, \textit{Parcial}, \textit{Não iniciado}, \textit{Fora de escopo}.
+    \item Atualizar cronograma com riscos, dependências e replanejamento de marcos críticos.
+    \item Gerar versão final do relatório trimestral com anexos de evidências técnicas.
+\end{itemize}
+
+\vspace{0.5cm}
+\noindent\textbf{Observação}: este documento foi estruturado para apoiar o alinhamento interno e deve ser atualizado após a reunião com DermaSUS e REDE VIVA, incorporando o status real de cada artefato.
+
+\postextual
+
+\end{document}

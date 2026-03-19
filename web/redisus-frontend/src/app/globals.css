@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-soft: #f2f8f7;
+  --text-main: #113133;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--text-main);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(73, 173, 167, 0.2), transparent 35%),
+    radial-gradient(circle at 85% 0%, rgba(31, 153, 149, 0.13), transparent 38%),
+    var(--bg-soft);
+}
+
+* {
+  border-color: #d2e7e5;
+}
