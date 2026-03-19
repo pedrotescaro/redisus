@@ -166,7 +166,7 @@ export default function DashboardPage() {
             {/* Shortcut 1 - New Evaluation */}
             <Link
               href="/evaluations/new"
-              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-all group"
+              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest dark:bg-surface-container rounded-xl border border-outline-variant/10 dark:border-transparent hover:border-primary/30 dark:hover:border-primary/30 transition-all group"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined">add_circle</span>
@@ -179,7 +179,7 @@ export default function DashboardPage() {
             {/* Shortcut 2 - Generate Report */}
             <Link
               href="/reports"
-              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-all group"
+              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest dark:bg-surface-container rounded-xl border border-outline-variant/10 dark:border-transparent hover:border-primary/30 dark:hover:border-primary/30 transition-all group"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined">analytics</span>
@@ -192,7 +192,7 @@ export default function DashboardPage() {
             {/* Shortcut 3 - Patients */}
             <Link
               href="/patients"
-              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-all group"
+              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest dark:bg-surface-container rounded-xl border border-outline-variant/10 dark:border-transparent hover:border-primary/30 dark:hover:border-primary/30 transition-all group"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined">groups</span>
@@ -203,7 +203,7 @@ export default function DashboardPage() {
             {/* Shortcut 4 - Compare */}
             <Link
               href="/comparison"
-              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-all group"
+              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest dark:bg-surface-container rounded-xl border border-outline-variant/10 dark:border-transparent hover:border-primary/30 dark:hover:border-primary/30 transition-all group"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined">compare</span>

@@ -32,7 +32,7 @@ export function TopAppBar({
         onClick={handleSearchClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="flex items-center bg-surface-container-low rounded-full px-4 py-2.5 w-96 group hover:bg-surface-container hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer text-left"
+        className="flex items-center bg-surface-container-low dark:bg-surface-container rounded-full px-4 py-2.5 w-96 group hover:bg-surface-container dark:hover:bg-surface-container-high hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer text-left"
       >
         <span
           className={`material-symbols-outlined text-lg mr-2 transition-all duration-300 ${
