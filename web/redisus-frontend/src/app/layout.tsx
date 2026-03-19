@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/contexts/theme-context";
 
 export const metadata: Metadata = {
   title: "Redisus | Heal+",
-  description: "Plataforma clinica para gestao de pacientes e avaliacao de feridas com IA.",
+  description:
+    "Plataforma clínica para gestão de pacientes e avaliação de feridas com IA.",
 };
 
 type RootLayoutProps = {
@@ -12,8 +14,10 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="pt-BR">
-      <body className="font-sans antialiased">{children}</body>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className="font-body antialiased bg-background text-on-surface">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }
