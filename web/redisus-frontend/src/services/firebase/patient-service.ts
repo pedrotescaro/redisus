@@ -13,11 +13,26 @@ import { db } from "@/lib/firebase";
 import type { NewPatientPayload, Patient, UpdatePatientPayload } from "@/types/patient";
 
 const patientsRef = collection(db, "patients");
+const PATIENTS_CACHE_TTL_MS = 60_000;
 
-export async function listPatients(): Promise<Patient[]> {
+let patientsCache: Patient[] | null = null;
+let patientsCacheAt = 0;
+
+function sortPatientsByName(data: Patient[]) {
+  return [...data].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+export async function listPatients(options?: { forceRefresh?: boolean }): Promise<Patient[]> {
+  const forceRefresh = options?.forceRefresh ?? false;
+  const cacheFresh = Date.now() - patientsCacheAt < PATIENTS_CACHE_TTL_MS;
+
+  if (!forceRefresh && patientsCache && cacheFresh) {
+    return patientsCache;
+  }
+
   const snapshot = await getDocs(query(patientsRef, orderBy("name", "asc")));
 
-  return snapshot.docs.map((item) => {
+  const parsed = snapshot.docs.map((item) => {
     const data = item.data() as Omit<Patient, "id">;
 
     return {
@@ -29,6 +44,21 @@ export async function listPatients(): Promise<Patient[]> {
       updatedAt: data.updatedAt,
     };
   });
+
+  patientsCache = parsed;
+  patientsCacheAt = Date.now();
+
+  return parsed;
+}
+
+export function primePatientsCache(data: Patient[]) {
+  patientsCache = sortPatientsByName(data);
+  patientsCacheAt = Date.now();
+}
+
+export function invalidatePatientsCache() {
+  patientsCache = null;
+  patientsCacheAt = 0;
 }
 
 export async function createPatient(payload: NewPatientPayload) {

@@ -15,6 +15,28 @@ type RootLayoutProps = {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var key = "healplus-theme";
+                  var stored = localStorage.getItem(key);
+                  var theme = stored || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+                  if (theme === "dark") {
+                    document.documentElement.classList.add("dark");
+                    document.documentElement.style.colorScheme = "dark";
+                  } else {
+                    document.documentElement.classList.remove("dark");
+                    document.documentElement.style.colorScheme = "light";
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="font-body antialiased bg-background text-on-surface">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

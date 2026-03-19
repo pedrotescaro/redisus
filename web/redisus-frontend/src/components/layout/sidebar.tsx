@@ -37,7 +37,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
   };
 
   return (
-    <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container-low flex flex-col py-6 z-50 font-nav">
+    <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container-lowest flex flex-col py-6 z-50 font-nav shadow-ambient">
       {/* Logo */}
       <Link href="/dashboard" className="px-6 mb-10 flex items-center gap-2 group">
         <Image
@@ -52,7 +52,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
             Heal+
           </h1>
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mt-0.5 opacity-70">
-            Clinical Portal
+            REDI-SUS
           </p>
         </div>
       </Link>
@@ -66,12 +66,14 @@ export function Sidebar({ onLogout }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium ${
+              prefetch
+              className={`relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl ${
                 active
-                  ? "text-white bg-primary-container rounded-lg shadow-sm"
-                  : "text-on-surface-variant hover:text-on-surface hover:bg-primary/5"
+                  ? "text-on-primary-container bg-primary-gradient shadow-ambient"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
               }`}
             >
+              {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-primary" />}
               <span
                 className="material-symbols-outlined"
                 style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
@@ -90,6 +92,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch
             className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface transition-colors font-medium hover:bg-primary/5 rounded-lg"
           >
             <span className="material-symbols-outlined">{item.icon}</span>

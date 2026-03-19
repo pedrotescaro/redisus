@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { jsPDF } from "jspdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +9,7 @@ import {
   createPatient,
   deletePatient,
   listPatients,
+  primePatientsCache,
   updatePatient,
 } from "@/services/firebase/patient-service";
 
@@ -25,6 +25,11 @@ const emptyForm: PatientFormState = {
   age: "",
   clinicalHistory: "",
 };
+const PATIENTS_STORAGE_KEY = "healplus-patients-cache";
+
+function sortPatientsByName(data: Patient[]) {
+  return [...data].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -52,13 +57,22 @@ export default function PatientsPage() {
     });
   }, [patients, search]);
 
-  const refreshPatients = async () => {
-    setLoading(true);
+  const syncLocalPatientsCache = (data: Patient[]) => {
+    if (typeof window === "undefined") return;
+    sessionStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(data));
+    primePatientsCache(data);
+  };
+
+  const refreshPatients = async (options?: { forceRefresh?: boolean; keepCurrentUI?: boolean }) => {
+    if (!options?.keepCurrentUI) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
-      const data = await listPatients();
+      const data = await listPatients({ forceRefresh: options?.forceRefresh });
       setPatients(data);
+      syncLocalPatientsCache(data);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Erro ao listar pacientes.";
@@ -69,7 +83,24 @@ export default function PatientsPage() {
   };
 
   useEffect(() => {
-    void refreshPatients();
+    if (typeof window !== "undefined") {
+      const cachedRaw = sessionStorage.getItem(PATIENTS_STORAGE_KEY);
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw) as Patient[];
+          if (Array.isArray(cached) && cached.length > 0) {
+            const sorted = sortPatientsByName(cached);
+            setPatients(sorted);
+            setLoading(false);
+            primePatientsCache(sorted);
+          }
+        } catch {
+          sessionStorage.removeItem(PATIENTS_STORAGE_KEY);
+        }
+      }
+    }
+
+    void refreshPatients({ keepCurrentUI: true });
   }, []);
 
   const resetForm = () => {
@@ -101,12 +132,36 @@ export default function PatientsPage() {
 
       if (isEditing && form.id) {
         await updatePatient(form.id, payload);
+        setPatients((current) => {
+          const next = sortPatientsByName(
+            current.map((patient) =>
+              patient.id === form.id
+                ? {
+                    ...patient,
+                    ...payload,
+                  }
+                : patient
+            )
+          );
+          syncLocalPatientsCache(next);
+          return next;
+        });
       } else {
-        await createPatient(payload);
+        const created = await createPatient(payload);
+        setPatients((current) => {
+          const next = sortPatientsByName([
+            ...current,
+            {
+              id: created.id,
+              ...payload,
+            } as Patient,
+          ]);
+          syncLocalPatientsCache(next);
+          return next;
+        });
       }
 
       resetForm();
-      await refreshPatients();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Falha ao salvar paciente.";
@@ -125,7 +180,11 @@ export default function PatientsPage() {
 
     try {
       await deletePatient(id);
-      await refreshPatients();
+      setPatients((current) => {
+        const next = current.filter((patient) => patient.id !== id);
+        syncLocalPatientsCache(next);
+        return next;
+      });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Falha ao remover paciente.";
@@ -134,18 +193,21 @@ export default function PatientsPage() {
   };
 
   const exportCurrentSnapshotPdf = () => {
-    const pdf = new jsPDF();
-    pdf.setFontSize(16);
-    pdf.text("Redisus Heal+ - Snapshot de Pacientes", 14, 20);
-    pdf.setFontSize(11);
-    pdf.text(`Total filtrado: ${filteredPatients.length}`, 14, 30);
+    void (async () => {
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF();
+      pdf.setFontSize(16);
+      pdf.text("Redisus Heal+ - Snapshot de Pacientes", 14, 20);
+      pdf.setFontSize(11);
+      pdf.text(`Total filtrado: ${filteredPatients.length}`, 14, 30);
 
-    filteredPatients.slice(0, 20).forEach((patient, index) => {
-      const y = 40 + index * 10;
-      pdf.text(`${patient.name} | ${patient.age} anos`, 14, y);
-    });
+      filteredPatients.slice(0, 20).forEach((patient, index) => {
+        const y = 40 + index * 10;
+        pdf.text(`${patient.name} | ${patient.age} anos`, 14, y);
+      });
 
-    pdf.save("pacientes-healplus.pdf");
+      pdf.save("pacientes-healplus.pdf");
+    })();
   };
 
   return (

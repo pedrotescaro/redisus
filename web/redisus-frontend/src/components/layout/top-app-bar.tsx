@@ -23,7 +23,7 @@ export function TopAppBar({
   };
 
   return (
-    <header className="fixed top-0 right-0 left-64 h-16 z-40 bg-surface-container-lowest/80 backdrop-blur-xl flex items-center px-8 border-b border-outline-variant/10 font-nav">
+    <header className="fixed top-0 right-0 left-64 h-16 z-40 bg-surface-container-lowest/70 backdrop-blur-xl flex items-center px-8 shadow-ambient font-nav">
       {/* Spacer */}
       <div className="flex-1" />
 
@@ -66,7 +66,7 @@ export function TopAppBar({
         </div>
 
         {/* Divider */}
-        <div className="h-8 w-[1px] bg-outline-variant/30"></div>
+        <div className="h-8 w-[1px] bg-outline-variant/15"></div>
 
         {/* User Profile */}
         <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">

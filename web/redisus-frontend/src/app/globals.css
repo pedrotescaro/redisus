@@ -222,6 +222,25 @@ body {
   box-shadow: var(--shadow-ambient);
 }
 
+/* Tonal panel (no hard divider lines) */
+.panel-surface {
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--surface-container-lowest) 78%, var(--primary) 22%) 0%,
+    var(--surface-container-low) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--outline-variant) 15%, transparent 85%);
+  box-shadow: var(--shadow-ambient);
+}
+
+.dark .panel-surface {
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--surface-container-lowest) 90%, var(--primary) 10%) 0%,
+    var(--surface-container-low) 100%
+  );
+}
+
 /* Input field focus pop-out effect */
 input:focus,
 textarea:focus {

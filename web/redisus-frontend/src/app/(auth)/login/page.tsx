@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { LoginForm } from "@/components/auth/login-form";
 
 export default function LoginPage() {
@@ -36,6 +37,13 @@ export default function LoginPage() {
           </div>
         </section>
         <section className="flex flex-col justify-center p-8 md:p-14 bg-surface-container-lowest">
+          <Link
+            href="/"
+            className="mb-6 inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors"
+          >
+            <span className="material-symbols-outlined text-base">arrow_back</span>
+            Voltar para landing page
+          </Link>
           <LoginForm />
         </section>
       </div>

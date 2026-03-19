@@ -22,10 +22,8 @@ const THEME_STORAGE_KEY = "healplus-theme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
     if (stored) {
       setThemeState(stored);
@@ -39,16 +37,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
-
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
+      root.style.colorScheme = "dark";
     } else {
       root.classList.remove("dark");
+      root.style.colorScheme = "light";
     }
     localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme, mounted]);
+  }, [theme]);
 
   const toggleTheme = () => {
     setThemeState((current) => (current === "light" ? "dark" : "light"));
@@ -57,11 +55,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
   };
-
-  // Prevent flash of wrong theme
-  if (!mounted) {
-    return null;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>

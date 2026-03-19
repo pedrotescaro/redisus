@@ -20,7 +20,7 @@ export default function SettingsPage() {
       {/* Settings Sections */}
       <div className="space-y-6">
         {/* Appearance */}
-        <div className="bg-surface-container-lowest rounded-xl p-6 shadow-ambient">
+        <div className="panel-surface rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined">palette</span>
@@ -40,17 +40,18 @@ export default function SettingsPage() {
             {/* Light Mode */}
             <button
               onClick={() => setTheme("light")}
-              className={`relative p-4 rounded-xl border-2 transition-all ${
+              className={`relative overflow-hidden p-4 rounded-2xl transition-all ${
                 theme === "light"
-                  ? "border-primary bg-primary/5"
-                  : "border-outline-variant/20 hover:border-primary/30"
+                  ? "ghost-border bg-primary/10"
+                  : "ghost-border hover:bg-surface-container-high/50"
               }`}
             >
+              <div className="absolute inset-0 bg-gradient-to-br from-white/45 to-primary/5 pointer-events-none" />
               <div className="flex flex-col items-center gap-3">
                 <div
                   className={`w-12 h-12 rounded-xl flex items-center justify-center ${
                     theme === "light"
-                      ? "bg-primary text-white"
+                      ? "bg-primary-container text-on-primary-container shadow-ambient"
                       : "bg-surface-container text-on-surface-variant"
                   }`}
                 >
@@ -78,17 +79,18 @@ export default function SettingsPage() {
             {/* Dark Mode */}
             <button
               onClick={() => setTheme("dark")}
-              className={`relative p-4 rounded-xl border-2 transition-all ${
+              className={`relative overflow-hidden p-4 rounded-2xl transition-all ${
                 theme === "dark"
-                  ? "border-primary bg-primary/5"
-                  : "border-outline-variant/20 hover:border-primary/30"
+                  ? "ghost-border bg-primary/10"
+                  : "ghost-border hover:bg-surface-container-high/50"
               }`}
             >
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-transparent to-surface-container-high/80 pointer-events-none" />
               <div className="flex flex-col items-center gap-3">
                 <div
                   className={`w-12 h-12 rounded-xl flex items-center justify-center ${
                     theme === "dark"
-                      ? "bg-primary text-white"
+                      ? "bg-primary-container text-on-primary-container shadow-ambient"
                       : "bg-surface-container text-on-surface-variant"
                   }`}
                 >
@@ -114,7 +116,7 @@ export default function SettingsPage() {
             </button>
 
             {/* System (future feature placeholder) */}
-            <div className="relative p-4 rounded-xl border-2 border-outline-variant/10 opacity-50 cursor-not-allowed">
+            <div className="relative p-4 rounded-2xl ghost-border opacity-50 cursor-not-allowed">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-surface-container text-on-surface-variant">
                   <span className="material-symbols-outlined text-2xl">
@@ -133,7 +135,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Notifications */}
-        <div className="bg-surface-container-lowest rounded-xl p-6 shadow-ambient">
+        <div className="panel-surface rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
               <span className="material-symbols-outlined">notifications</span>
@@ -153,7 +155,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Data & Privacy */}
-        <div className="bg-surface-container-lowest rounded-xl p-6 shadow-ambient">
+        <div className="panel-surface rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
               <span className="material-symbols-outlined">security</span>
