@@ -16,8 +16,8 @@
   --surface-container-lowest: #ffffff;
   --surface-container-low: #f2f4f7;
   --surface-container: #eceef1;
-  --surface-container-high: #e6e8eb;
-  --surface-container-highest: #e0e3e6;
+  --surface-container-high: #f8fafc;
+  --surface-container-highest: #ffffff;
   --surface-variant: #e0e3e6;
   --background: #f7f9fc;
 
@@ -60,7 +60,7 @@
 
   /* Surface text colors */
   --on-surface: #191c1e;
-  --on-surface-variant: #404752;
+  --on-surface-variant: #2c3e50;
   --on-background: #191c1e;
   --inverse-surface: #2d3133;
   --inverse-on-surface: #eff1f4;
@@ -294,6 +294,86 @@ body {
 }
 
 /* Input field focus pop-out effect */
+input:focus,
+textarea:focus,
+select:focus {
+  background-color: var(--surface-container-lowest);
+  border-color: var(--primary);
+}
+
+/* Form field subtle borders - Dark mode fix */
+.dark input,
+.dark select,
+.dark textarea,
+.dark .border,
+.dark .border-outline-variant,
+.dark .border-transparent,
+.dark .border-slate,
+.dark table tr,
+.dark .bg-white {
+  border-color: rgba(68, 68, 68, 0.2) !important;
+}
+
+.dark .border-outline-variant\/15,
+.dark .ghost-border,
+.dark .border-outline-variant\/10,
+.dark .border-brand {
+  border-color: rgba(68, 68, 68, 0.2) !important;
+}
+
+/* Legacy classes from dashboard */
+.dark .border-red,
+.dark .border-brand-100,
+.dark .border-slate-100,
+.dark .shadow-soft {
+  border-color: rgba(68, 68, 68, 0.3) !important;
+  background-color: var(--surface-container-high) !important;
+}
+
+/* DOCX Export button demotion */
+.dark button[data-variant="outline"]:has([aria-label*="DOCX"]),
+.dark .outline-export,
+.dark [class*="Exportar DOCX"] {
+  border-color: rgba(68, 68, 68, 0.2) !important;
+  color: #999 !important;
+}
+
+.dark .outline-export:hover,
+.dark button[data-variant="outline"]:has([aria-label*="DOCX"]):hover,
+.dark [class*="Exportar DOCX"]:hover {
+  background-color: rgba(42, 42, 42, 0.5) !important;
+  border-color: rgba(33, 150, 243, 0.3) !important;
+  color: #ccc !important;
+}
+
+/* Enhanced hover states for interactivity */
+input:hover,
+select:hover,
+textarea:hover,
+button:hover,
+[role="button"]:hover,
+.card-hover:hover,
+.panel-surface:hover {
+  background-color: rgba(var(--surface-container-high-rgb, 42, 42, 42), 0.6) !important;
+  border-color: rgba(33, 150, 243, 0.3) !important;
+  transition: all 0.2s ease;
+}
+
+.dark .card-hover:hover,
+.dark .panel-surface:hover {
+  box-shadow: 0 8px 32px rgba(33, 150, 243, 0.15) !important;
+}
+
+/* Ensure Tailwind hovers work */
+@layer utilities {
+  .hover-surface\:hover {
+    @apply bg-surface-container-high;
+  }
+  .hover-primary\:hover {
+    @apply border-primary/50;
+  }
+}
+
 input:focus,
 textarea:focus {
   background-color: var(--surface-container-lowest);

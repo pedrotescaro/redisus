@@ -72,7 +72,7 @@ export function LoginForm() {
         </p>
       </div>
 
-      <div className="rounded-3xl bg-[linear-gradient(165deg,rgba(32,32,31,0.92)_0%,rgba(20,20,20,0.92)_100%)] p-7 shadow-ambient backdrop-blur-2xl ghost-border md:p-8">
+      <div className="rounded-3xl bg-surface-container-highest/95 p-8 shadow-ambient backdrop-blur-md ghost-border md:p-10">
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <label
@@ -85,11 +85,11 @@ export function LoginForm() {
               <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base text-outline">
                 mail
               </span>
-              <Input
+                <Input
                 id="email"
                 name="email"
                 type="email"
-                className="h-14 rounded-xl border border-outline-variant/15 bg-surface-container-high pl-11 text-sm placeholder:text-outline/50 focus:ring-primary/25"
+                className="h-16 rounded-xl border border-outline-variant/15 bg-surface-container-low pl-14 text-sm placeholder:text-outline/50 focus:ring-primary/25"
                 placeholder="seu.nome@hospital.org"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -123,7 +123,7 @@ export function LoginForm() {
                 id="password"
                 name="password"
                 type="password"
-                className="h-14 rounded-xl border border-outline-variant/15 bg-surface-container-high pl-11 text-sm placeholder:text-outline/50 focus:ring-primary/25"
+                className="h-16 rounded-xl border border-outline-variant/15 bg-surface-container-low pl-14 text-sm placeholder:text-outline/50 focus:ring-primary/25"
                 placeholder="••••••••"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -139,9 +139,9 @@ export function LoginForm() {
             </div>
           )}
 
-          <Button
+            <Button
             type="submit"
-            className="mt-2 h-14 w-full rounded-xl bg-primary-gradient text-base font-bold text-on-primary-container shadow-[0_10px_28px_rgba(33,150,243,0.28)] transition-all hover:brightness-110"
+            className="mt-2 h-16 w-full rounded-xl bg-primary-gradient text-base font-bold text-on-primary-container shadow-[0_12px_32px_rgba(33,150,243,0.32)] transition-all hover:brightness-110"
             disabled={loading}
           >
             {loading ? (
@@ -164,7 +164,7 @@ export function LoginForm() {
               <span className="w-full border-t border-outline-variant/20" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-[rgba(22,22,22,0.94)] px-3 text-[10px] font-bold tracking-[0.16em] text-outline">
+              <span className="bg-surface-container-high/95 px-3 text-[10px] font-bold tracking-[0.16em] text-on-surface-variant">
                 Ou continuar com
               </span>
             </div>

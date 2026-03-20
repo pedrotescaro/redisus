@@ -128,7 +128,7 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Stat Card 1 - Active Patients */}
-            <div className="bg-surface-container-lowest p-8 rounded-xl shadow-ambient border border-transparent hover:border-outline-variant/20 transition-all group">
+            <div className="bg-surface-container-lowest p-8 rounded-xl shadow-ambient border border-transparent hover:border-primary/30 ghost-border card-hover transition-all group">
               <div className="flex justify-between items-start mb-6">
                 <div className="bg-primary/10 p-3 rounded-xl text-primary group-hover:scale-110 transition-transform">
                   <span className="material-symbols-outlined text-3xl">
@@ -158,7 +158,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Stat Card 2 - Recent Evaluations (real data from Firestore) */}
-            <div className="bg-surface-container-lowest p-8 rounded-xl shadow-ambient border border-transparent hover:border-outline-variant/20 transition-all group">
+            <div className="bg-surface-container-lowest p-8 rounded-xl shadow-ambient border border-transparent hover:border-primary/30 ghost-border card-hover transition-all group">
               <div className="flex justify-between items-start mb-6">
                 <div className="bg-primary/10 p-3 rounded-xl text-primary group-hover:scale-110 transition-transform">
                   <span className="material-symbols-outlined text-3xl">
@@ -201,7 +201,7 @@ export default function DashboardPage() {
             {/* Shortcut 1 - New Evaluation */}
             <Link
               href="/evaluations/new"
-              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-all group"
+              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl ghost-border card-hover hover:border-primary/30 transition-all group"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined">add_circle</span>
@@ -214,7 +214,7 @@ export default function DashboardPage() {
             {/* Shortcut 2 - Generate Report */}
             <Link
               href="/reports"
-              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-all group"
+              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl ghost-border card-hover hover:border-primary/30 transition-all group"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined">analytics</span>
@@ -227,7 +227,7 @@ export default function DashboardPage() {
             {/* Shortcut 3 - Patients */}
             <Link
               href="/patients"
-              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-all group"
+              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl ghost-border card-hover hover:border-primary/30 transition-all group"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined">groups</span>
@@ -238,7 +238,7 @@ export default function DashboardPage() {
             {/* Shortcut 4 - Compare */}
             <Link
               href="/comparison"
-              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-all group"
+              className="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl ghost-border card-hover hover:border-primary/30 transition-all group"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined">compare</span>

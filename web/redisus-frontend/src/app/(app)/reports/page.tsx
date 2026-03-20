@@ -191,7 +191,7 @@ export default function ReportsPage() {
             <select
               value={patientId}
               onChange={(event) => setPatientId(event.target.value)}
-              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary"
+              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary card-hover"
             >
               {patientOptions.map((patient) => (
                 <option key={patient.id} value={patient.id}>
@@ -341,7 +341,7 @@ export default function ReportsPage() {
             </Button>
             <Button
               variant="outline"
-              className="w-full justify-center"
+              className="w-full justify-center outline-export card-hover"
               onClick={() => {
                 if (!reportId) return;
                 window.open(getReportDownloadUrl(reportId, "docx"), "_blank");

@@ -187,7 +187,7 @@ export function PatientDashboard() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="rounded-2xl bg-white p-6 shadow-soft">
+      <section className="rounded-2xl panel-surface ghost-border p-6 shadow-ambient card-hover">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-brand-600">Dashboard de Pacientes</p>
@@ -286,7 +286,7 @@ export function PatientDashboard() {
         </div>
       </section>
 
-      <section className="h-fit rounded-2xl bg-white p-6 shadow-soft">
+      <section className="h-fit rounded-2xl panel-surface ghost-border p-6 shadow-ambient card-hover">
         <h2 className="text-lg font-semibold text-brand-900">{isEditing ? "Editar paciente" : "Novo paciente"}</h2>
         <p className="mt-1 text-sm text-slate-600">Cadastro rapido com historico clinico basico.</p>
 
