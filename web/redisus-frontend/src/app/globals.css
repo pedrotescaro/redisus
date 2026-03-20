@@ -163,6 +163,31 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+.a11y-large-text,
+.a11y-large-text body {
+  font-size: 1.08rem;
+}
+
+.a11y-high-contrast {
+  --on-surface: #ffffff;
+  --on-surface-variant: #f0f0f0;
+  --background: #000000;
+  --surface: #000000;
+  --surface-container: #111111;
+  --surface-container-low: #0b0b0b;
+  --surface-container-high: #1a1a1a;
+  --outline-variant: #ffffff;
+  --primary: #8ed1ff;
+}
+
+.a11y-reduced-motion *,
+.a11y-reduced-motion *::before,
+.a11y-reduced-motion *::after {
+  animation: none !important;
+  transition-duration: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* Material Symbols Configuration */
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;

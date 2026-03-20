@@ -1,9 +1,11 @@
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
+  onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  type User,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
@@ -23,4 +25,26 @@ export async function signInWithGoogle() {
 
 export async function signOutUser() {
   return signOut(auth);
+}
+
+export async function waitForAuthenticatedUser(timeoutMs = 5000): Promise<User | null> {
+  if (auth.currentUser) {
+    return auth.currentUser;
+  }
+
+  return new Promise((resolve) => {
+    let unsubscribe: () => void = () => {};
+    const timer = setTimeout(() => {
+      unsubscribe();
+      resolve(null);
+    }, timeoutMs);
+
+    unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        clearTimeout(timer);
+        unsubscribe();
+        resolve(user);
+      }
+    });
+  });
 }

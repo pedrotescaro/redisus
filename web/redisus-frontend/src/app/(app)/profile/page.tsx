@@ -1,18 +1,59 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, type User, updateProfile } from "firebase/auth";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { auth, storage } from "@/lib/firebase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
       setUser(authUser);
+      setDisplayName(authUser?.displayName ?? "");
     });
     return () => unsubscribe();
   }, []);
+
+  const handleUpdateProfile = async () => {
+    if (!auth.currentUser) return;
+    setSavingName(true);
+    setStatusMessage(null);
+    try {
+      await updateProfile(auth.currentUser, { displayName: displayName.trim() });
+      setStatusMessage("Nome de perfil atualizado com sucesso.");
+    } catch {
+      setStatusMessage("Nao foi possivel atualizar o nome do perfil.");
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !auth.currentUser) return;
+
+    setUploadingPhoto(true);
+    setStatusMessage(null);
+    try {
+      const avatarRef = ref(storage, `avatars/${auth.currentUser.uid}/${Date.now()}-${file.name}`);
+      await uploadBytes(avatarRef, file, { contentType: file.type });
+      const photoURL = await getDownloadURL(avatarRef);
+      await updateProfile(auth.currentUser, { photoURL });
+      setStatusMessage("Foto de perfil atualizada com sucesso.");
+    } catch {
+      setStatusMessage("Nao foi possivel enviar a foto de perfil.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -63,6 +104,19 @@ export default function ProfilePage() {
                 </span>
               )}
             </div>
+            <div className="mt-4 flex items-center gap-3">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-surface-container-high px-3 py-2 text-sm">
+                <span className="material-symbols-outlined text-base">photo_camera</span>
+                {uploadingPhoto ? "Enviando..." : "Trocar foto"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingPhoto}
+                  onChange={(event) => void handlePhotoUpload(event)}
+                />
+              </label>
+            </div>
           </div>
         </div>
 
@@ -95,25 +149,38 @@ export default function ProfilePage() {
             </p>
           </div>
         </div>
+
+        <div className="mt-8 pt-8 border-t border-outline-variant/10 space-y-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Editar perfil</p>
+          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <Input
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              placeholder="Digite seu nome de exibicao"
+            />
+            <Button
+              type="button"
+              onClick={() => void handleUpdateProfile()}
+              disabled={savingName || !displayName.trim()}
+            >
+              {savingName ? "Salvando..." : "Salvar nome"}
+            </Button>
+          </div>
+        </div>
       </div>
 
-      {/* Coming Soon Features */}
-      <section className="bg-surface-container-low rounded-xl p-12 text-center border border-dashed border-outline-variant/20">
-        <div className="max-w-md mx-auto space-y-4">
-          <div className="w-16 h-16 bg-surface-container-high rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="material-symbols-outlined text-3xl text-gray-600">
-              build
-            </span>
-          </div>
-          <h3 className="text-xl font-bold font-headline">
-            Mais opções em breve
-          </h3>
-          <p className="text-on-surface-variant font-body text-sm">
-            Edição de perfil, upload de foto, configurações de notificações e
-            preferências de acessibilidade serão adicionadas em breve.
-          </p>
-        </div>
+      <section className="bg-surface-container-low rounded-xl p-6 border border-outline-variant/10">
+        <h3 className="text-xl font-bold font-headline">Preferencias da conta</h3>
+        <p className="text-on-surface-variant text-sm mt-1">
+          Configure notificacoes e acessibilidade na pagina de configuracoes.
+        </p>
       </section>
+
+      {statusMessage && (
+        <div className="rounded-xl bg-primary/10 text-primary px-4 py-3 text-sm font-medium">
+          {statusMessage}
+        </div>
+      )}
     </div>
   );
 }

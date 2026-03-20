@@ -228,8 +228,18 @@ class HEALPlatform:
     def _init_dashboard(self):
         """Inicializa dashboard e visualização"""
         CD = _safe_import("src.dashboard.clinical_dashboard", "ClinicalDashboard")
-        if CD:
-            self._modules["dashboard"] = CD()
+        Database = _safe_import("src.data.database", "Database")
+        if not CD:
+            return
+        if not Database:
+            logger.error(
+                "Dashboard nao inicializado: dependencia src.data.database.Database indisponivel."
+            )
+            self._modules["dashboard"] = None
+            return
+
+        db = Database("data/redisus.db")
+        self._modules["dashboard"] = CD(database=db)
 
     def _init_extended(self):
         """Inicializa módulos estendidos"""

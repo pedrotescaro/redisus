@@ -1,11 +1,21 @@
 import { auth } from "@/lib/firebase";
+import { waitForAuthenticatedUser } from "@/services/firebase/auth-service";
 
-const API_BASE = process.env.NEXT_PUBLIC_CLINICAL_API_URL ?? "http://localhost:5000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_CLINICAL_API_URL ?? "/api/clinical";
 
 async function buildHeaders(extra?: HeadersInit): Promise<HeadersInit> {
-  const token = await auth.currentUser?.getIdToken();
+  const user = auth.currentUser ?? (await waitForAuthenticatedUser());
+  if (!user) {
+    throw new Error("Usuario nao autenticado. Faca login para acessar a API clinica.");
+  }
+
+  const token = await user.getIdToken(true);
+  if (!token) {
+    throw new Error("Token Firebase indisponivel. Atualize a sessao e tente novamente.");
+  }
+
   return {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    Authorization: `Bearer ${token}`,
     ...extra,
   };
 }

@@ -47,9 +47,15 @@ class ClinicalAPI:
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.report_dir = Path("output/reports")
         self.report_dir.mkdir(parents=True, exist_ok=True)
-        self.require_auth = os.getenv("CLINICAL_API_REQUIRE_AUTH", "1") != "0"
+        default_require_auth = "1" if os.getenv("FLASK_ENV", "").lower() == "production" else "0"
+        self.require_auth = os.getenv("CLINICAL_API_REQUIRE_AUTH", default_require_auth) != "0"
         self.allowed_origin = os.getenv("CLINICAL_API_ALLOWED_ORIGIN", "http://localhost:3000")
         self.firebase_auth = self._init_firebase_auth()
+        if self.require_auth and not self.firebase_auth:
+            logger.error(
+                "CLINICAL_API_REQUIRE_AUTH=1 mas Firebase Admin nao foi configurado. "
+                "Defina FIREBASE_SERVICE_ACCOUNT_FILE para ambiente de producao."
+            )
         self.metrics = {
             "started_at": datetime.now().isoformat(),
             "jobs_total": 0,
@@ -73,12 +79,18 @@ class ClinicalAPI:
         if not firebase_admin._apps:
             service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
             service_account_file = os.getenv("FIREBASE_SERVICE_ACCOUNT_FILE")
+            google_credentials_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
             if service_account_json:
                 cred = credentials.Certificate(json.loads(service_account_json))
             elif service_account_file and Path(service_account_file).exists():
                 cred = credentials.Certificate(service_account_file)
+            elif google_credentials_file and Path(google_credentials_file).exists():
+                cred = credentials.Certificate(google_credentials_file)
             else:
-                logger.warning("Credencial Firebase ausente. Defina FIREBASE_SERVICE_ACCOUNT_JSON ou FIREBASE_SERVICE_ACCOUNT_FILE.")
+                logger.warning(
+                    "Credencial Firebase ausente. Defina FIREBASE_SERVICE_ACCOUNT_JSON, "
+                    "FIREBASE_SERVICE_ACCOUNT_FILE ou GOOGLE_APPLICATION_CREDENTIALS."
+                )
                 return None
             firebase_admin.initialize_app(cred)
         return auth

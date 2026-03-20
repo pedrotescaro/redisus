@@ -23,9 +23,17 @@ export default function RootLayout({ children }: RootLayoutProps) {
               (function() {
                 try {
                   var key = "healplus-theme";
+                  var a11yKey = "healplus-accessibility-preferences";
                   localStorage.setItem(key, "dark");
                   document.documentElement.classList.add("dark");
                   document.documentElement.style.colorScheme = "dark";
+                  var raw = localStorage.getItem(a11yKey);
+                  if (raw) {
+                    var prefs = JSON.parse(raw);
+                    if (prefs.largeText) document.documentElement.classList.add("a11y-large-text");
+                    if (prefs.highContrast) document.documentElement.classList.add("a11y-high-contrast");
+                    if (prefs.reducedMotion) document.documentElement.classList.add("a11y-reduced-motion");
+                  }
                 } catch (e) {}
               })();
             `,

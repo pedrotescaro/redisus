@@ -12,6 +12,7 @@ import {
   startEvaluationAnalysis,
   uploadEvaluationImage,
 } from "@/services/clinical/clinical-api-service";
+import { syncEvaluationToFirebase } from "@/services/firebase/clinical-sync-service";
 import type { Patient } from "@/types/patient";
 
 type Step = {
@@ -458,10 +459,26 @@ export default function NewEvaluationPage() {
         .map((slot) => uploadEvaluationImage(created.id, slot.file as File, slot.id));
       await Promise.all(uploadPromises);
 
+      await syncEvaluationToFirebase({
+        apiEvaluationId: created.id,
+        patientId: selectedPatientId,
+        patientName: selectedPatient?.name ?? "Paciente",
+        evaluationDate,
+        woundType,
+        woundLocation,
+        clinicalDescription,
+        pushScore,
+        bradenScore,
+        bwatScore,
+        photoCount: uploadedPhotos,
+        timersPayload: timersForm as unknown as Record<string, unknown>,
+      });
+
       const existing = localStorage.getItem(HISTORY_KEY);
       const history = existing ? (JSON.parse(existing) as unknown[]) : [];
       const entry = {
         id: `eval-${Date.now()}`,
+        apiEvaluationId: created.id,
         createdAt: new Date().toISOString(),
         patientId: selectedPatientId,
         patientName: selectedPatient?.name ?? "Paciente",
@@ -477,7 +494,7 @@ export default function NewEvaluationPage() {
       };
       localStorage.setItem(HISTORY_KEY, JSON.stringify([entry, ...history]));
       localStorage.removeItem(DRAFT_KEY);
-      setStatusMessage("Avaliação finalizada e persistida no backend com sucesso.");
+      setStatusMessage("Avaliacao finalizada, enviada para API clinica e sincronizada no Firebase.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Falha ao finalizar avaliação no backend.";

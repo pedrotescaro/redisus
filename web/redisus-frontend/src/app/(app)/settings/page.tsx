@@ -1,9 +1,74 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTheme } from "@/contexts/theme-context";
+
+type NotificationPreferences = {
+  appointmentReminders: boolean;
+  evaluationAlerts: boolean;
+  weeklySummary: boolean;
+};
+
+type AccessibilityPreferences = {
+  largeText: boolean;
+  highContrast: boolean;
+  reducedMotion: boolean;
+};
+
+const NOTIFICATIONS_KEY = "healplus-notification-preferences";
+const ACCESSIBILITY_KEY = "healplus-accessibility-preferences";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>({
+    appointmentReminders: true,
+    evaluationAlerts: true,
+    weeklySummary: false,
+  });
+  const [accessibilityPrefs, setAccessibilityPrefs] = useState<AccessibilityPreferences>({
+    largeText: false,
+    highContrast: false,
+    reducedMotion: false,
+  });
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedNotifications = localStorage.getItem(NOTIFICATIONS_KEY);
+    const storedAccessibility = localStorage.getItem(ACCESSIBILITY_KEY);
+
+    if (storedNotifications) {
+      try {
+        setNotificationPrefs(JSON.parse(storedNotifications) as NotificationPreferences);
+      } catch {
+        localStorage.removeItem(NOTIFICATIONS_KEY);
+      }
+    }
+
+    if (storedAccessibility) {
+      try {
+        setAccessibilityPrefs(JSON.parse(storedAccessibility) as AccessibilityPreferences);
+      } catch {
+        localStorage.removeItem(ACCESSIBILITY_KEY);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("a11y-large-text", accessibilityPrefs.largeText);
+    root.classList.toggle("a11y-high-contrast", accessibilityPrefs.highContrast);
+    root.classList.toggle("a11y-reduced-motion", accessibilityPrefs.reducedMotion);
+    localStorage.setItem(ACCESSIBILITY_KEY, JSON.stringify(accessibilityPrefs));
+  }, [accessibilityPrefs]);
+
+  useEffect(() => {
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notificationPrefs));
+  }, [notificationPrefs]);
+
+  const notifySaved = (message: string) => {
+    setSavedMessage(message);
+    window.setTimeout(() => setSavedMessage(null), 2200);
+  };
 
   return (
     <div className="space-y-6">
@@ -132,9 +197,111 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <p className="text-sm text-on-surface-variant p-4 bg-surface-container rounded-lg">
-            Configurações de notificações serão adicionadas em breve.
-          </p>
+          <div className="space-y-3">
+            <label className="flex items-center justify-between rounded-xl bg-surface-container p-3">
+              <span className="text-sm text-on-surface">Lembretes de agendamento</span>
+              <input
+                type="checkbox"
+                checked={notificationPrefs.appointmentReminders}
+                onChange={(event) => {
+                  setNotificationPrefs((prev) => ({
+                    ...prev,
+                    appointmentReminders: event.target.checked,
+                  }));
+                  notifySaved("Notificacoes atualizadas.");
+                }}
+              />
+            </label>
+            <label className="flex items-center justify-between rounded-xl bg-surface-container p-3">
+              <span className="text-sm text-on-surface">Alertas de nova avaliação</span>
+              <input
+                type="checkbox"
+                checked={notificationPrefs.evaluationAlerts}
+                onChange={(event) => {
+                  setNotificationPrefs((prev) => ({
+                    ...prev,
+                    evaluationAlerts: event.target.checked,
+                  }));
+                  notifySaved("Notificacoes atualizadas.");
+                }}
+              />
+            </label>
+            <label className="flex items-center justify-between rounded-xl bg-surface-container p-3">
+              <span className="text-sm text-on-surface">Resumo semanal por e-mail</span>
+              <input
+                type="checkbox"
+                checked={notificationPrefs.weeklySummary}
+                onChange={(event) => {
+                  setNotificationPrefs((prev) => ({
+                    ...prev,
+                    weeklySummary: event.target.checked,
+                  }));
+                  notifySaved("Notificacoes atualizadas.");
+                }}
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Accessibility */}
+        <div className="panel-surface rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
+              <span className="material-symbols-outlined">accessibility_new</span>
+            </div>
+            <div>
+              <h3 className="font-bold font-headline text-on-surface">
+                Acessibilidade
+              </h3>
+              <p className="text-sm text-on-surface-variant">
+                Preferências de leitura e navegação
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <label className="flex items-center justify-between rounded-xl bg-surface-container p-3">
+              <span className="text-sm text-on-surface">Texto ampliado</span>
+              <input
+                type="checkbox"
+                checked={accessibilityPrefs.largeText}
+                onChange={(event) => {
+                  setAccessibilityPrefs((prev) => ({
+                    ...prev,
+                    largeText: event.target.checked,
+                  }));
+                  notifySaved("Preferencias de acessibilidade aplicadas.");
+                }}
+              />
+            </label>
+            <label className="flex items-center justify-between rounded-xl bg-surface-container p-3">
+              <span className="text-sm text-on-surface">Alto contraste</span>
+              <input
+                type="checkbox"
+                checked={accessibilityPrefs.highContrast}
+                onChange={(event) => {
+                  setAccessibilityPrefs((prev) => ({
+                    ...prev,
+                    highContrast: event.target.checked,
+                  }));
+                  notifySaved("Preferencias de acessibilidade aplicadas.");
+                }}
+              />
+            </label>
+            <label className="flex items-center justify-between rounded-xl bg-surface-container p-3">
+              <span className="text-sm text-on-surface">Reduzir animacoes</span>
+              <input
+                type="checkbox"
+                checked={accessibilityPrefs.reducedMotion}
+                onChange={(event) => {
+                  setAccessibilityPrefs((prev) => ({
+                    ...prev,
+                    reducedMotion: event.target.checked,
+                  }));
+                  notifySaved("Preferencias de acessibilidade aplicadas.");
+                }}
+              />
+            </label>
+          </div>
         </div>
 
         {/* Data & Privacy */}
@@ -144,20 +311,23 @@ export default function SettingsPage() {
               <span className="material-symbols-outlined">security</span>
             </div>
             <div>
-              <h3 className="font-bold font-headline text-on-surface">
-                Dados e Privacidade
-              </h3>
+              <h3 className="font-bold font-headline text-on-surface">Dados e Privacidade</h3>
               <p className="text-sm text-on-surface-variant">
-                Segurança e exportação de dados
+                Security e exportacao de dados
               </p>
             </div>
           </div>
           <p className="text-sm text-on-surface-variant p-4 bg-surface-container rounded-lg">
-            Opções de privacidade e exportação de dados serão adicionadas em
-            breve.
+            Seus dados clinicos permanecem vinculados ao Firebase e as exportacoes ficam no modulo de relatorios.
           </p>
         </div>
       </div>
+
+      {savedMessage && (
+        <div className="rounded-xl bg-primary/10 text-primary px-4 py-3 text-sm font-medium">
+          {savedMessage}
+        </div>
+      )}
 
       {/* App Info */}
       <div className="text-center pt-6">
