@@ -24,9 +24,15 @@ export default function RootLayout({ children }: RootLayoutProps) {
                 try {
                   var key = "healplus-theme";
                   var a11yKey = "healplus-accessibility-preferences";
-                  localStorage.setItem(key, "dark");
-                  document.documentElement.classList.add("dark");
-                  document.documentElement.style.colorScheme = "dark";
+                  var stored = localStorage.getItem(key) || "dark";
+                  var isDark = stored === "dark" || (stored === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+                  if (isDark) {
+                    document.documentElement.classList.add("dark");
+                    document.documentElement.style.colorScheme = "dark";
+                  } else {
+                    document.documentElement.classList.remove("dark");
+                    document.documentElement.style.colorScheme = "light";
+                  }
                   var raw = localStorage.getItem(a11yKey);
                   if (raw) {
                     var prefs = JSON.parse(raw);

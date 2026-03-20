@@ -168,16 +168,43 @@ body {
   font-size: 1.08rem;
 }
 
-.a11y-high-contrast {
+/* High contrast — Light mode */
+.a11y-high-contrast:not(.dark) {
+  --on-surface: #000000;
+  --on-surface-variant: #1a1a1a;
+  --background: #ffffff;
+  --surface: #ffffff;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f0f0f0;
+  --surface-container: #e4e4e4;
+  --surface-container-high: #d6d6d6;
+  --surface-container-highest: #c8c8c8;
+  --outline: #000000;
+  --outline-variant: #444444;
+  --primary: #003d8f;
+  --primary-container: #0056c7;
+  --on-primary: #ffffff;
+  --on-primary-container: #ffffff;
+  --shadow-ambient: 0px 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* High contrast — Dark mode */
+.a11y-high-contrast.dark {
   --on-surface: #ffffff;
   --on-surface-variant: #f0f0f0;
   --background: #000000;
   --surface: #000000;
-  --surface-container: #111111;
+  --surface-container-lowest: #000000;
   --surface-container-low: #0b0b0b;
+  --surface-container: #111111;
   --surface-container-high: #1a1a1a;
-  --outline-variant: #ffffff;
+  --surface-container-highest: #242424;
+  --outline: #ffffff;
+  --outline-variant: #cccccc;
   --primary: #8ed1ff;
+  --primary-container: #0065b8;
+  --on-primary-container: #ffffff;
+  --shadow-ambient: 0px 4px 16px rgba(255, 255, 255, 0.08);
 }
 
 .a11y-reduced-motion *,
