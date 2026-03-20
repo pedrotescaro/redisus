@@ -4,49 +4,99 @@ import { LoginForm } from "@/components/auth/login-form";
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10 bg-surface">
-      <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl bg-surface-container-lowest shadow-2xl lg:grid-cols-2 border border-outline-variant/10">
-        <section className="relative hidden bg-gradient-to-br from-primary-container to-primary-container/80 p-10 text-on-primary-container lg:block">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_50%)]" />
-          <div className="absolute -right-32 -bottom-32 w-96 h-96 bg-primary/20 rounded-full blur-[100px]"></div>
-          <div className="relative z-10 flex h-full flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-8">
-                <Image
-                  src="/images/logo.png"
-                  alt="Heal+ Logo"
-                  width={72}
-                  height={72}
-                  className="drop-shadow-lg"
-                />
-                <span className="inline-flex rounded-full border border-white/25 px-4 py-1.5 text-xs font-bold tracking-[0.2em] bg-white/10">
-                  REDISUS HEAL+
-                </span>
-              </div>
-              <h1 className="text-4xl font-extrabold leading-tight font-headline">
-                Monitoramento inteligente de pacientes com feridas crônicas.
-              </h1>
-              <p className="mt-4 max-w-md text-base opacity-90 font-body">
-                Acesse seu painel clínico para registrar avaliações, acompanhar
-                a evolução de lesões e integrar análise neural em instantes.
-              </p>
-            </div>
-            <p className="text-sm font-semibold opacity-80">
-              Ambiente seguro para equipes multiprofissionais.
+    <main className="relative min-h-screen overflow-hidden bg-surface text-on-surface">
+      <header className="absolute left-0 top-0 z-30 flex w-full items-center justify-between px-6 py-6 md:px-10">
+        <Link href="/" className="group flex items-center gap-2">
+          <Image
+            src="/images/logo.png"
+            alt="Heal+ Logo"
+            width={56}
+            height={56}
+            className="transition-transform group-hover:scale-105"
+          />
+          <div className="-ml-1">
+            <h1 className="font-headline text-2xl font-extrabold leading-none tracking-tight text-primary">
+              Heal+
+            </h1>
+            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">
+              REDI-SUS
             </p>
           </div>
+        </Link>
+      </header>
+
+      <div className="flex min-h-screen flex-col md:flex-row">
+        <section className="relative hidden min-h-screen w-full overflow-hidden bg-surface px-10 py-24 md:flex md:w-3/5 md:items-center lg:px-20">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(33,150,243,0.16),transparent_38%),radial-gradient(circle_at_85%_35%,rgba(33,150,243,0.12),transparent_42%),linear-gradient(120deg,#131313_20%,#161719_100%)]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface/90 to-surface/60" />
+          <div className="absolute left-10 top-36 h-40 w-40 rounded-full bg-primary/10 blur-[96px]" />
+          <div className="absolute bottom-24 right-14 h-56 w-56 rounded-full bg-primary-container/15 blur-[120px]" />
+
+          <div className="relative z-10 max-w-2xl">
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-primary-container/10 px-3 py-1.5 ghost-border">
+              <span className="material-symbols-outlined text-sm text-primary">
+                verified
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
+                Plataforma Clínica Segura
+              </span>
+            </div>
+            <h1 className="font-headline text-5xl font-extrabold leading-[1.05] tracking-tight text-white">
+              Monitoramento inteligente para{" "}
+              <span className="text-primary">equipes clínicas</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-on-surface-variant">
+              Acesse avaliações, acompanhe evolução de lesões e centralize dados
+              assistenciais com mais clareza e foco.
+            </p>
+
+            <div className="mt-12 rounded-3xl bg-surface-container/55 p-6 backdrop-blur-md ghost-border">
+              <div className="grid grid-cols-2 gap-8">
+                <div>
+                  <div className="font-headline text-3xl font-extrabold text-white">
+                    98.4%
+                  </div>
+                  <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
+                    Rastreamento de Casos
+                  </div>
+                </div>
+                <div>
+                  <div className="font-headline text-3xl font-extrabold text-white">
+                    24/7
+                  </div>
+                  <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
+                    Operação Contínua
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
-        <section className="flex flex-col justify-center p-8 md:p-14 bg-surface-container-lowest">
+
+        <section className="relative z-30 flex min-h-screen w-full flex-col justify-center bg-[linear-gradient(180deg,var(--surface-container-lowest)_0%,var(--surface)_100%)] p-8 md:w-2/5 md:border-l md:border-outline-variant/10 md:p-14">
           <Link
             href="/"
-            className="mb-6 inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors"
+            className="mb-8 inline-flex w-fit items-center gap-2 rounded-xl border border-outline-variant/15 bg-surface-container-low/70 px-4 py-2.5 text-sm font-semibold text-on-surface-variant transition-all hover:border-primary/30 hover:bg-surface-container hover:text-on-surface"
           >
             <span className="material-symbols-outlined text-base">arrow_back</span>
-            Voltar para landing page
+            Voltar para página principal
           </Link>
-          <LoginForm />
+          <div className="mb-6">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary/80">
+              Acesso Profissional
+            </p>
+          </div>
+          <div className="w-full max-w-md">
+            <LoginForm />
+          </div>
         </section>
       </div>
+
+      <footer className="absolute bottom-0 left-0 z-20 hidden w-full items-center justify-start px-10 py-5 md:flex">
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+          © 2026 Redisus Heal+.
+        </div>
+      </footer>
     </main>
   );
 }
