@@ -1,25 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useTheme } from "@/contexts/theme-context";
-
-type NotificationPreferences = {
-  appointmentReminders: boolean;
-  evaluationAlerts: boolean;
-  weeklySummary: boolean;
-};
-
-type AccessibilityPreferences = {
-  largeText: boolean;
-  highContrast: boolean;
-  reducedMotion: boolean;
-};
-
-const NOTIFICATIONS_KEY = "healplus-notification-preferences";
-const ACCESSIBILITY_KEY = "healplus-accessibility-preferences";
+import {
+  getUserSettings,
+  saveUserSettings,
+  type NotificationPreferences,
+  type AccessibilityPreferences,
+} from "@/services/firebase/user-settings-service";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const [uid, setUid] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>({
     appointmentReminders: true,
     evaluationAlerts: true,
@@ -32,38 +27,52 @@ export default function SettingsPage() {
   });
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
+  // Listen for auth state
   useEffect(() => {
-    const storedNotifications = localStorage.getItem(NOTIFICATIONS_KEY);
-    const storedAccessibility = localStorage.getItem(ACCESSIBILITY_KEY);
-
-    if (storedNotifications) {
-      try {
-        setNotificationPrefs(JSON.parse(storedNotifications) as NotificationPreferences);
-      } catch {
-        localStorage.removeItem(NOTIFICATIONS_KEY);
-      }
-    }
-
-    if (storedAccessibility) {
-      try {
-        setAccessibilityPrefs(JSON.parse(storedAccessibility) as AccessibilityPreferences);
-      } catch {
-        localStorage.removeItem(ACCESSIBILITY_KEY);
-      }
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUid(user?.uid ?? null);
+    });
+    return () => unsubscribe();
   }, []);
 
+  // Load settings from Firestore
+  useEffect(() => {
+    if (!uid) return;
+    let active = true;
+    void (async () => {
+      try {
+        const settings = await getUserSettings(uid);
+        if (!active) return;
+        setNotificationPrefs(settings.notifications);
+        setAccessibilityPrefs(settings.accessibility);
+      } catch {
+        // Keep defaults on error
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [uid]);
+
+  // Apply accessibility classes to the root element
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("a11y-large-text", accessibilityPrefs.largeText);
     root.classList.toggle("a11y-high-contrast", accessibilityPrefs.highContrast);
     root.classList.toggle("a11y-reduced-motion", accessibilityPrefs.reducedMotion);
-    localStorage.setItem(ACCESSIBILITY_KEY, JSON.stringify(accessibilityPrefs));
   }, [accessibilityPrefs]);
 
+  // Persist accessibility to Firestore
   useEffect(() => {
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notificationPrefs));
-  }, [notificationPrefs]);
+    if (!uid || loading) return;
+    void saveUserSettings(uid, { accessibility: accessibilityPrefs });
+  }, [accessibilityPrefs, uid, loading]);
+
+  // Persist notifications to Firestore
+  useEffect(() => {
+    if (!uid || loading) return;
+    void saveUserSettings(uid, { notifications: notificationPrefs });
+  }, [notificationPrefs, uid, loading]);
 
   const notifySaved = (message: string) => {
     setSavedMessage(message);

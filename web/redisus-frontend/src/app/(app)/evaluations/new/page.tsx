@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,12 @@ import {
   uploadEvaluationImage,
 } from "@/services/clinical/clinical-api-service";
 import { syncEvaluationToFirebase } from "@/services/firebase/clinical-sync-service";
+import {
+  saveDraft as saveDraftToFirestore,
+  loadDraft as loadDraftFromFirestore,
+  deleteDraft as deleteDraftFromFirestore,
+  addHistoryEntry,
+} from "@/services/firebase/evaluation-draft-service";
 import type { Patient } from "@/types/patient";
 
 type Step = {
@@ -71,8 +79,7 @@ type TimersForm = {
   sBarriers: string[];
 };
 
-const DRAFT_KEY = "healplus-evaluation-draft-v1";
-const HISTORY_KEY = "healplus-evaluation-history-v1";
+// Draft & history are now persisted in Firestore (see evaluation-draft-service)
 
 const BWAT_ITEMS: BwatItem[] = [
   { key: "size", label: "Tamanho", min: 1, max: 5 },
@@ -118,6 +125,7 @@ const getBwatInterpretation = (score: number) => {
 };
 
 export default function NewEvaluationPage() {
+  const [uid, setUid] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState("");
@@ -176,6 +184,14 @@ export default function NewEvaluationPage() {
 
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
+  // Listen for auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUid(user?.uid ?? null);
+    });
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -192,66 +208,60 @@ export default function NewEvaluationPage() {
     };
   }, []);
 
+  // Load draft from Firestore
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const draftRaw = localStorage.getItem(DRAFT_KEY);
-    if (!draftRaw) return;
-    try {
-      const draft = JSON.parse(draftRaw) as {
-        patientSearch: string;
-        selectedPatientId: string;
-        evaluationDate: string;
-        woundType: string;
-        woundLocation: string;
-        clinicalDescription: string;
-        pushForm: PushForm;
-        bradenForm: BradenForm;
-        bwatForm: BwatForm;
-        timersForm: TimersForm;
-      };
-      setPatientSearch(draft.patientSearch ?? "");
-      setSelectedPatientId(draft.selectedPatientId ?? "");
-      setEvaluationDate(draft.evaluationDate ?? evaluationDate);
-      setWoundType(draft.woundType ?? "");
-      setWoundLocation(draft.woundLocation ?? "");
-      setClinicalDescription(draft.clinicalDescription ?? "");
-      setPushForm(draft.pushForm ?? { area: 0, exudate: 0, tissue: 0 });
-      setBradenForm(
-        draft.bradenForm ?? {
-          sensoryPerception: 1,
-          moisture: 1,
-          activity: 1,
-          mobility: 1,
-          nutrition: 1,
-          frictionShear: 1,
-        }
-      );
-      setBwatForm(draft.bwatForm ?? makeDefaultBwat());
-      setTimersForm(
-        draft.timersForm ?? {
-          tTissueBed: "",
-          tDebridement: "",
-          tGranulationPct: 0,
-          tSloughPct: 0,
-          tNecrosisPct: 0,
-          tEpithelializationPct: 0,
-          iInfectionLevel: "",
-          iInflammationSigns: [],
-          mExudateLevel: "",
-          mPerilesionalCare: "",
-          eEdgeCondition: "",
-          eAdvancement: "",
-          rGoal: "",
-          rCoverType: "",
-          sAdherenceRisk: "",
-          sBarriers: [],
-        }
-      );
-      setStatusMessage("Rascunho restaurado automaticamente.");
-    } catch {
-      localStorage.removeItem(DRAFT_KEY);
-    }
-  }, [evaluationDate]);
+    if (!uid) return;
+    let active = true;
+    void (async () => {
+      try {
+        const draft = await loadDraftFromFirestore(uid);
+        if (!active || !draft) return;
+        setPatientSearch((draft.patientSearch as string) ?? "");
+        setSelectedPatientId((draft.selectedPatientId as string) ?? "");
+        setEvaluationDate((draft.evaluationDate as string) ?? evaluationDate);
+        setWoundType((draft.woundType as string) ?? "");
+        setWoundLocation((draft.woundLocation as string) ?? "");
+        setClinicalDescription((draft.clinicalDescription as string) ?? "");
+        setPushForm((draft.pushForm as PushForm) ?? { area: 0, exudate: 0, tissue: 0 });
+        setBradenForm(
+          (draft.bradenForm as BradenForm) ?? {
+            sensoryPerception: 1,
+            moisture: 1,
+            activity: 1,
+            mobility: 1,
+            nutrition: 1,
+            frictionShear: 1,
+          }
+        );
+        setBwatForm((draft.bwatForm as BwatForm) ?? makeDefaultBwat());
+        setTimersForm(
+          (draft.timersForm as TimersForm) ?? {
+            tTissueBed: "",
+            tDebridement: "",
+            tGranulationPct: 0,
+            tSloughPct: 0,
+            tNecrosisPct: 0,
+            tEpithelializationPct: 0,
+            iInfectionLevel: "",
+            iInflammationSigns: [],
+            mExudateLevel: "",
+            mPerilesionalCare: "",
+            eEdgeCondition: "",
+            eAdvancement: "",
+            rGoal: "",
+            rCoverType: "",
+            sAdherenceRisk: "",
+            sBarriers: [],
+          }
+        );
+        setStatusMessage("Rascunho restaurado automaticamente.");
+      } catch {
+        // Ignore — no draft or read error
+      }
+    })();
+    return () => { active = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid]);
 
   const selectedPatient = useMemo(
     () => patients.find((item) => item.id === selectedPatientId) ?? null,
@@ -398,34 +408,33 @@ export default function NewEvaluationPage() {
     );
   };
 
-  const saveDraft = () => {
-    if (typeof window === "undefined") return;
+  const saveDraft = async () => {
+    if (!uid) return;
     setSavingDraft(true);
     setStatusMessage(null);
     try {
-      localStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({
-          patientSearch,
-          selectedPatientId,
-          evaluationDate,
-          woundType,
-          woundLocation,
-          clinicalDescription,
-          pushForm,
-          bradenForm,
-          bwatForm,
-          timersForm,
-        })
-      );
+      await saveDraftToFirestore(uid, {
+        patientSearch,
+        selectedPatientId,
+        evaluationDate,
+        woundType,
+        woundLocation,
+        clinicalDescription,
+        pushForm,
+        bradenForm,
+        bwatForm,
+        timersForm,
+      });
       setStatusMessage("Rascunho salvo com sucesso.");
+    } catch {
+      setStatusMessage("Falha ao salvar rascunho.");
     } finally {
       setSavingDraft(false);
     }
   };
 
   const finalizeEvaluation = async () => {
-    if (!finalChecklistReady || typeof window === "undefined") {
+    if (!finalChecklistReady || !uid) {
       setStatusMessage("Finalize todas as etapas e preencha o protocolo TIMERS.");
       return;
     }
@@ -474,12 +483,8 @@ export default function NewEvaluationPage() {
         timersPayload: timersForm as unknown as Record<string, unknown>,
       });
 
-      const existing = localStorage.getItem(HISTORY_KEY);
-      const history = existing ? (JSON.parse(existing) as unknown[]) : [];
-      const entry = {
-        id: `eval-${Date.now()}`,
+      await addHistoryEntry(uid, {
         apiEvaluationId: created.id,
-        createdAt: new Date().toISOString(),
         patientId: selectedPatientId,
         patientName: selectedPatient?.name ?? "Paciente",
         evaluationDate,
@@ -491,9 +496,8 @@ export default function NewEvaluationPage() {
         bradenScore,
         bradenRisk: getBradenRisk(bradenScore),
         timersForm,
-      };
-      localStorage.setItem(HISTORY_KEY, JSON.stringify([entry, ...history]));
-      localStorage.removeItem(DRAFT_KEY);
+      });
+      await deleteDraftFromFirestore(uid);
       setStatusMessage("Avaliacao finalizada, enviada para API clinica e sincronizada no Firebase.");
     } catch (error) {
       const message =

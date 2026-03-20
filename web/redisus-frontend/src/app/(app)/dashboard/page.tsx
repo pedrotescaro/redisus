@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  Timestamp,
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { listPatients } from "@/services/firebase/patient-service";
 import type { Patient } from "@/types/patient";
 
@@ -11,6 +20,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recentEvalCount, setRecentEvalCount] = useState<number | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
@@ -32,6 +42,31 @@ export default function DashboardPage() {
     }
     void fetchPatients();
   }, []);
+
+  // Fetch recent evaluations count from Firestore
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    void (async () => {
+      try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const evalsRef = collection(db, "clinical_evaluations");
+        const q = query(
+          evalsRef,
+          where("uid", "==", user.uid),
+          where("createdAt", ">=", Timestamp.fromDate(sevenDaysAgo)),
+          orderBy("createdAt", "desc"),
+          limit(100),
+        );
+        const snapshot = await getDocs(q);
+        if (active) setRecentEvalCount(snapshot.size);
+      } catch {
+        if (active) setRecentEvalCount(0);
+      }
+    })();
+    return () => { active = false; };
+  }, [user]);
 
   const userName =
     user?.displayName || user?.email?.split("@")[0] || "Profissional";
@@ -122,7 +157,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Stat Card 2 - New Evaluations */}
+            {/* Stat Card 2 - Recent Evaluations (real data from Firestore) */}
             <div className="bg-surface-container-lowest p-8 rounded-xl shadow-ambient border border-transparent hover:border-outline-variant/20 transition-all group">
               <div className="flex justify-between items-start mb-6">
                 <div className="bg-primary/10 p-3 rounded-xl text-primary group-hover:scale-110 transition-transform">
@@ -130,20 +165,20 @@ export default function DashboardPage() {
                     assignment_add
                   </span>
                 </div>
-                <span className="text-[10px] font-bold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-tight">
-                  +12% vs Ontem
+                <span className="text-[10px] font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-full uppercase tracking-tight">
+                  Últimos 7 dias
                 </span>
               </div>
               <div className="space-y-1">
                 <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">
-                  Novas Avaliações
+                  Avaliações Recentes
                 </p>
                 <div className="flex items-baseline gap-2">
                   <h4 className="text-6xl font-bold font-headline text-on-surface">
-                    4
+                    {recentEvalCount === null ? "-" : recentEvalCount}
                   </h4>
                   <span className="text-sm font-medium text-on-surface-variant">
-                    pendentes
+                    realizadas
                   </span>
                 </div>
               </div>

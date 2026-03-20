@@ -7,44 +7,112 @@ import { listPatients } from "@/services/firebase/patient-service";
 import {
   generateReport,
   getReportDownloadUrl,
+  listPatientEvaluations,
 } from "@/services/clinical/clinical-api-service";
 
-const summaryByPatient: Record<string, any> = {
-  p1: {
-    diagnosis: "Úlcera venosa de membro inferior direito.",
-    baselineDate: "2026-03-04",
-    latestDate: "2026-03-18",
-    areaReduction: 30.5,
-    tissueGain: 29,
-    painReduction: 3,
-    riskLevel: "Moderado",
-    recommendation:
-      "Manter desbridamento conservador, controle de exsudato e reavaliação em 7 dias.",
-  },
-  p2: {
-    diagnosis: "Lesão por pressão em calcâneo esquerdo.",
-    baselineDate: "2026-03-05",
-    latestDate: "2026-03-15",
-    areaReduction: 12.9,
-    tissueGain: 14,
-    painReduction: 2,
-    riskLevel: "Alto",
-    recommendation:
-      "Intensificar alívio de pressão, avaliar necessidade de cobertura antimicrobiana.",
-  },
+type EvaluationSummary = {
+  diagnosis: string;
+  baselineDate: string;
+  latestDate: string;
+  areaReduction: number;
+  tissueGain: number;
+  painReduction: number;
+  riskLevel: string;
+  recommendation: string;
+  evaluationCount: number;
 };
+
+const EMPTY_SUMMARY: EvaluationSummary = {
+  diagnosis: "Selecione um paciente com avaliações para gerar o resumo.",
+  baselineDate: "-",
+  latestDate: "-",
+  areaReduction: 0,
+  tissueGain: 0,
+  painReduction: 0,
+  riskLevel: "Não calculado",
+  recommendation: "Gere o relatório para obter recomendações clínicas estruturadas.",
+  evaluationCount: 0,
+};
+
+function computeSummary(evaluations: Array<Record<string, any>>): EvaluationSummary {
+  if (evaluations.length === 0) return EMPTY_SUMMARY;
+
+  const sorted = [...evaluations].sort(
+    (a, b) =>
+      new Date(a.evaluation_date ?? "").getTime() -
+      new Date(b.evaluation_date ?? "").getTime(),
+  );
+
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+
+  const firstArea = Number(first.wound_area_cm2 ?? 0);
+  const lastArea = Number(last.wound_area_cm2 ?? 0);
+  const areaReduction =
+    firstArea > 0
+      ? Number((((firstArea - lastArea) / firstArea) * 100).toFixed(1))
+      : 0;
+
+  const firstGranulation = Number(first.tissue_composition?.granulation ?? 0);
+  const lastGranulation = Number(last.tissue_composition?.granulation ?? 0);
+  const tissueGain = Number((lastGranulation - firstGranulation).toFixed(1));
+
+  const firstPain = Number(first.pain_score ?? 0);
+  const lastPain = Number(last.pain_score ?? 0);
+  const painReduction = Number((firstPain - lastPain).toFixed(1));
+
+  const bradenScore = Number(last.braden_score ?? 0);
+  let riskLevel = "Não calculado";
+  if (bradenScore > 0) {
+    if (bradenScore <= 9) riskLevel = "Muito alto";
+    else if (bradenScore <= 12) riskLevel = "Alto";
+    else if (bradenScore <= 14) riskLevel = "Moderado";
+    else if (bradenScore <= 18) riskLevel = "Baixo";
+    else riskLevel = "Sem risco";
+  }
+
+  const diagnosis =
+    last.clinical_description ||
+    `${last.wound_type ?? "Ferida"} em acompanhamento clínico.`;
+
+  const recommendation =
+    areaReduction > 20
+      ? "Boa evolução clínica. Manter conduta atual e reavaliar conforme protocolo."
+      : areaReduction > 0
+        ? "Evolução lenta. Considerar ajuste de cobertura e reavaliação em 7 dias."
+        : "Sem melhora significativa. Avaliar necessidade de intervenção adicional.";
+
+  return {
+    diagnosis,
+    baselineDate: first.evaluation_date ?? "-",
+    latestDate: last.evaluation_date ?? "-",
+    areaReduction,
+    tissueGain,
+    painReduction,
+    riskLevel,
+    recommendation,
+    evaluationCount: sorted.length,
+  };
+}
 
 export default function ReportsPage() {
   const [patientOptions, setPatientOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [patientId, setPatientId] = useState("p1");
+  const [patientId, setPatientId] = useState("");
   const [reportType, setReportType] = useState("evolucao");
-  const [periodStart, setPeriodStart] = useState("2026-03-01");
-  const [periodEnd, setPeriodEnd] = useState("2026-03-19");
+  const [periodStart, setPeriodStart] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().split("T")[0];
+  });
+  const [periodEnd, setPeriodEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [professional, setProfessional] = useState("Equipe HEAL+");
 
   const [reportId, setReportId] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<EvaluationSummary>(EMPTY_SUMMARY);
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
+  // Load patients from Firestore
   useEffect(() => {
     void (async () => {
       try {
@@ -61,20 +129,25 @@ export default function ReportsPage() {
     })();
   }, []);
 
-  const summary = useMemo(
-    () =>
-      summaryByPatient[patientId] ?? {
-        diagnosis: "Relatório em construção a partir das avaliações persistidas.",
-        baselineDate: periodStart,
-        latestDate: periodEnd,
-        areaReduction: 0,
-        tissueGain: 0,
-        painReduction: 0,
-        riskLevel: "Não calculado",
-        recommendation: "Gerar relatório para obter recomendações clínicas estruturadas.",
-      },
-    [patientId, periodEnd, periodStart]
-  );
+  // Load evaluations for selected patient and compute summary
+  useEffect(() => {
+    if (!patientId) return;
+    let active = true;
+    setLoadingSummary(true);
+    void (async () => {
+      try {
+        const evaluations = await listPatientEvaluations(patientId);
+        if (!active) return;
+        setSummary(computeSummary(evaluations));
+        setApiError(null);
+      } catch {
+        if (active) setSummary(EMPTY_SUMMARY);
+      } finally {
+        if (active) setLoadingSummary(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [patientId]);
 
   const handleGenerate = async () => {
     try {
@@ -201,46 +274,54 @@ export default function ReportsPage() {
             </span>
           </div>
 
-          <div className="mt-5 rounded-xl bg-surface-container-low p-4">
-            <p className="text-xs uppercase tracking-[0.16em] text-on-surface-variant">
-              Diagnóstico principal
-            </p>
-            <p className="mt-2 text-sm text-on-surface">{summary.diagnosis}</p>
-          </div>
+          {loadingSummary ? (
+            <div className="mt-5 rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+              Carregando dados das avaliações...
+            </div>
+          ) : (
+            <>
+              <div className="mt-5 rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-on-surface-variant">
+                  Diagnóstico principal
+                </p>
+                <p className="mt-2 text-sm text-on-surface">{summary.diagnosis}</p>
+              </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl bg-surface-container-low p-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-on-surface-variant">
-                Redução de área
-              </p>
-              <p className="mt-2 text-2xl font-bold text-primary">
-                {summary.areaReduction}%
-              </p>
-            </div>
-            <div className="rounded-xl bg-surface-container-low p-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-on-surface-variant">
-                Ganho de granulação
-              </p>
-              <p className="mt-2 text-2xl font-bold text-primary">
-                +{summary.tissueGain}%
-              </p>
-            </div>
-            <div className="rounded-xl bg-surface-container-low p-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-on-surface-variant">
-                Redução de dor
-              </p>
-              <p className="mt-2 text-2xl font-bold text-primary">
-                -{summary.painReduction}
-              </p>
-            </div>
-          </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl bg-surface-container-low p-4">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-on-surface-variant">
+                    Redução de área
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-primary">
+                    {summary.areaReduction}%
+                  </p>
+                </div>
+                <div className="rounded-xl bg-surface-container-low p-4">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-on-surface-variant">
+                    Ganho de granulação
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-primary">
+                    +{summary.tissueGain}%
+                  </p>
+                </div>
+                <div className="rounded-xl bg-surface-container-low p-4">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-on-surface-variant">
+                    Redução de dor
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-primary">
+                    -{summary.painReduction}
+                  </p>
+                </div>
+              </div>
 
-          <div className="mt-4 rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em]">
-              Conduta recomendada
-            </p>
-            {summary.recommendation}
-          </div>
+              <div className="mt-4 rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em]">
+                  Conduta recomendada
+                </p>
+                {summary.recommendation}
+              </div>
+            </>
+          )}
         </article>
 
         <aside className="rounded-2xl bg-surface-container p-6 ghost-border">
@@ -290,7 +371,7 @@ export default function ReportsPage() {
             </p>
             <p className="mt-2">
               Avaliações analisadas:{" "}
-              <strong className="text-on-surface">3</strong>
+              <strong className="text-on-surface">{summary.evaluationCount}</strong>
             </p>
             <p>
               Janela temporal:{" "}

@@ -1,72 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import {
+  listAppointments,
+  createAppointment,
+  updateAppointmentStatus as updateAppointmentStatusFirestore,
+  type Appointment,
+  type AppointmentStatus,
+} from "@/services/firebase/appointment-service";
 
 type ViewMode = "mensal" | "semanal";
-type AppointmentStatus = "pendente" | "em_andamento" | "concluida";
-
-type Appointment = {
-  id: string;
-  date: string;
-  time: string;
-  patient: string;
-  etiology: string;
-  region: string;
-  complexity?: "Alta Complexidade" | "Moderada" | "Baixa";
-  status: AppointmentStatus;
-};
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-
-const INITIAL_APPOINTMENTS: Appointment[] = [
-  {
-    id: "apt-1",
-    date: "2026-03-19",
-    time: "09:00",
-    patient: "Maria Santos",
-    etiology: "Ferida Cirúrgica",
-    region: "Abdominal",
-    status: "pendente",
-  },
-  {
-    id: "apt-2",
-    date: "2026-03-19",
-    time: "11:30",
-    patient: "João Pereira",
-    etiology: "Úlcera Diabética",
-    region: "Pé Esquerdo",
-    complexity: "Alta Complexidade",
-    status: "pendente",
-  },
-  {
-    id: "apt-3",
-    date: "2026-03-19",
-    time: "14:00",
-    patient: "Ana Lúcia",
-    etiology: "Lesão por Pressão",
-    region: "Sacral",
-    status: "concluida",
-  },
-  {
-    id: "apt-4",
-    date: "2026-03-21",
-    time: "10:00",
-    patient: "Carlos Mendes",
-    etiology: "Ferida Venosa",
-    region: "Tornozelo",
-    complexity: "Moderada",
-    status: "pendente",
-  },
-  {
-    id: "apt-5",
-    date: "2026-03-25",
-    time: "15:00",
-    patient: "Fernanda Costa",
-    etiology: "Ferida Traumática",
-    region: "Perna",
-    status: "pendente",
-  },
-];
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -121,11 +68,40 @@ const getWeekDays = (selectedDateIso: string) => {
 };
 
 export default function SchedulePage() {
+  const [uid, setUid] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("mensal");
-  const [appointments, setAppointments] =
-    useState<Appointment[]>(INITIAL_APPOINTMENTS);
-  const [currentMonth, setCurrentMonth] = useState<Date>(new Date(2026, 2, 1));
-  const [selectedDate, setSelectedDate] = useState<string>("2026-03-19");
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentMonth, setCurrentMonth] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [selectedDate, setSelectedDate] = useState<string>(toIsoDate(new Date()));
+
+  // Listen for auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUid(user?.uid ?? null);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Load appointments from Firestore
+  useEffect(() => {
+    if (!uid) return;
+    let active = true;
+    void (async () => {
+      try {
+        const data = await listAppointments(uid);
+        if (active) setAppointments(data);
+      } catch {
+        // Keep empty on error
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [uid]);
 
   const monthGrid = useMemo(() => getMonthGrid(currentMonth), [currentMonth]);
   const weekDays = useMemo(() => getWeekDays(selectedDate), [selectedDate]);
@@ -165,27 +141,41 @@ export default function SchedulePage() {
     };
   }, [appointments, currentMonth]);
 
-  const updateStatus = (id: string, status: AppointmentStatus) => {
+  const updateStatus = async (id: string, status: AppointmentStatus) => {
+    if (!uid) return;
+    // Optimistic update
     setAppointments((current) =>
       current.map((item) => (item.id === id ? { ...item, status } : item))
     );
+    try {
+      await updateAppointmentStatusFirestore(uid, id, status);
+    } catch {
+      // Revert on error by reloading
+      const data = await listAppointments(uid);
+      setAppointments(data);
+    }
   };
 
-  const addQuickAppointment = () => {
+  const addQuickAppointment = async () => {
+    if (!uid) return;
     const nextHour = `${String(8 + selectedDayAppointments.length).padStart(
       2,
       "0"
     )}:30`;
-    const newItem: Appointment = {
-      id: `apt-${Date.now()}`,
+    const payload = {
       date: selectedDate,
       time: nextHour,
       patient: "Novo Paciente",
       etiology: "Avaliação Inicial",
       region: "A definir",
-      status: "pendente",
+      status: "pendente" as AppointmentStatus,
     };
-    setAppointments((current) => [...current, newItem]);
+    try {
+      const newId = await createAppointment(uid, payload);
+      setAppointments((current) => [...current, { id: newId, ...payload }]);
+    } catch {
+      // Silently fail — no local change
+    }
   };
 
   return (
@@ -408,66 +398,72 @@ export default function SchedulePage() {
             {formatLongDate(selectedDate)}
           </p>
 
-          <div className="space-y-3">
-            {selectedDayAppointments.length === 0 && (
-              <div className="rounded-3xl bg-surface-container-low p-6 text-center">
-                <span className="material-symbols-outlined text-3xl text-primary">
-                  event_busy
-                </span>
-                <p className="mt-2 text-sm text-on-surface-variant">
-                  Sem consultas para este dia.
-                </p>
-              </div>
-            )}
+          {loading ? (
+            <div className="rounded-3xl bg-surface-container-low p-6 text-center">
+              <p className="text-sm text-on-surface-variant">Carregando agendamentos...</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {selectedDayAppointments.length === 0 && (
+                <div className="rounded-3xl bg-surface-container-low p-6 text-center">
+                  <span className="material-symbols-outlined text-3xl text-primary">
+                    event_busy
+                  </span>
+                  <p className="mt-2 text-sm text-on-surface-variant">
+                    Sem consultas para este dia.
+                  </p>
+                </div>
+              )}
 
-            {selectedDayAppointments.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-3xl bg-surface-container-low p-5 shadow-ambient"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-bold text-on-surface">{item.patient}</h3>
-                    <p className="text-xs text-primary mt-1">
-                      {item.etiology} • {item.region}
-                    </p>
+              {selectedDayAppointments.map((item) => (
+                <article
+                  key={item.id}
+                  className="rounded-3xl bg-surface-container-low p-5 shadow-ambient"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-on-surface">{item.patient}</h3>
+                      <p className="text-xs text-primary mt-1">
+                        {item.etiology} • {item.region}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold">{item.time}</span>
                   </div>
-                  <span className="text-sm font-bold">{item.time}</span>
-                </div>
-                <div className="mt-4 flex items-center justify-between gap-2">
-                  {item.complexity ? (
-                    <span className="text-[10px] px-2 py-1 rounded-full bg-tertiary/15 text-tertiary font-bold uppercase tracking-wider">
-                      {item.complexity}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] px-2 py-1 rounded-full bg-surface-container text-on-surface-variant font-bold uppercase tracking-wider">
-                      Rotina
-                    </span>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateStatus(item.id, "em_andamento")}
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-primary-container text-on-primary-container hover:brightness-110"
-                    >
-                      Iniciar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateStatus(item.id, "concluida")}
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-surface-container-high text-on-surface hover:text-primary"
-                    >
-                      Concluir
-                    </button>
+                  <div className="mt-4 flex items-center justify-between gap-2">
+                    {item.complexity ? (
+                      <span className="text-[10px] px-2 py-1 rounded-full bg-tertiary/15 text-tertiary font-bold uppercase tracking-wider">
+                        {item.complexity}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-1 rounded-full bg-surface-container text-on-surface-variant font-bold uppercase tracking-wider">
+                        Rotina
+                      </span>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void updateStatus(item.id, "em_andamento")}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-primary-container text-on-primary-container hover:brightness-110"
+                      >
+                        Iniciar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void updateStatus(item.id, "concluida")}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-surface-container-high text-on-surface hover:text-primary"
+                      >
+                        Concluir
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          )}
 
           <button
             type="button"
-            onClick={addQuickAppointment}
+            onClick={() => void addQuickAppointment()}
             className="w-full rounded-2xl bg-primary-gradient text-on-primary-container py-3 font-bold shadow-ambient"
           >
             + Novo agendamento rápido
