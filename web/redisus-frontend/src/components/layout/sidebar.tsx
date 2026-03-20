@@ -14,6 +14,8 @@ const navItems: NavItem[] = [
   { label: "Início", href: "/dashboard", icon: "dashboard" },
   { label: "Pacientes", href: "/patients", icon: "group" },
   { label: "Avaliações", href: "/evaluations/new", icon: "assignment" },
+  { label: "Comparar", href: "/comparison", icon: "compare_arrows" },
+  { label: "Gerar Relatório", href: "/reports", icon: "summarize" },
   { label: "Agenda", href: "/schedule", icon: "calendar_today" },
   { label: "Perfil", href: "/profile", icon: "person" },
 ];
