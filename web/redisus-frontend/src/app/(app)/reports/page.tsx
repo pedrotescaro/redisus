@@ -1,15 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { listPatients } from "@/services/firebase/patient-service";
+import {
+  generateReport,
+  getReportDownloadUrl,
+} from "@/services/clinical/clinical-api-service";
 
-const patientOptions = [
-  { id: "p1", label: "Maria de Souza (ID: 0142)" },
-  { id: "p2", label: "João Pereira (ID: 0221)" },
-];
-
-const summaryByPatient = {
+const summaryByPatient: Record<string, any> = {
   p1: {
     diagnosis: "Úlcera venosa de membro inferior direito.",
     baselineDate: "2026-03-04",
@@ -35,13 +35,63 @@ const summaryByPatient = {
 };
 
 export default function ReportsPage() {
+  const [patientOptions, setPatientOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [patientId, setPatientId] = useState("p1");
   const [reportType, setReportType] = useState("evolucao");
   const [periodStart, setPeriodStart] = useState("2026-03-01");
   const [periodEnd, setPeriodEnd] = useState("2026-03-19");
   const [professional, setProfessional] = useState("Equipe HEAL+");
 
-  const summary = useMemo(() => summaryByPatient[patientId], [patientId]);
+  const [reportId, setReportId] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const patients = await listPatients();
+        const options = patients.map((p) => ({ id: p.id, label: `${p.name} (${p.id})` }));
+        if (options.length) {
+          setPatientOptions(options);
+          setPatientId(options[0].id);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Falha ao carregar pacientes.";
+        setApiError(message);
+      }
+    })();
+  }, []);
+
+  const summary = useMemo(
+    () =>
+      summaryByPatient[patientId] ?? {
+        diagnosis: "Relatório em construção a partir das avaliações persistidas.",
+        baselineDate: periodStart,
+        latestDate: periodEnd,
+        areaReduction: 0,
+        tissueGain: 0,
+        painReduction: 0,
+        riskLevel: "Não calculado",
+        recommendation: "Gerar relatório para obter recomendações clínicas estruturadas.",
+      },
+    [patientId, periodEnd, periodStart]
+  );
+
+  const handleGenerate = async () => {
+    try {
+      const generated = await generateReport({
+        patient_id: patientId,
+        report_type: reportType,
+        period_start: periodStart,
+        period_end: periodEnd,
+        professional,
+      });
+      setReportId(generated.reportId);
+      setApiError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao gerar relatório.";
+      setApiError(message);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -202,19 +252,33 @@ export default function ReportsPage() {
           </p>
 
           <div className="mt-5 space-y-3">
-            <Button className="w-full justify-center">
+            <Button className="w-full justify-center" onClick={() => void handleGenerate()}>
               <span className="material-symbols-outlined text-base">
                 picture_as_pdf
               </span>
               Exportar PDF
             </Button>
-            <Button variant="outline" className="w-full justify-center">
+            <Button
+              variant="outline"
+              className="w-full justify-center"
+              onClick={() => {
+                if (!reportId) return;
+                window.open(getReportDownloadUrl(reportId, "docx"), "_blank");
+              }}
+            >
               <span className="material-symbols-outlined text-base">
                 description
               </span>
               Exportar DOCX
             </Button>
-            <Button variant="secondary" className="w-full justify-center">
+            <Button
+              variant="secondary"
+              className="w-full justify-center"
+              onClick={() => {
+                if (!reportId) return;
+                window.open(getReportDownloadUrl(reportId, "pdf"), "_blank");
+              }}
+            >
               <span className="material-symbols-outlined text-base">mail</span>
               Enviar para equipe
             </Button>
@@ -245,6 +309,11 @@ export default function ReportsPage() {
           </div>
         </aside>
       </section>
+      {apiError && (
+        <section className="rounded-2xl bg-error/10 text-error p-4 text-sm ghost-border">
+          {apiError}
+        </section>
+      )}
     </div>
   );
 }

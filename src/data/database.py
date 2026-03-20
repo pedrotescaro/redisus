@@ -7,10 +7,11 @@ Usa SQLite para armazenamento local.
 """
 import json
 import sqlite3
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from contextlib import contextmanager
 from loguru import logger
 
@@ -154,6 +155,115 @@ class Database:
                     value TEXT
                 )
             """)
+
+            # Tabela de casos clínicos de ferida
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wound_cases (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    title TEXT,
+                    wound_type TEXT,
+                    location TEXT,
+                    status TEXT,
+                    opened_at TEXT,
+                    closed_at TEXT,
+                    metadata TEXT,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id)
+                )
+            """)
+
+            # Tabela de avaliações estruturadas
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wound_evaluations (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    case_id TEXT,
+                    evaluation_date TEXT NOT NULL,
+                    professional_name TEXT,
+                    wound_type TEXT,
+                    wound_location TEXT,
+                    clinical_description TEXT,
+                    push_score REAL,
+                    braden_score REAL,
+                    bwat_score REAL,
+                    pain_score REAL,
+                    wound_area_cm2 REAL,
+                    depth_mm REAL,
+                    tissue_composition TEXT,
+                    timers_payload TEXT,
+                    metadata TEXT,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id),
+                    FOREIGN KEY (case_id) REFERENCES wound_cases(id)
+                )
+            """)
+
+            # Tabela de imagens por avaliação
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wound_images (
+                    id TEXT PRIMARY KEY,
+                    evaluation_id TEXT NOT NULL,
+                    image_role TEXT,
+                    image_path TEXT NOT NULL,
+                    content_type TEXT,
+                    metadata TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY (evaluation_id) REFERENCES wound_evaluations(id)
+                )
+            """)
+
+            # Tabela de execução de IA (pipeline em 2 estágios)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_inference_runs (
+                    id TEXT PRIMARY KEY,
+                    evaluation_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    use_fallback INTEGER DEFAULT 0,
+                    stage1_latency_ms INTEGER,
+                    stage2_latency_ms INTEGER,
+                    failure_reason TEXT,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    FOREIGN KEY (evaluation_id) REFERENCES wound_evaluations(id)
+                )
+            """)
+
+            # Resultado consolidado da IA por job
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_results (
+                    id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    etiology TEXT,
+                    confidence REAL,
+                    tissue_percentages TEXT,
+                    wound_area_cm2 REAL,
+                    diagnosis_summary TEXT,
+                    recommendations TEXT,
+                    payload TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY (run_id) REFERENCES ai_inference_runs(id)
+                )
+            """)
+
+            # Laudos estruturados e arquivos gerados
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS structured_reports (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    case_id TEXT,
+                    evaluation_id TEXT,
+                    report_type TEXT,
+                    report_json TEXT,
+                    pdf_path TEXT,
+                    docx_path TEXT,
+                    generated_by TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id),
+                    FOREIGN KEY (case_id) REFERENCES wound_cases(id),
+                    FOREIGN KEY (evaluation_id) REFERENCES wound_evaluations(id)
+                )
+            """)
             
             # Índices
             cursor.execute("""
@@ -164,10 +274,416 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_analyses_timestamp 
                 ON analyses(timestamp)
             """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wound_cases_patient
+                ON wound_cases(patient_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wound_evaluations_patient_date
+                ON wound_evaluations(patient_id, evaluation_date DESC)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wound_evaluations_case
+                ON wound_evaluations(case_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wound_images_evaluation
+                ON wound_images(evaluation_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_ai_runs_evaluation
+                ON ai_inference_runs(evaluation_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_ai_runs_status
+                ON ai_inference_runs(status)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_structured_reports_patient
+                ON structured_reports(patient_id)
+            """)
             
             conn.commit()
             
         logger.info(f"Banco de dados inicializado: {self.db_path}")
+
+    # === MODELO CLÍNICO E JOBS ===
+
+    def create_wound_case(self, patient_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        case_id = payload.get("id") or str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        case = {
+            "id": case_id,
+            "patient_id": patient_id,
+            "title": payload.get("title"),
+            "wound_type": payload.get("wound_type"),
+            "location": payload.get("location"),
+            "status": payload.get("status", "active"),
+            "opened_at": payload.get("opened_at", now),
+            "closed_at": payload.get("closed_at"),
+            "metadata": payload.get("metadata", {}),
+        }
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO wound_cases
+                    (id, patient_id, title, wound_type, location, status, opened_at, closed_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        case["id"], case["patient_id"], case["title"], case["wound_type"],
+                        case["location"], case["status"], case["opened_at"], case["closed_at"],
+                        json.dumps(case["metadata"]),
+                    ),
+                )
+                conn.commit()
+            return case
+        except Exception as e:
+            logger.error(f"Erro ao criar caso clínico: {e}")
+            return None
+
+    def create_wound_evaluation(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        evaluation_id = payload.get("id") or str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        record = {
+            "id": evaluation_id,
+            "patient_id": payload["patient_id"],
+            "case_id": payload.get("case_id"),
+            "evaluation_date": payload.get("evaluation_date", now[:10]),
+            "professional_name": payload.get("professional_name"),
+            "wound_type": payload.get("wound_type"),
+            "wound_location": payload.get("wound_location"),
+            "clinical_description": payload.get("clinical_description"),
+            "push_score": payload.get("push_score"),
+            "braden_score": payload.get("braden_score"),
+            "bwat_score": payload.get("bwat_score"),
+            "pain_score": payload.get("pain_score"),
+            "wound_area_cm2": payload.get("wound_area_cm2"),
+            "depth_mm": payload.get("depth_mm"),
+            "tissue_composition": payload.get("tissue_composition", {}),
+            "timers_payload": payload.get("timers_payload", {}),
+            "metadata": payload.get("metadata", {}),
+            "created_at": now,
+            "updated_at": now,
+        }
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO wound_evaluations
+                    (id, patient_id, case_id, evaluation_date, professional_name, wound_type, wound_location,
+                     clinical_description, push_score, braden_score, bwat_score, pain_score, wound_area_cm2,
+                     depth_mm, tissue_composition, timers_payload, metadata, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record["id"], record["patient_id"], record["case_id"], record["evaluation_date"],
+                        record["professional_name"], record["wound_type"], record["wound_location"],
+                        record["clinical_description"], record["push_score"], record["braden_score"],
+                        record["bwat_score"], record["pain_score"], record["wound_area_cm2"], record["depth_mm"],
+                        json.dumps(record["tissue_composition"]), json.dumps(record["timers_payload"]),
+                        json.dumps(record["metadata"]), record["created_at"], record["updated_at"],
+                    ),
+                )
+                conn.commit()
+            return record
+        except Exception as e:
+            logger.error(f"Erro ao criar avaliação clínica: {e}")
+            return None
+
+    def get_wound_evaluation(self, evaluation_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM wound_evaluations WHERE id = ?", (evaluation_id,))
+                row = cursor.fetchone()
+                return self._row_to_evaluation(row) if row else None
+        except Exception as e:
+            logger.error(f"Erro ao buscar avaliação: {e}")
+            return None
+
+    def list_patient_evaluations(self, patient_id: str, case_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                if case_id:
+                    cursor.execute(
+                        """
+                        SELECT * FROM wound_evaluations
+                        WHERE patient_id = ? AND case_id = ?
+                        ORDER BY evaluation_date DESC, created_at DESC
+                        """,
+                        (patient_id, case_id),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT * FROM wound_evaluations
+                        WHERE patient_id = ?
+                        ORDER BY evaluation_date DESC, created_at DESC
+                        """,
+                        (patient_id,),
+                    )
+                return [self._row_to_evaluation(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Erro ao listar avaliações: {e}")
+            return []
+
+    def add_wound_image(self, evaluation_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        image_id = payload.get("id") or str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        record = {
+            "id": image_id,
+            "evaluation_id": evaluation_id,
+            "image_role": payload.get("image_role", "clinical"),
+            "image_path": payload["image_path"],
+            "content_type": payload.get("content_type", "image/jpeg"),
+            "metadata": payload.get("metadata", {}),
+            "created_at": now,
+        }
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO wound_images
+                    (id, evaluation_id, image_role, image_path, content_type, metadata, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record["id"], record["evaluation_id"], record["image_role"], record["image_path"],
+                        record["content_type"], json.dumps(record["metadata"]), record["created_at"],
+                    ),
+                )
+                conn.commit()
+            return record
+        except Exception as e:
+            logger.error(f"Erro ao salvar imagem da avaliação: {e}")
+            return None
+
+    def list_evaluation_images(self, evaluation_id: str) -> List[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                rows = conn.execute(
+                    "SELECT * FROM wound_images WHERE evaluation_id = ? ORDER BY created_at ASC",
+                    (evaluation_id,),
+                ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "evaluation_id": row["evaluation_id"],
+                        "image_role": row["image_role"],
+                        "image_path": row["image_path"],
+                        "content_type": row["content_type"],
+                        "metadata": json.loads(row["metadata"] or "{}"),
+                        "created_at": row["created_at"],
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            logger.error(f"Erro ao listar imagens: {e}")
+            return []
+
+    def create_ai_run(self, evaluation_id: str, use_fallback: bool = False) -> Optional[Dict[str, Any]]:
+        run_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        record = {
+            "id": run_id,
+            "evaluation_id": evaluation_id,
+            "status": "queued",
+            "use_fallback": int(use_fallback),
+            "stage1_latency_ms": None,
+            "stage2_latency_ms": None,
+            "failure_reason": None,
+            "created_at": now,
+            "updated_at": now,
+        }
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO ai_inference_runs
+                    (id, evaluation_id, status, use_fallback, stage1_latency_ms, stage2_latency_ms,
+                     failure_reason, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record["id"], record["evaluation_id"], record["status"], record["use_fallback"],
+                        record["stage1_latency_ms"], record["stage2_latency_ms"], record["failure_reason"],
+                        record["created_at"], record["updated_at"],
+                    ),
+                )
+                conn.commit()
+            return record
+        except Exception as e:
+            logger.error(f"Erro ao criar job de IA: {e}")
+            return None
+
+    def update_ai_run(self, run_id: str, updates: Dict[str, Any]) -> bool:
+        allowed = {"status", "use_fallback", "stage1_latency_ms", "stage2_latency_ms", "failure_reason"}
+        set_pairs: List[Tuple[str, Any]] = []
+        for key, value in updates.items():
+            if key in allowed:
+                set_pairs.append((key, value))
+        set_pairs.append(("updated_at", datetime.now().isoformat()))
+        if not set_pairs:
+            return False
+        set_clause = ", ".join(f"{k} = ?" for k, _ in set_pairs)
+        values = [v for _, v in set_pairs] + [run_id]
+        try:
+            with self._get_connection() as conn:
+                conn.execute(f"UPDATE ai_inference_runs SET {set_clause} WHERE id = ?", values)
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao atualizar job de IA: {e}")
+            return False
+
+    def get_ai_run(self, run_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute("SELECT * FROM ai_inference_runs WHERE id = ?", (run_id,)).fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": row["id"],
+                    "evaluation_id": row["evaluation_id"],
+                    "status": row["status"],
+                    "use_fallback": bool(row["use_fallback"]),
+                    "stage1_latency_ms": row["stage1_latency_ms"],
+                    "stage2_latency_ms": row["stage2_latency_ms"],
+                    "failure_reason": row["failure_reason"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar job de IA: {e}")
+            return None
+
+    def save_ai_result(self, run_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        result_id = str(uuid.uuid4())
+        created_at = datetime.now().isoformat()
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO ai_results
+                    (id, run_id, etiology, confidence, tissue_percentages, wound_area_cm2,
+                     diagnosis_summary, recommendations, payload, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        result_id, run_id, payload.get("etiology"), payload.get("confidence"),
+                        json.dumps(payload.get("tissue_percentages", {})), payload.get("wound_area_cm2"),
+                        payload.get("diagnosis_summary"), json.dumps(payload.get("recommendations", [])),
+                        json.dumps(payload), created_at,
+                    ),
+                )
+                conn.commit()
+            return {
+                "id": result_id,
+                "run_id": run_id,
+                "created_at": created_at,
+                **payload,
+            }
+        except Exception as e:
+            logger.error(f"Erro ao salvar resultado de IA: {e}")
+            return None
+
+    def get_ai_result_by_run(self, run_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute(
+                    "SELECT * FROM ai_results WHERE run_id = ? ORDER BY created_at DESC LIMIT 1",
+                    (run_id,),
+                ).fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": row["id"],
+                    "run_id": row["run_id"],
+                    "etiology": row["etiology"],
+                    "confidence": row["confidence"],
+                    "tissue_percentages": json.loads(row["tissue_percentages"] or "{}"),
+                    "wound_area_cm2": row["wound_area_cm2"],
+                    "diagnosis_summary": row["diagnosis_summary"],
+                    "recommendations": json.loads(row["recommendations"] or "[]"),
+                    "payload": json.loads(row["payload"] or "{}"),
+                    "created_at": row["created_at"],
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar resultado de IA: {e}")
+            return None
+
+    def create_structured_report(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        report_id = payload.get("id") or str(uuid.uuid4())
+        created_at = datetime.now().isoformat()
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO structured_reports
+                    (id, patient_id, case_id, evaluation_id, report_type, report_json, pdf_path, docx_path, generated_by, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        report_id, payload["patient_id"], payload.get("case_id"), payload.get("evaluation_id"),
+                        payload.get("report_type", "evolution"), json.dumps(payload.get("report_json", {})),
+                        payload.get("pdf_path"), payload.get("docx_path"), payload.get("generated_by"), created_at,
+                    ),
+                )
+                conn.commit()
+            return {"id": report_id, "created_at": created_at, **payload}
+        except Exception as e:
+            logger.error(f"Erro ao salvar laudo estruturado: {e}")
+            return None
+
+    def get_structured_report(self, report_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute("SELECT * FROM structured_reports WHERE id = ?", (report_id,)).fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": row["id"],
+                    "patient_id": row["patient_id"],
+                    "case_id": row["case_id"],
+                    "evaluation_id": row["evaluation_id"],
+                    "report_type": row["report_type"],
+                    "report_json": json.loads(row["report_json"] or "{}"),
+                    "pdf_path": row["pdf_path"],
+                    "docx_path": row["docx_path"],
+                    "generated_by": row["generated_by"],
+                    "created_at": row["created_at"],
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar relatório: {e}")
+            return None
+
+    def _row_to_evaluation(self, row: sqlite3.Row) -> Dict[str, Any]:
+        return {
+            "id": row["id"],
+            "patient_id": row["patient_id"],
+            "case_id": row["case_id"],
+            "evaluation_date": row["evaluation_date"],
+            "professional_name": row["professional_name"],
+            "wound_type": row["wound_type"],
+            "wound_location": row["wound_location"],
+            "clinical_description": row["clinical_description"],
+            "push_score": row["push_score"],
+            "braden_score": row["braden_score"],
+            "bwat_score": row["bwat_score"],
+            "pain_score": row["pain_score"],
+            "wound_area_cm2": row["wound_area_cm2"],
+            "depth_mm": row["depth_mm"],
+            "tissue_composition": json.loads(row["tissue_composition"] or "{}"),
+            "timers_payload": json.loads(row["timers_payload"] or "{}"),
+            "metadata": json.loads(row["metadata"] or "{}"),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
     
     @contextmanager
     def _get_connection(self):

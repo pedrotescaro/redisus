@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
+from src.dashboard.clinical_api import ClinicalAPI
 
 
 class ClinicalDashboard:
@@ -47,6 +48,11 @@ class ClinicalDashboard:
 
         app = Flask(__name__)
         app.config["JSON_AS_ASCII"] = False
+        app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+
+        if self.db:
+            clinical_api = ClinicalAPI(self.db)
+            app.register_blueprint(clinical_api.blueprint)
 
         # ---- Rotas HTML ----
         @app.route("/")

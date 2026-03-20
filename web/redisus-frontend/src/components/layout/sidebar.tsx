@@ -54,7 +54,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
             Heal+
           </h1>
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mt-0.5 opacity-70">
-            REDI-SUS
+            Plataforma Clínica
           </p>
         </div>
       </Link>

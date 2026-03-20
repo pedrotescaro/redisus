@@ -5,7 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { listPatients } from "@/services/firebase/patient-service";
-import { analyzeWoundImage, type NeuralAnalysisResult } from "@/services/ai/heal-ai-service";
+import type { NeuralAnalysisResult } from "@/services/ai/heal-ai-service";
+import {
+  createEvaluation,
+  getAnalysisJob,
+  startEvaluationAnalysis,
+  uploadEvaluationImage,
+} from "@/services/clinical/clinical-api-service";
 import type { Patient } from "@/types/patient";
 
 type Step = {
@@ -160,6 +166,7 @@ export default function NewEvaluationPage() {
   const [aiAnalysis, setAiAnalysis] = useState<NeuralAnalysisResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [evaluationId, setEvaluationId] = useState<string | null>(null);
   const [photoSlots, setPhotoSlots] = useState<PhotoSlot[]>([
     { id: "frontal", label: "Foto Frontal", file: null, preview: null },
     { id: "lateral", label: "Foto Lateral", file: null, preview: null },
@@ -416,7 +423,7 @@ export default function NewEvaluationPage() {
     }
   };
 
-  const finalizeEvaluation = () => {
+  const finalizeEvaluation = async () => {
     if (!finalChecklistReady || typeof window === "undefined") {
       setStatusMessage("Finalize todas as etapas e preencha o protocolo TIMERS.");
       return;
@@ -424,6 +431,33 @@ export default function NewEvaluationPage() {
     setSavingEvaluation(true);
     setStatusMessage(null);
     try {
+      const created = await createEvaluation({
+        patient_id: selectedPatientId,
+        evaluation_date: evaluationDate,
+        professional_name: "Equipe HEAL+",
+        wound_type: woundType,
+        wound_location: woundLocation,
+        clinical_description: clinicalDescription,
+        push_score: pushScore,
+        braden_score: bradenScore,
+        bwat_score: bwatScore,
+        pain_score: 0,
+        wound_area_cm2: pushForm.area,
+        tissue_composition: {
+          granulation: timersForm.tGranulationPct,
+          slough: timersForm.tSloughPct,
+          necrosis: timersForm.tNecrosisPct,
+          epithelialization: timersForm.tEpithelializationPct,
+        },
+        timers_payload: timersForm,
+      });
+      setEvaluationId(created.id);
+
+      const uploadPromises = photoSlots
+        .filter((slot) => slot.file)
+        .map((slot) => uploadEvaluationImage(created.id, slot.file as File, slot.id));
+      await Promise.all(uploadPromises);
+
       const existing = localStorage.getItem(HISTORY_KEY);
       const history = existing ? (JSON.parse(existing) as unknown[]) : [];
       const entry = {
@@ -443,15 +477,22 @@ export default function NewEvaluationPage() {
       };
       localStorage.setItem(HISTORY_KEY, JSON.stringify([entry, ...history]));
       localStorage.removeItem(DRAFT_KEY);
-      setStatusMessage("Avaliação finalizada e registrada localmente.");
+      setStatusMessage("Avaliação finalizada e persistida no backend com sucesso.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Falha ao finalizar avaliação no backend.";
+      setStatusMessage(message);
     } finally {
       setSavingEvaluation(false);
     }
   };
 
   const runAiAnalysis = async () => {
-    const firstPhoto = photoSlots.find((slot) => slot.file)?.file;
-    if (!firstPhoto) {
+    if (!evaluationId) {
+      setAiError("Finalize a avaliação para gerar o ID e então execute a IA.");
+      return;
+    }
+    if (!photoSlots.find((slot) => slot.file)) {
       setAiError("Envie ao menos uma foto para análise por IA.");
       return;
     }
@@ -459,8 +500,40 @@ export default function NewEvaluationPage() {
     setAiError(null);
     setAiAnalysis(null);
     try {
-      const result = await analyzeWoundImage(firstPhoto);
-      setAiAnalysis(result);
+      const job = await startEvaluationAnalysis(evaluationId);
+      let attempts = 0;
+      while (attempts < 20) {
+        // polling simples do job assíncrono
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        // eslint-disable-next-line no-await-in-loop
+        const current = await getAnalysisJob(job.jobId);
+        if (current.job.status === "completed" && current.result) {
+          const result = current.result as {
+            etiology: string;
+            confidence: number;
+            tissue_percentages?: { granulation?: number; slough?: number; necrosis?: number };
+            recommendations?: string[];
+          };
+          setAiAnalysis({
+            woundType: result.etiology,
+            confidence: result.confidence ?? 0,
+            tissueComposition: {
+              granulation: result.tissue_percentages?.granulation ?? 0,
+              slough: result.tissue_percentages?.slough ?? 0,
+              necrosis: result.tissue_percentages?.necrosis ?? 0,
+            },
+            riskLevel: "moderate",
+            recommendations: result.recommendations ?? [],
+          });
+          return;
+        }
+        if (current.job.status === "failed") {
+          throw new Error("Job de IA falhou.");
+        }
+        attempts += 1;
+      }
+      throw new Error("Tempo limite de processamento da IA excedido.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Falha ao executar análise de IA.";
@@ -480,7 +553,7 @@ export default function NewEvaluationPage() {
       setStatusMessage(null);
       return;
     }
-    finalizeEvaluation();
+    void finalizeEvaluation();
   };
 
   const handleBack = () => {

@@ -16,9 +16,9 @@ const featureItems = [
   },
   {
     icon: "hub",
-    title: "Integração com Ecossistema REDI-SUS",
+    title: "Plataforma Clínica Unificada",
     description:
-      "Conexão com módulos de diagnóstico, plano de cuidado e monitoramento dentro da jornada digital em saúde.",
+      "Conexão entre avaliação, comparação e relatório clínico estruturado na jornada digital de feridas.",
   },
 ];
 
@@ -31,12 +31,12 @@ const benefits = [
   {
     icon: "biotech",
     title: "Pesquisa Translacional",
-    text: "Conecta pesquisa aplicada, validação multicêntrica e evolução tecnológica para uso real no SUS.",
+    text: "Conecta pesquisa aplicada, validação multicêntrica e evolução tecnológica para uso real clínico.",
   },
   {
     icon: "rebase_edit",
-    title: "Interoperabilidade e Escala",
-    text: "Arquitetura com HL7 FHIR R4, e-SUS, DATASUS e trilhas para integração progressiva com RNDS.",
+    title: "Escalabilidade da Plataforma",
+    text: "Arquitetura modular para evolução progressiva de integrações e serviços clínicos.",
   },
 ];
 
@@ -57,9 +57,7 @@ export default function HomePage() {
               <h1 className="text-2xl font-extrabold leading-none tracking-tight text-primary font-headline">
                 Heal+
               </h1>
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">
-                 REDI-SUS
-              </p>
+                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Plataforma Clínica</p>
             </div>
           </Link>
 
@@ -113,11 +111,11 @@ export default function HomePage() {
               Pesquisa aplicada em saúde digital
             </div>
             <h1 className="mt-6 text-5xl font-extrabold tracking-tight font-headline md:text-7xl">
-              HEAL+ no REDI-SUS: <span className="text-primary">IA para avaliação de feridas</span>
+              HEAL+: <span className="text-primary">IA para avaliação de feridas</span>
             </h1>
             <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-on-surface-variant md:text-xl">
               Plataforma de pesquisa para apoio ao diagnóstico e monitoramento de feridas crônicas, com visão
-              computacional, modelos de deep learning e foco em interoperabilidade com o SUS Digital.
+              computacional, modelos de deep learning e foco em interoperabilidade clínica incremental.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
@@ -141,7 +139,7 @@ export default function HomePage() {
                 <div className="text-center">
                   <span className="material-symbols-outlined text-6xl text-primary">monitoring</span>
                   <p className="mt-3 text-sm font-semibold tracking-wide text-on-surface-variant">
-                    Dashboard clínico do HEAL+ no REDI-SUS
+                    Dashboard clínico do HEAL+
                   </p>
                 </div>
               </div>
@@ -153,7 +151,7 @@ export default function HomePage() {
           <div className="mb-12 space-y-3 text-center">
             <h2 className="text-3xl font-bold font-headline md:text-4xl">Tecnologia para Cuidado Baseado em Evidências</h2>
             <p className="mx-auto max-w-2xl text-on-surface-variant">
-              Componentes alinhados ao escopo técnico-científico do projeto e à jornada clínica no SUS.
+              Componentes alinhados ao escopo técnico-científico do projeto e à jornada clínica.
             </p>
           </div>
 
@@ -178,13 +176,13 @@ export default function HomePage() {
               <div className="w-12 h-12 rounded-xl bg-tertiary/10 text-tertiary flex items-center justify-center">
                 <span className="material-symbols-outlined">description</span>
               </div>
-              <h3 className="mt-5 text-2xl font-bold font-headline">Interoperabilidade Clínica</h3>
+              <h3 className="mt-5 text-2xl font-bold font-headline">Dados Clínicos Estruturados</h3>
               <p className="mt-3 text-on-surface-variant">
-                Estrutura de dados para integração com serviços de saúde e troca padronizada de informações clínicas.
+                Estrutura de dados canônica para rastreabilidade, comparação longitudinal e geração de laudos.
               </p>
               <div className="mt-6 space-y-2 border-t border-outline-variant/15 pt-4">
-                <p className="text-xs uppercase tracking-widest text-primary">HL7 FHIR R4</p>
-                <p className="text-xs uppercase tracking-widest text-primary">e-SUS / DATASUS / RNDS</p>
+                <p className="text-xs uppercase tracking-widest text-primary">Modelo clínico versionado</p>
+                <p className="text-xs uppercase tracking-widest text-primary">APIs REST + Relatórios</p>
               </div>
             </article>
 
@@ -244,7 +242,7 @@ export default function HomePage() {
           <div>
             <p className="text-lg font-bold font-headline text-primary">Heal+</p>
             <p className="text-xs uppercase tracking-widest text-on-surface-variant">
-              Módulo REDI-SUS para apoio ao diagnóstico, plano de cuidado e monitoramento.
+              Módulo clínico para apoio ao diagnóstico, plano de cuidado e monitoramento.
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-xs uppercase tracking-widest text-on-surface-variant">

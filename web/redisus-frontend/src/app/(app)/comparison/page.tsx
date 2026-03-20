@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { listPatients } from "@/services/firebase/patient-service";
+import { compareEvaluations, listPatientEvaluations } from "@/services/clinical/clinical-api-service";
 
 type Evaluation = {
   id: string;
@@ -19,72 +21,23 @@ type Evaluation = {
   note: string;
 };
 
-const patientOptions = [
-  { id: "p1", label: "Maria de Souza (ID: 0142)" },
-  { id: "p2", label: "João Pereira (ID: 0221)" },
-];
-
-const evaluationsByPatient: Record<string, Evaluation[]> = {
-  p1: [
-    {
-      id: "a1",
-      date: "2026-03-04",
-      professional: "Enf. Carla Nascimento",
-      tissue: { granulation: 42, slough: 46, necrosis: 12 },
-      areaCm2: 12.8,
-      depthMm: 4.2,
-      exudate: "Alto",
-      pain: 7,
-      note: "Bordas maceradas e exsudato espesso.",
+function mapEval(raw: any): Evaluation {
+  return {
+    id: raw.id,
+    date: raw.evaluation_date,
+    professional: raw.professional_name ?? "Equipe clínica",
+    tissue: {
+      granulation: raw.tissue_composition?.granulation ?? 0,
+      slough: raw.tissue_composition?.slough ?? 0,
+      necrosis: raw.tissue_composition?.necrosis ?? 0,
     },
-    {
-      id: "a2",
-      date: "2026-03-11",
-      professional: "Enf. Carla Nascimento",
-      tissue: { granulation: 58, slough: 34, necrosis: 8 },
-      areaCm2: 10.4,
-      depthMm: 3.7,
-      exudate: "Moderado",
-      pain: 5,
-      note: "Melhora de leito com redução de tecido desvitalizado.",
-    },
-    {
-      id: "a3",
-      date: "2026-03-18",
-      professional: "Dr. Paulo Almeida",
-      tissue: { granulation: 71, slough: 24, necrosis: 5 },
-      areaCm2: 8.9,
-      depthMm: 3.1,
-      exudate: "Moderado",
-      pain: 4,
-      note: "Evolução favorável, manter cobertura absorvente.",
-    },
-  ],
-  p2: [
-    {
-      id: "b1",
-      date: "2026-03-05",
-      professional: "Enf. Luiza Matos",
-      tissue: { granulation: 30, slough: 52, necrosis: 18 },
-      areaCm2: 16.2,
-      depthMm: 5.2,
-      exudate: "Alto",
-      pain: 8,
-      note: "Ferida extensa em calcâneo, dor intensa ao curativo.",
-    },
-    {
-      id: "b2",
-      date: "2026-03-15",
-      professional: "Enf. Luiza Matos",
-      tissue: { granulation: 44, slough: 43, necrosis: 13 },
-      areaCm2: 14.1,
-      depthMm: 4.8,
-      exudate: "Moderado",
-      pain: 6,
-      note: "Redução parcial de necrose após desbridamento.",
-    },
-  ],
-};
+    areaCm2: raw.wound_area_cm2 ?? 0,
+    depthMm: raw.depth_mm ?? 0,
+    exudate: "Moderado",
+    pain: raw.pain_score ?? 0,
+    note: raw.clinical_description ?? "-",
+  };
+}
 
 function getDeltaLabel(value: number, lowerIsBetter = true) {
   if (value === 0) return { text: "Sem variação", tone: "text-outline" };
@@ -132,11 +85,45 @@ function MetricRow({
 }
 
 export default function ComparisonPage() {
-  const [patientId, setPatientId] = useState("p1");
-  const [leftEvalId, setLeftEvalId] = useState("a1");
-  const [rightEvalId, setRightEvalId] = useState("a3");
+  const [patientOptions, setPatientOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [patientId, setPatientId] = useState("");
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [leftEvalId, setLeftEvalId] = useState("");
+  const [rightEvalId, setRightEvalId] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const evaluations = evaluationsByPatient[patientId] ?? [];
+  useEffect(() => {
+    void (async () => {
+      try {
+        const patients = await listPatients();
+        const options = patients.map((p) => ({ id: p.id, label: `${p.name} (${p.id})` }));
+        setPatientOptions(options);
+        if (options[0]) setPatientId(options[0].id);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Falha ao carregar pacientes.";
+        setLoadError(message);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!patientId) return;
+    void (async () => {
+      try {
+        const data = await listPatientEvaluations(patientId);
+        const mapped = data.map(mapEval);
+        setEvaluations(mapped);
+        setLeftEvalId(mapped[0]?.id ?? "");
+        setRightEvalId(mapped[mapped.length - 1]?.id ?? "");
+        setLoadError(null);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Falha ao carregar avaliações.";
+        setLoadError(message);
+      }
+    })();
+  }, [patientId]);
 
   const leftEval = useMemo(
     () => evaluations.find((item) => item.id === leftEvalId) ?? evaluations[0],
@@ -145,8 +132,7 @@ export default function ComparisonPage() {
 
   const rightEval = useMemo(
     () =>
-      evaluations.find((item) => item.id === rightEvalId) ??
-      evaluations[evaluations.length - 1],
+      evaluations.find((item) => item.id === rightEvalId) ?? evaluations[evaluations.length - 1],
     [evaluations, rightEvalId]
   );
 
@@ -179,10 +165,7 @@ export default function ComparisonPage() {
               value={patientId}
               onChange={(event) => {
                 const nextId = event.target.value;
-                const nextEvals = evaluationsByPatient[nextId] ?? [];
                 setPatientId(nextId);
-                setLeftEvalId(nextEvals[0]?.id ?? "");
-                setRightEvalId(nextEvals[nextEvals.length - 1]?.id ?? "");
               }}
               className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary"
             >
@@ -229,6 +212,11 @@ export default function ComparisonPage() {
           </div>
         </div>
       </section>
+      {loadError && (
+        <section className="rounded-2xl bg-error/10 text-error p-4 text-sm ghost-border">
+          {loadError}
+        </section>
+      )}
 
       {hasComparison ? (
         <>
@@ -365,7 +353,15 @@ export default function ComparisonPage() {
           <section className="rounded-2xl bg-surface-container p-6 ghost-border shadow-ambient">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-xl font-bold font-headline">Resumo de diferenças</h3>
-              <Button variant="secondary">Exportar comparativo</Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (!leftEval || !rightEval) return;
+                  void compareEvaluations(leftEval.id, rightEval.id);
+                }}
+              >
+                Exportar comparativo
+              </Button>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
