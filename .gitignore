@@ -33,6 +33,10 @@ logs/
 *.db
 data/redisus.db
 
+# ===== Firebase Secrets =====
+*-service-account.json
+backend/firebase-service-account.json
+
 # ===== Output/Generated =====
 output/
 exports/
