@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   title: "Redisus | Heal+",
   description:
     "Plataforma clínica para gestão de pacientes e avaliação de feridas com IA.",
+  icons: {
+    icon: "/images/logo.svg",
+  },
 };
 
 type RootLayoutProps = {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const featureItems = [
   {
@@ -86,6 +87,7 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link
               href="/login"
               className="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-colors"
@@ -94,7 +96,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/login"
-              className="rounded-xl bg-primary-container px-5 py-2.5 text-sm font-bold text-on-primary-container shadow-ambient"
+              className="rounded-xl bg-primary-container px-5 py-2.5 text-sm font-bold text-on-primary-container shadow-ambient hover:brightness-110 transition-all"
             >
               Começar
             </Link>

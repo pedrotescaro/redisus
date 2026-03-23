@@ -81,15 +81,15 @@ export function LoginForm() {
             >
               E-mail profissional
             </label>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base text-outline">
+            <div className="relative group">
+              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base text-outline transition-colors group-hover:text-primary">
                 mail
               </span>
                 <Input
                 id="email"
                 name="email"
                 type="email"
-                className="h-16 rounded-xl border border-outline-variant/15 bg-surface-container-low pl-14 text-sm placeholder:text-outline/50 focus:ring-primary/25"
+                className="h-16 rounded-xl border border-outline-variant/20 bg-surface-container-low pl-14 text-sm placeholder:text-outline/50 focus:ring-primary/25 hover:border-outline-variant/40 hover:bg-surface-container dark:hover:border-outline-variant/30 transition-all cursor-text peer"
                 placeholder="seu.nome@hospital.org"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -115,15 +115,15 @@ export function LoginForm() {
                 </a>
               )}
             </div>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base text-outline">
+            <div className="relative group">
+              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base text-outline transition-colors group-hover:text-primary">
                 lock
               </span>
               <Input
                 id="password"
                 name="password"
                 type="password"
-                className="h-16 rounded-xl border border-outline-variant/15 bg-surface-container-low pl-14 text-sm placeholder:text-outline/50 focus:ring-primary/25"
+                className="h-16 rounded-xl border border-outline-variant/20 bg-surface-container-low pl-14 text-sm placeholder:text-outline/50 focus:ring-primary/25 hover:border-outline-variant/40 hover:bg-surface-container dark:hover:border-outline-variant/30 transition-all cursor-text peer"
                 placeholder="••••••••"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -159,21 +159,18 @@ export function LoginForm() {
             )}
           </Button>
 
-          <div className="relative py-5">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-outline-variant/20" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-surface-container-high/95 px-3 text-[10px] font-bold tracking-[0.16em] text-on-surface-variant">
-                Ou continuar com
-              </span>
-            </div>
+          <div className="flex items-center gap-4 py-5">
+            <div className="h-px flex-1 bg-outline-variant/30 border-0"></div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant flex-shrink-0">
+              Ou continuar com
+            </span>
+            <div className="h-px flex-1 bg-outline-variant/30 border-0"></div>
           </div>
 
           <Button
             type="button"
             variant="outline"
-            className="h-14 w-full rounded-xl border-outline-variant/15 bg-surface-container-high/90 text-base font-semibold hover:bg-surface-variant"
+            className="group h-14 w-full rounded-xl border border-outline-variant/20 bg-surface-container-low text-base font-semibold hover:border-outline-variant/40 hover:bg-surface-container dark:hover:border-outline-variant/30 transition-all"
             disabled={googleLoading || loading}
             onClick={handleGoogleSignIn}
           >

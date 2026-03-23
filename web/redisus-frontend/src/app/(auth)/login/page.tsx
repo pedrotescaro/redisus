@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/login-form";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
   return (
@@ -23,6 +24,7 @@ export default function LoginPage() {
             </p>
           </div>
         </Link>
+        <ThemeToggle />
       </header>
 
       <div className="flex min-h-screen flex-col md:flex-row">
@@ -73,7 +75,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="relative z-30 flex min-h-screen w-full flex-col justify-center bg-surface-container-low p-8 md:w-2/5 md:border-l md:border-outline-variant/10 md:p-14 shadow-ambient">
+        <section className="relative z-30 flex min-h-screen w-full flex-col justify-center bg-surface-container-low p-8 md:w-2/5 md:border-l dark:md:border-white/[0.05] md:border-black/[0.05] md:p-14 shadow-ambient">
           <Link
             href="/"
             className="mb-8 inline-flex w-fit items-center gap-2 rounded-xl border border-outline-variant/15 bg-surface-container-low/70 px-4 py-2.5 text-sm font-semibold text-on-surface-variant transition-all hover:border-primary/30 hover:bg-surface-container hover:text-on-surface shadow-ambient"
