@@ -191,13 +191,18 @@ export default function ReportsPage() {
             <select
               value={patientId}
               onChange={(event) => setPatientId(event.target.value)}
-              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary card-hover"
+              disabled={patientOptions.length === 0}
+              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary card-hover disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {patientOptions.map((patient) => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.label}
-                </option>
-              ))}
+              {patientOptions.length === 0 ? (
+                <option value="">Nenhum paciente</option>
+              ) : (
+                patientOptions.map((patient) => (
+                  <option key={patient.id} value={patient.id}>
+                    {patient.label}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 

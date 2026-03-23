@@ -167,13 +167,18 @@ export default function ComparisonPage() {
                 const nextId = event.target.value;
                 setPatientId(nextId);
               }}
-              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary"
+              disabled={patientOptions.length === 0}
+              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {patientOptions.map((patient) => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.label}
-                </option>
-              ))}
+              {patientOptions.length === 0 ? (
+                <option value="">Nenhum paciente</option>
+              ) : (
+                patientOptions.map((patient) => (
+                  <option key={patient.id} value={patient.id}>
+                    {patient.label}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
@@ -182,15 +187,20 @@ export default function ComparisonPage() {
               Avaliação inicial
             </label>
             <select
-              value={leftEval?.id}
+              value={leftEval?.id || ""}
               onChange={(event) => setLeftEvalId(event.target.value)}
-              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary"
+              disabled={timelineOptions.length === 0}
+              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {timelineOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
+              {timelineOptions.length === 0 ? (
+                <option value="">Nenhum registro</option>
+              ) : (
+                timelineOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
@@ -199,15 +209,20 @@ export default function ComparisonPage() {
               Avaliação atual
             </label>
             <select
-              value={rightEval?.id}
+              value={rightEval?.id || ""}
               onChange={(event) => setRightEvalId(event.target.value)}
-              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary"
+              disabled={timelineOptions.length === 0}
+              className="h-12 w-full rounded-xl bg-surface-container-high px-4 text-sm text-on-surface ghost-border outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {timelineOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
+              {timelineOptions.length === 0 ? (
+                <option value="">Nenhum registro</option>
+              ) : (
+                timelineOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))
+              )}
             </select>
           </div>
         </div>
