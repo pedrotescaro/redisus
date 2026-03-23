@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  sendPasswordResetEmail,
   type User,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -25,6 +26,10 @@ export async function signInWithGoogle() {
 
 export async function signOutUser() {
   return signOut(auth);
+}
+
+export async function resetPassword(email: string) {
+  return sendPasswordResetEmail(auth, email);
 }
 
 export async function waitForAuthenticatedUser(timeoutMs = 5000): Promise<User | null> {

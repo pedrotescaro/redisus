@@ -8,6 +8,7 @@ import {
   signInWithEmail,
   signInWithGoogle,
   signUpWithEmail,
+  resetPassword,
 } from "@/services/firebase/auth-service";
 
 export function LoginForm() {
@@ -17,6 +18,7 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
   const router = useRouter();
 
   const title =
@@ -58,6 +60,29 @@ export function LoginForm() {
       setError(message);
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setError(null);
+    setResetSent(false);
+
+    if (!email) {
+      setError("Por favor, preencha o campo de e-mail antes para recuperar a senha.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await resetPassword(email);
+      setResetSent(true);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Falha ao enviar e-mail de recuperação.";
+      setError(message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,12 +132,14 @@ export function LoginForm() {
                 Senha
               </label>
               {mode === "login" && (
-                <a
-                  href="#"
-                  className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary transition-colors hover:text-primary/80"
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary transition-colors hover:text-primary/80 disabled:opacity-50"
+                  disabled={loading}
                 >
                   Esqueceu?
-                </a>
+                </button>
               )}
             </div>
             <div className="relative group">
@@ -136,6 +163,13 @@ export function LoginForm() {
             <div className="flex items-center gap-2 rounded-xl border border-error/30 bg-error-container/20 p-3 text-sm font-medium text-error">
               <span className="material-symbols-outlined text-sm">error</span>
               {error}
+            </div>
+          )}
+
+          {resetSent && (
+            <div className="flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-sm font-medium text-green-700 dark:text-green-400">
+              <span className="material-symbols-outlined text-sm">check_circle</span>
+              E-mail de recuperação enviado!
             </div>
           )}
 
