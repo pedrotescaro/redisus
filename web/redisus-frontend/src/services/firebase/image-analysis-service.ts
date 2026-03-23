@@ -79,7 +79,7 @@ export async function uploadAndAnalyzeImage(
   // 4. Labeling com Gemini (equivalente a ML Kit Image Labeling)
   let labels: Array<{ description: string; confidence: number }> = [];
   try {
-    const { geminiVisionModel } = await import("@/lib/firebase-ai");
+    const { generateVisionResponse } = await import("@/app/actions/genkit-actions");
 
     const buffer = await imageFile.arrayBuffer();
     const base64 = btoa(
@@ -89,20 +89,13 @@ export async function uploadAndAnalyzeImage(
       ),
     );
 
-    const labelResult = await geminiVisionModel.generateContent([
-      "Identifique os elementos nesta imagem medica. Retorne APENAS um JSON: " +
+    const jsonPrompt = "Identifique os elementos nesta imagem medica. Retorne APENAS um JSON: " +
         '{"labels":[{"description":"texto","confidence":0.95}]}. ' +
-        "Inclua: tecidos, cores, texturas, objetos, anatomia, condicoes medicas.",
-      {
-        inlineData: {
-          mimeType: imageFile.type || "image/jpeg",
-          data: base64,
-        },
-      },
-    ]);
+        "Inclua: tecidos, cores, texturas, objetos, anatomia, condicoes medicas.";
 
-    const text = labelResult.response.text().trim();
-    const jsonStr = text.startsWith("```")
+    const text = await generateVisionResponse(base64, imageFile.type || "image/jpeg", jsonPrompt);
+
+    const jsonStr = text.trim().startsWith("```")
       ? text.split("\n").slice(1).join("\n").replace(/```$/, "").trim()
       : text;
 

@@ -15,7 +15,6 @@ import {
   limit,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { geminiModel } from "@/lib/firebase-ai";
 
 // ─── Types ───────────────────────────────────────────────────
 export type ChatMessage = {
@@ -36,7 +35,7 @@ export type Conversation = {
 // ─── Refs ────────────────────────────────────────────────────
 const conversationsRef = collection(db, "ai_conversations");
 
-// ─── Chat via Firebase AI Logic (Gemini front-end) ───────────
+// ─── Chat via Server Action (Genkit) ───────────
 export async function sendChatMessage(
   message: string,
   conversationId?: string,
@@ -56,19 +55,18 @@ export async function sendChatMessage(
   }
 
   try {
-    // Monta o historico de chat para o Gemini
-    const chat = geminiModel.startChat({
-      history: prevMessages.map((msg) => ({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: msg.content }],
+    const { generateChatResponse } = await import("@/app/actions/genkit-actions");
+    
+    // Chama a Server Action do Genkit passando o historico
+    aiResponse = await generateChatResponse(
+      prevMessages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
       })),
-    });
-
-    // Envia a mensagem
-    const result = await chat.sendMessage(message);
-    aiResponse = result.response.text();
+      message
+    );
   } catch (error) {
-    console.error("[AI Chat] Erro Gemini, usando fallback:", error);
+    console.error("[AI Chat] Erro Genkit, usando fallback:", error);
     aiResponse = getFallbackResponse(message);
   }
 
@@ -111,13 +109,13 @@ export async function sendChatMessage(
   return { response: aiResponse, conversationId: convId };
 }
 
-// ─── Analise de imagem via Gemini Vision ─────────────────────
+// ─── Analise de imagem via Genkit Server Action ─────────────────────
 export async function analyzeImageWithAI(
   imageFile: File,
   customPrompt?: string,
 ): Promise<string> {
   try {
-    const { geminiVisionModel } = await import("@/lib/firebase-ai");
+    const { generateVisionResponse } = await import("@/app/actions/genkit-actions");
 
     // Converte imagem para base64
     const buffer = await imageFile.arrayBuffer();
@@ -128,26 +126,8 @@ export async function analyzeImageWithAI(
       ),
     );
 
-    const prompt =
-      customPrompt ||
-      "Analise esta imagem de ferida/lesao. Identifique:\n" +
-        "1. Tipo de tecido predominante (necrose, esfacelo, granulacao, epitelizacao)\n" +
-        "2. Caracteristicas visiveis\n" +
-        "3. Sinais de infeccao (se houver)\n" +
-        "4. Sugestao de conduta clinica\n" +
-        "5. Avaliacao geral do estado da ferida";
-
-    const result = await geminiVisionModel.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: imageFile.type || "image/jpeg",
-          data: base64,
-        },
-      },
-    ]);
-
-    return result.response.text();
+    const result = await generateVisionResponse(base64, imageFile.type || "image/jpeg", customPrompt);
+    return result;
   } catch (error) {
     console.error("[AI Vision] Erro na analise:", error);
     throw new Error("Falha ao analisar imagem com IA. Tente novamente.");
