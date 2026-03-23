@@ -3,6 +3,7 @@ import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 const firebaseEnv = {
   NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -47,6 +48,30 @@ if (typeof window !== "undefined") {
       analytics = getAnalytics(app);
     }
   });
+}
+
+// App Check initialization
+if (typeof window !== "undefined") {
+  // Ativa modo debug se configurado (essencial para localhost)
+  if (process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG === "true") {
+    // @ts-ignore
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+
+  const siteKey = process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY;
+  if (siteKey) {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } else if (process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG === "true") {
+    // Inicializa sem siteKey apenas se estiver em debug
+    // O Debug Provider sera usado automaticamente se FIREBASE_APPCHECK_DEBUG_TOKEN estiver definido
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider("DEBUG_MODE"), // Valor dummy, debug token sera usado
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
 }
 
 export const auth = getAuth(app);
