@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redisus | Heal+ - Mockup Landing</title>
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              surface: "var(--surface)", "surface-dim": "var(--surface-dim)", "surface-bright": "var(--surface-bright)",
+              "surface-container-lowest": "var(--surface-container-lowest)", "surface-container-low": "var(--surface-container-low)",
+              "surface-container": "var(--surface-container)", "surface-container-high": "var(--surface-container-high)",
+              "surface-container-highest": "var(--surface-container-highest)", "surface-variant": "var(--surface-variant)",
+              background: "var(--background)", primary: "var(--primary)", "primary-container": "var(--primary-container)",
+              "primary-fixed": "var(--primary-fixed)", "primary-fixed-dim": "var(--primary-fixed-dim)",
+              "on-primary": "var(--on-primary)", "on-primary-container": "var(--on-primary-container)",
+              "on-primary-fixed": "var(--on-primary-fixed)", "on-primary-fixed-variant": "var(--on-primary-fixed-variant)",
+              "inverse-primary": "var(--inverse-primary)", secondary: "var(--secondary)", "secondary-container": "var(--secondary-container)",
+              "on-secondary": "var(--on-secondary)", "on-secondary-container": "var(--on-secondary-container)",
+              tertiary: "var(--tertiary)", "tertiary-container": "var(--tertiary-container)",
+              error: "var(--error)", "error-container": "var(--error-container)",
+              "on-surface": "var(--on-surface)", "on-surface-variant": "var(--on-surface-variant)",
+              outline: "var(--outline)", "outline-variant": "var(--outline-variant)"
+            },
+            fontFamily: {
+              nav: ["Manrope", "Inter", "sans-serif"], headline: ["Manrope", "Poppins", "sans-serif"],
+              body: ["Manrope", "Poppins", "sans-serif"], sans: ["Manrope", "Poppins", "sans-serif"],
+            },
+            boxShadow: { ambient: "var(--shadow-ambient)" },
+          }
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="font-body antialiased bg-background text-on-surface min-h-screen">
+    <div class="min-h-screen bg-surface text-on-surface">
+      <nav class="fixed top-0 z-50 w-full bg-surface/80 backdrop-blur-xl shadow-ambient">
+        <div class="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6">
+          <a href="index.html" class="group flex items-center gap-2">
+            <!-- Simulated Logo -->
+            <div class="w-14 h-14 bg-primary/20 rounded-full flex items-center justify-center text-primary font-bold transition-transform group-hover:scale-105">Logo</div>
+            <div class="-ml-1">
+              <h1 class="text-2xl font-extrabold leading-none tracking-tight text-primary font-headline">Heal+</h1>
+              <p class="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Plataforma Clínica</p>
+            </div>
+          </a>
+
+          <div class="hidden items-center gap-8 md:flex">
+            <a href="#funcionalidades" class="group relative text-sm font-semibold text-on-surface-variant transition-colors hover:text-primary focus:text-primary focus:outline-none">
+              Funcionalidades
+              <span class="absolute -bottom-1 left-0 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 group-hover:scale-x-100 group-focus:scale-x-100"></span>
+            </a>
+            <a href="#beneficios" class="group relative text-sm font-semibold text-on-surface-variant transition-colors hover:text-primary focus:text-primary focus:outline-none">
+              Benefícios
+              <span class="absolute -bottom-1 left-0 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 group-hover:scale-x-100 group-focus:scale-x-100"></span>
+            </a>
+            <a href="about.html" class="group relative text-sm font-semibold text-on-surface-variant transition-colors hover:text-primary focus:text-primary focus:outline-none">
+              Sobre
+              <span class="absolute -bottom-1 left-0 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 group-hover:scale-x-100 group-focus:scale-x-100"></span>
+            </a>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button class="bg-surface-container-low rounded-full p-2 flex text-on-surface-variant hover:text-on-surface">
+              <span class="material-symbols-outlined text-[20px]">light_mode</span>
+            </button>
+            <a href="dashboard.html" class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-colors">Login</a>
+            <a href="dashboard.html" class="rounded-xl bg-primary-container px-5 py-2.5 text-sm font-bold text-on-primary-container shadow-ambient hover:brightness-110 transition-all">Começar</a>
+          </div>
+        </div>
+      </nav>
+
+      <main class="pt-24">
+        <section id="sobre" class="relative overflow-hidden px-6 pb-16 pt-10">
+          <div class="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]"></div>
+          <div class="relative z-10 mx-auto max-w-5xl text-center">
+            <div class="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary ghost-border">
+              <span class="material-symbols-outlined text-sm">auto_awesome</span>
+              Pesquisa aplicada em saúde digital
+            </div>
+            <h1 class="mt-6 text-5xl font-extrabold tracking-tight font-headline md:text-7xl">
+              HEAL+: <span class="text-primary">IA para avaliação de feridas</span>
+            </h1>
+            <p class="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-on-surface-variant md:text-xl">
+              Plataforma de pesquisa para apoio ao diagnóstico e monitoramento de feridas crônicas, com visão
+              computacional, modelos de deep learning e foco em interoperabilidade clínica incremental.
+            </p>
+            <div class="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <a href="dashboard.html" class="w-full rounded-xl bg-primary-container px-10 py-4 text-center text-lg font-bold text-on-primary-container shadow-ambient sm:w-auto">Acessar Plataforma</a>
+              <a href="#funcionalidades" class="w-full rounded-xl border border-outline-variant/20 px-10 py-4 text-center text-lg font-bold hover:bg-surface-container-low transition-colors sm:w-auto">Ver Funcionalidades</a>
+            </div>
+          </div>
+
+          <div class="relative z-10 mx-auto mt-14 w-full max-w-6xl">
+            <div class="rounded-2xl bg-surface-container-low p-3 shadow-ambient ghost-border">
+              <div class="relative flex aspect-video w-full overflow-hidden rounded-xl bg-surface-container-high ring-1 ring-outline-variant/20 shadow-inner">
+                <div class="h-full w-full bg-surface-variant flex items-center justify-center text-on-surface-variant">
+                    [Vídeo de Demonstração Placeholder]
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="funcionalidades" class="mx-auto max-w-7xl px-6 py-20">
+          <div class="mb-12 space-y-3 text-center">
+            <h2 class="text-3xl font-bold font-headline md:text-4xl">Tecnologia para Cuidado Baseado em Evidências</h2>
+            <p class="mx-auto max-w-2xl text-on-surface-variant">Componentes alinhados ao escopo técnico-científico do projeto e à jornada clínica.</p>
+          </div>
+
+          <div class="grid gap-6 md:grid-cols-12">
+            <article class="rounded-2xl bg-surface-container p-8 shadow-ambient ghost-border md:col-span-8">
+              <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                <span class="material-symbols-outlined">auto_awesome</span>
+              </div>
+              <h3 class="mt-5 text-2xl font-bold font-headline">Pipeline de IA em Dois Estágios</h3>
+              <p class="mt-3 max-w-xl text-on-surface-variant">
+                Detecção em tempo real para localização da lesão e diagnóstico aprofundado para segmentação, classificação e apoio à decisão clínica.
+              </p>
+              <div class="mt-8 rounded-xl bg-surface-container-high p-8">
+                <p class="text-sm text-on-surface-variant">YOLO, U-Net, ResNet/Ensemble, MedSAM e explicabilidade com Grad-CAM.</p>
+              </div>
+            </article>
+
+            <article class="rounded-2xl bg-surface-container-low p-8 ghost-border md:col-span-4">
+              <div class="w-12 h-12 rounded-xl bg-tertiary/10 text-tertiary flex items-center justify-center">
+                <span class="material-symbols-outlined">description</span>
+              </div>
+              <h3 class="mt-5 text-2xl font-bold font-headline">Dados Clínicos Estruturados</h3>
+              <p class="mt-3 text-on-surface-variant">Estrutura de dados canônica para rastreabilidade, comparação longitudinal e geração de laudos.</p>
+              <div class="mt-6 space-y-2 border-t border-outline-variant/15 pt-4">
+                <p class="text-xs uppercase tracking-widest text-primary">Modelo clínico versionado</p>
+                <p class="text-xs uppercase tracking-widest text-primary">APIs REST + Relatórios</p>
+              </div>
+            </article>
+
+            <!-- Loop Feature Items -->
+            <article class="rounded-2xl bg-surface-container p-8 ghost-border md:col-span-4">
+                <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <span class="material-symbols-outlined">auto_awesome</span>
+                </div>
+                <h3 class="mt-5 text-xl font-bold font-headline">Análise Inteligente</h3>
+                <p class="mt-2 text-on-surface-variant">Pipeline em dois estágios (detecção + diagnóstico) para apoiar a avaliação tecidual e etiológica de feridas crônicas.</p>
+            </article>
+            <article class="rounded-2xl bg-surface-container p-8 ghost-border md:col-span-4">
+                <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <span class="material-symbols-outlined">description</span>
+                </div>
+                <h3 class="mt-5 text-xl font-bold font-headline">Laudo Clínico Estruturado</h3>
+                <p class="mt-2 text-on-surface-variant">Geração de relatório com composição tecidual, classificação e indicadores clínicos para apoiar conduta e rastreabilidade.</p>
+            </article>
+            <article class="rounded-2xl bg-surface-container p-8 ghost-border md:col-span-4">
+                <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <span class="material-symbols-outlined">hub</span>
+                </div>
+                <h3 class="mt-5 text-xl font-bold font-headline">Plataforma Clínica Unificada</h3>
+                <p class="mt-2 text-on-surface-variant">Conexão entre avaliação, comparação e relatório clínico estruturado na jornada digital de feridas.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="beneficios" class="bg-surface-container-low py-20">
+          <div class="mx-auto grid max-w-7xl gap-10 px-6 md:grid-cols-3">
+              <article>
+                <span class="material-symbols-outlined text-4xl text-primary">schedule</span>
+                <h4 class="mt-4 text-xl font-bold font-headline">Padronização do Cuidado</h4>
+                <p class="mt-2 text-sm leading-relaxed text-on-surface-variant">Reduz subjetividade na avaliação por imagem e apoia decisões clínicas mais consistentes entre equipes.</p>
+              </article>
+              <article>
+                <span class="material-symbols-outlined text-4xl text-primary">biotech</span>
+                <h4 class="mt-4 text-xl font-bold font-headline">Pesquisa Translacional</h4>
+                <p class="mt-2 text-sm leading-relaxed text-on-surface-variant">Conecta pesquisa aplicada, validação multicêntrica e evolução tecnológica para uso real clínico.</p>
+              </article>
+              <article>
+                <span class="material-symbols-outlined text-4xl text-primary">rebase_edit</span>
+                <h4 class="mt-4 text-xl font-bold font-headline">Escalabilidade da Plataforma</h4>
+                <p class="mt-2 text-sm leading-relaxed text-on-surface-variant">Arquitetura modular para evolução progressiva de integrações e serviços clínicos.</p>
+              </article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="relative mt-20 border-t border-outline-variant/10 bg-surface-container-lowest py-16 overflow-hidden">
+        <div class="pointer-events-none absolute -bottom-24 left-1/2 h-64 w-[600px] -translate-x-1/2 rounded-full bg-primary/5 blur-[100px]"></div>
+        
+        <div class="relative z-10 mx-auto flex max-w-7xl flex-col items-center justify-between gap-12 px-6 lg:flex-row lg:items-start">
+          <div class="text-center lg:text-left">
+            <div class="flex items-center justify-center gap-2 lg:justify-start">
+              <p class="text-2xl font-bold font-headline text-primary">Heal+</p>
+            </div>
+            <p class="mt-4 max-w-sm text-sm leading-relaxed text-on-surface-variant">
+              Plataforma acadêmica avançada com visão computacional para avaliação de lesões crônicas, rastreabilidade clínica e geração inteligente de laudos.
+            </p>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-12 text-sm sm:grid-cols-3">
+            <div class="flex flex-col gap-4">
+              <h4 class="font-bold text-on-surface font-headline uppercase tracking-wider text-xs">Produto</h4>
+              <a href="#funcionalidades" class="text-on-surface-variant hover:text-primary transition-colors">Funcionalidades</a>
+              <a href="#beneficios" class="text-on-surface-variant hover:text-primary transition-colors">Benefícios</a>
+            </div>
+            
+            <div class="flex flex-col gap-4">
+              <h4 class="font-bold text-on-surface font-headline uppercase tracking-wider text-xs">Acesso</h4>
+              <a href="dashboard.html" class="text-on-surface-variant hover:text-primary transition-colors">Área Clínica</a>
+              <a href="about.html" class="text-on-surface-variant hover:text-primary transition-colors">Sobre o Projeto</a>
+            </div>
+
+            <div class="col-span-2 flex flex-col gap-4 sm:col-span-1">
+              <h4 class="font-bold text-primary font-headline uppercase tracking-wider text-xs">Pesquisa Acadêmica</h4>
+              <a href="references.html" class="group inline-flex items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-primary hover:bg-primary/20 transition-all font-semibold">
+                Referências do Trabalho
+                <span class="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">import_contacts</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="relative z-10 mx-auto mt-16 max-w-7xl border-t border-outline-variant/10 px-6 pt-8 text-center text-xs text-on-surface-variant lg:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
+          <p>© 2026 Projeto HEAL+ REDISUS. Cuidado baseado em evidências.</p>
+          <p>Uso exclusivo para apoio à decisão.</p>
+        </div>
+      </footer>
+    </div>
+</body>
+</html>

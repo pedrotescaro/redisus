@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redisus | Heal+ - Mockup Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              surface: "var(--surface)", "surface-container-lowest": "var(--surface-container-lowest)",
+              "surface-container-low": "var(--surface-container-low)", "surface-container": "var(--surface-container)",
+              "surface-variant": "var(--surface-variant)", background: "var(--background)", primary: "var(--primary)",
+              "primary-container": "var(--primary-container)", "on-primary": "var(--on-primary)",
+              "on-primary-container": "var(--on-primary-container)", "on-surface": "var(--on-surface)",
+              "on-surface-variant": "var(--on-surface-variant)", "outline-variant": "var(--outline-variant)",
+              error: "var(--error)", outline: "var(--outline)"
+            },
+            fontFamily: {
+              nav: ["Manrope", "Inter", "sans-serif"], headline: ["Manrope", "Poppins", "sans-serif"],
+              body: ["Manrope", "Poppins", "sans-serif"]
+            },
+            boxShadow: { ambient: "var(--shadow-ambient)" },
+          }
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="font-body antialiased bg-background text-on-surface min-h-screen flex">
+
+    <!-- Sidebar Layout -->
+    <aside class="h-screen w-64 fixed left-0 top-0 bg-surface-container-lowest flex flex-col py-6 z-50 font-nav shadow-ambient">
+      <a href="index.html" class="px-6 mb-10 flex items-center gap-2 group">
+        <div class="w-12 h-12 rounded bg-primary/20 text-primary font-bold flex items-center justify-center transition-transform group-hover:scale-110">Logo</div>
+        <div class="-ml-1">
+          <h1 class="text-2xl font-extrabold text-primary tracking-tight leading-none">Heal+</h1>
+          <p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mt-0.5 opacity-70">Plataforma Clínica</p>
+        </div>
+      </a>
+
+      <!-- Main Navigation -->
+      <nav class="flex-grow space-y-1">
+        <a href="dashboard.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-primary-container shadow-ambient" style="background: linear-gradient(15deg, var(--primary) 0%, #2196f3 100%);">
+            <span class="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-surface-container-lowest"></span>
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+            <span>Início</span>
+        </a>
+        <a href="patients.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">group</span>
+            <span>Pacientes</span>
+        </a>
+        <a href="evaluations.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">assignment</span>
+            <span>Avaliações</span>
+        </a>
+        <a href="comparison.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">compare_arrows</span>
+            <span>Comparar</span>
+        </a>
+        <a href="reports.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">summarize</span>
+            <span>Gerar Relatório</span>
+        </a>
+        <a href="ai-search.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">auto_awesome</span>
+            <span>Assistente IA</span>
+        </a>
+      </nav>
+
+      <!-- Bottom Navigation -->
+      <div class="mt-auto px-2 space-y-1">
+        <a href="#" class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface transition-colors font-medium hover:bg-primary/5 rounded-lg">
+          <span class="material-symbols-outlined">settings</span>
+          <span>Configurações</span>
+        </a>
+        <button class="w-full flex items-center gap-3 px-4 py-3 text-error hover:text-error transition-colors font-medium hover:bg-error/10 rounded-lg">
+          <span class="material-symbols-outlined">logout</span>
+          <span>Sair</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Section -->
+    <main class="flex-grow ml-64 min-h-screen bg-surface">
+      <!-- TopAppBar -->
+      <header class="fixed top-0 right-0 left-64 h-16 z-40 bg-surface-container-lowest/70 backdrop-blur-xl flex items-center px-8 shadow-ambient font-nav">
+        <div class="flex-1"></div>
+        <button class="flex items-center bg-surface-container-low rounded-full px-4 py-2.5 w-96 group hover:bg-surface-container hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer text-left">
+          <span class="material-symbols-outlined text-lg mr-2 transition-all duration-300 text-outline">search</span>
+          <span class="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">Buscar pacientes ou relatórios...</span>
+        </button>
+        <div class="flex-1 flex items-center justify-end gap-6">
+          <div class="flex items-center gap-2">
+            <button class="hover:bg-surface-container rounded-full p-2 transition-all relative">
+              <span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+              <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+            <button class="hover:bg-surface-container rounded-full p-2 transition-all">
+              <span class="material-symbols-outlined text-on-surface-variant">help_outline</span>
+            </button>
+          </div>
+          <div class="h-8 w-[1px] bg-outline-variant/15"></div>
+          <div class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+            <div class="text-right">
+              <p class="text-sm font-bold text-on-surface leading-none">Profissional de Exemplo</p>
+              <p class="text-[10px] text-primary font-medium uppercase tracking-wider mt-1">Profissional de Saúde</p>
+            </div>
+            <div class="w-10 h-10 rounded-full border-2 border-outline-variant/20 bg-surface-container flex items-center justify-center">
+              <span class="material-symbols-outlined text-on-surface-variant">person</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dashboard Content -->
+      <div class="pt-24 px-8 pb-12 max-w-7xl mx-auto space-y-8">
+        <div class="mb-4">
+          <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-green-500/15 text-green-600">
+            <span class="material-symbols-outlined text-sm">monitor_heart</span>
+            API clínica online
+          </span>
+        </div>
+
+        <!-- Greeting Hero Section -->
+        <section class="relative overflow-hidden rounded-xl bg-surface-container-lowest p-10 shadow-ambient">
+          <div class="relative z-10 max-w-2xl">
+            <p class="text-2xl font-semibold font-nav text-on-surface tracking-tight mb-2">Olá, Profissional.</p>
+            <h2 class="text-4xl font-extrabold font-nav text-primary tracking-tight mb-4">Sua central de gestão inteligente de feridas.</h2>
+            <p class="text-on-surface-variant font-body leading-relaxed mb-6">Acompanhe a evolução clínica, analise métricas de cicatrização e gere laudos detalhados com inteligência artificial em poucos cliques.</p>
+            <a href="evaluations.html" class="text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 hover:opacity-90 transition-opacity shadow-ambient w-fit" style="background: linear-gradient(15deg, var(--primary) 0%, #2196f3 100%);">
+              <span class="material-symbols-outlined">add_circle</span>
+              Iniciar Nova Avaliação
+            </a>>
+          </div>
+          <div class="absolute -right-20 -top-20 w-96 h-96 bg-primary/10 rounded-full blur-[100px]"></div>
+          <div class="absolute right-12 bottom-0 opacity-10 pointer-events-none">
+            <span class="material-symbols-outlined text-[240px] text-primary">medical_services</span>
+          </div>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <!-- Case Evolution Stats -->
+          <div class="lg:col-span-2 space-y-6">
+            <div class="flex justify-between items-end">
+              <h3 class="text-xl font-bold font-headline text-on-surface">Evolução de casos</h3>
+              <a href="#" class="text-sm text-primary font-semibold hover:underline">Ver relatório completo</a>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Stat Card 1 -->
+              <div class="bg-surface-container-lowest p-8 rounded-xl shadow-ambient border border-transparent hover:border-primary/30 ghost-border card-hover transition-all group">
+                <div class="flex justify-between items-start mb-6">
+                  <div class="bg-primary/10 p-3 rounded-xl text-primary group-hover:scale-110 transition-transform">
+                    <span class="material-symbols-outlined text-3xl">personal_injury</span>
+                  </div>
+                  <span class="text-[10px] font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-full uppercase tracking-tight">Hoje</span>
+                </div>
+                <div class="space-y-1">
+                  <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Pacientes Ativos</p>
+                  <div class="flex items-baseline gap-2">
+                    <h4 class="text-6xl font-bold font-headline text-on-surface">1.248</h4>
+                    <span class="text-sm font-medium text-on-surface-variant">em tratamento</span>
+                  </div>
+                </div>
+                <div class="mt-8 h-1 w-full bg-surface-container rounded-full overflow-hidden">
+                  <div class="h-full bg-primary-container w-3/4 transition-all duration-1000"></div>
+                </div>
+              </div>
+
+              <!-- Stat Card 2 -->
+              <div class="bg-surface-container-lowest p-8 rounded-xl shadow-ambient border border-transparent hover:border-primary/30 ghost-border card-hover transition-all group">
+                <div class="flex justify-between items-start mb-6">
+                  <div class="bg-primary/10 p-3 rounded-xl text-primary group-hover:scale-110 transition-transform">
+                    <span class="material-symbols-outlined text-3xl">assignment_add</span>
+                  </div>
+                  <span class="text-[10px] font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-full uppercase tracking-tight">Últimos 7 dias</span>
+                </div>
+                <div class="space-y-1">
+                  <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Avaliações Recentes</p>
+                  <div class="flex items-baseline gap-2">
+                    <h4 class="text-6xl font-bold font-headline text-on-surface">34</h4>
+                    <span class="text-sm font-medium text-on-surface-variant">realizadas</span>
+                  </div>
+                </div>
+                <div class="mt-8 flex gap-1">
+                  <div class="h-1 flex-1 bg-primary-container rounded-full"></div>
+                  <div class="h-1 flex-1 bg-primary-container rounded-full"></div>
+                  <div class="h-1 flex-1 bg-primary-container rounded-full"></div>
+                  <div class="h-1 flex-1 bg-primary-container rounded-full"></div>
+                  <div class="h-1 flex-1 bg-surface-container rounded-full"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Shortcuts -->
+          <div class="space-y-6">
+            <h3 class="text-xl font-bold font-headline text-on-surface">Atalhos Rápidos</h3>
+
+            <div class="grid grid-cols-2 gap-4">
+              <a href="evaluations.html" class="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl ghost-border card-hover hover:border-primary/30 transition-all group">
+                <div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <span class="material-symbols-outlined">add_circle</span>
+                </div>
+                <span class="text-sm font-bold text-on-surface">Nova Avaliação</span>
+              </a>
+
+              <a href="reports.html" class="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl ghost-border card-hover hover:border-primary/30 transition-all group">
+                <div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <span class="material-symbols-outlined">analytics</span>
+                </div>
+                <span class="text-sm font-bold text-on-surface">Gerar Relatório</span>
+              </a>
+
+              <a href="patients.html" class="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl ghost-border card-hover hover:border-primary/30 transition-all group">
+                <div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <span class="material-symbols-outlined">groups</span>
+                </div>
+                <span class="text-sm font-bold text-on-surface">Pacientes</span>
+              </a>
+
+              <a href="comparison.html" class="flex flex-col items-start gap-4 p-6 bg-surface-container-lowest rounded-xl ghost-border card-hover hover:border-primary/30 transition-all group">
+                <div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <span class="material-symbols-outlined">compare</span>
+                </div>
+                <span class="text-sm font-bold text-on-surface">Comparar</span>
+              </a>
+            </div>
+
+            <!-- Calendar Mini-View -->
+            <div class="bg-surface-container-lowest rounded-xl p-6 shadow-ambient">
+              <div class="flex items-center justify-between mb-8">
+                <h4 class="text-lg font-bold text-on-surface">Próximos Agendamentos</h4>
+                <span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-on-surface">more_horiz</span>
+              </div>
+              <!-- Empty State Schedule -->
+              <div class="flex flex-col items-center justify-center py-8 text-center">
+                <div class="w-24 h-24 bg-surface-container-low rounded-full flex items-center justify-center mb-4">
+                  <span class="material-symbols-outlined text-4xl text-outline-variant" style="font-variation-settings: 'wght' 200">event_busy</span>
+                </div>
+                <p class="text-on-surface font-bold mb-1">Sem pacientes agendados</p>
+                <p class="text-on-surface-variant text-sm">Hoje, 24 de março</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="rounded-xl p-6 text-white" style="background: linear-gradient(15deg, var(--primary) 0%, #2196f3 100%);">
+          <div class="flex items-center gap-4 mb-4">
+            <span class="material-symbols-outlined text-3xl">verified</span>
+            <div>
+              <p class="font-bold text-lg">Tudo em ordem por aqui</p>
+              <p class="text-white/80 text-xs">Seu sistema está atualizado e sincronizado.</p>
+            </div>
+          </div>
+          <hr class="border-white/20 mb-4" />
+          <button class="text-white text-sm font-bold flex items-center justify-between group w-full text-left">
+            Saiba como começar
+            <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">chevron_right</span>
+          </button>
+        </section>
+
+      </div>
+    </main>
+</body>
+</html>

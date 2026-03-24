@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redisus | Heal+ - Nova Avaliação</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              surface: "var(--surface)", "surface-container-lowest": "var(--surface-container-lowest)",
+              "surface-container-low": "var(--surface-container-low)", "surface-container": "var(--surface-container)",
+              "surface-variant": "var(--surface-variant)", background: "var(--background)", primary: "var(--primary)",
+              "primary-container": "var(--primary-container)", "on-primary": "var(--on-primary)",
+              "on-primary-container": "var(--on-primary-container)", "on-surface": "var(--on-surface)",
+              "on-surface-variant": "var(--on-surface-variant)", "outline-variant": "var(--outline-variant)",
+              error: "var(--error)", outline: "var(--outline)", tertiary: "var(--tertiary)",
+            },
+            fontFamily: {
+              nav: ["Manrope", "Inter", "sans-serif"], headline: ["Manrope", "Poppins", "sans-serif"],
+              body: ["Manrope", "Poppins", "sans-serif"]
+            },
+            boxShadow: { ambient: "var(--shadow-ambient)" },
+          }
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="font-body antialiased bg-background text-on-surface min-h-screen flex">
+
+    <!-- Sidebar Layout -->
+    <aside class="h-screen w-64 fixed left-0 top-0 bg-surface-container-lowest flex flex-col py-6 z-50 font-nav shadow-ambient">
+      <a href="index.html" class="px-6 mb-10 flex items-center gap-2 group">
+        <div class="w-12 h-12 rounded bg-primary/20 text-primary font-bold flex items-center justify-center transition-transform group-hover:scale-110">Logo</div>
+        <div class="-ml-1">
+          <h1 class="text-2xl font-extrabold text-primary tracking-tight leading-none">Heal+</h1>
+          <p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mt-0.5 opacity-70">Plataforma Clínica</p>
+        </div>
+      </a>
+
+      <!-- Main Navigation -->
+      <nav class="flex-grow space-y-1">
+        <a href="dashboard.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">dashboard</span>
+            <span>Início</span>
+        </a>
+        <a href="patients.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">group</span>
+            <span>Pacientes</span>
+        </a>
+        <a href="evaluations.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-primary-container shadow-ambient" style="background: linear-gradient(15deg, var(--primary) 0%, #2196f3 100%);">
+            <span class="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-surface-container-lowest"></span>
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assignment</span>
+            <span>Avaliações</span>
+        </a>
+        <a href="comparison.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">compare_arrows</span>
+            <span>Comparar</span>
+        </a>
+        <a href="reports.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">summarize</span>
+            <span>Gerar Relatório</span>
+        </a>
+        <a href="ai-search.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">auto_awesome</span>
+            <span>Assistente IA</span>
+        </a>
+      </nav>
+
+      <!-- Bottom Navigation -->
+      <div class="mt-auto px-2 space-y-1">
+        <a href="#" class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface transition-colors font-medium hover:bg-primary/5 rounded-lg">
+          <span class="material-symbols-outlined">settings</span>
+          <span>Configurações</span>
+        </a>
+        <button class="w-full flex items-center gap-3 px-4 py-3 text-error hover:text-error transition-colors font-medium hover:bg-error/10 rounded-lg">
+          <span class="material-symbols-outlined">logout</span>
+          <span>Sair</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Section -->
+    <main class="flex-grow ml-64 min-h-screen bg-surface">
+      <!-- TopAppBar -->
+      <header class="fixed top-0 right-0 left-64 h-16 z-40 bg-surface-container-lowest/70 backdrop-blur-xl flex items-center px-8 shadow-ambient font-nav">
+        <div class="flex-1"></div>
+        <button class="flex items-center bg-surface-container-low rounded-full px-4 py-2.5 w-96 group hover:bg-surface-container hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer text-left">
+          <span class="material-symbols-outlined text-lg mr-2 transition-all duration-300 text-outline">search</span>
+          <span class="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">Buscar pacientes ou relatórios...</span>
+        </button>
+        <div class="flex-1 flex items-center justify-end gap-6">
+          <div class="flex items-center gap-2">
+            <button class="hover:bg-surface-container rounded-full p-2 transition-all relative">
+              <span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+              <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+            <button class="hover:bg-surface-container rounded-full p-2 transition-all">
+              <span class="material-symbols-outlined text-on-surface-variant">help_outline</span>
+            </button>
+          </div>
+          <div class="h-8 w-[1px] bg-outline-variant/15"></div>
+          <div class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+            <div class="text-right">
+              <p class="text-sm font-bold text-on-surface leading-none">Profissional de Exemplo</p>
+              <p class="text-[10px] text-primary font-medium uppercase tracking-wider mt-1">Profissional de Saúde</p>
+            </div>
+            <div class="w-10 h-10 rounded-full border-2 border-outline-variant/20 bg-surface-container flex items-center justify-center">
+              <span class="material-symbols-outlined text-on-surface-variant">person</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <div class="pt-24 px-8 pb-12 max-w-7xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 class="text-3xl font-extrabold font-headline text-on-surface">Nova Avaliação</h1>
+            <p class="text-on-surface-variant mt-1">Registre uma avaliação clínica detalhada com análise por IA</p>
+          </div>
+          <div class="flex items-center gap-2 text-xs font-bold text-primary bg-primary/10 px-4 py-2 rounded-full">
+            <span class="material-symbols-outlined text-sm">verified</span> Protocolo clínico com TIMERS ativo
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
+          <!-- Progress Sidebar -->
+          <div class="bg-surface-container-low rounded-xl p-6 h-fit border border-outline-variant/5">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-gray-500 mb-6">Progresso</h3>
+            <div class="space-y-4">
+              <div class="flex items-start gap-4 p-3 rounded-lg transition-all cursor-pointer bg-primary/10 border border-primary/20">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-primary text-on-primary">
+                  <span class="text-sm font-bold">1</span>
+                </div>
+                <div class="flex-grow min-w-0">
+                  <p class="font-semibold text-sm text-primary">Paciente e Dados</p>
+                  <p class="text-[10px] font-bold uppercase tracking-wider mt-0.5 text-primary">EM PROGRESSO</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-4 p-3 rounded-lg transition-all cursor-pointer hover:bg-surface-container">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-surface-container-high text-gray-500">
+                  <span class="text-sm font-bold">2</span>
+                </div>
+                <div class="flex-grow min-w-0">
+                  <p class="font-semibold text-sm text-gray-400">Avaliação Clínica</p>
+                  <p class="text-[10px] font-bold uppercase tracking-wider mt-0.5 text-gray-500">AGUARDANDO</p>
+                </div>
+              </div>
+
+               <div class="flex items-start gap-4 p-3 rounded-lg transition-all cursor-pointer hover:bg-surface-container">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-surface-container-high text-gray-500">
+                  <span class="text-sm font-bold">3</span>
+                </div>
+                <div class="flex-grow min-w-0">
+                  <p class="font-semibold text-sm text-gray-400">Evidência e IA</p>
+                  <p class="text-[10px] font-bold uppercase tracking-wider mt-0.5 text-gray-500">AGUARDANDO</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-4 p-3 rounded-lg transition-all cursor-pointer hover:bg-surface-container">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-surface-container-high text-gray-500">
+                  <span class="text-sm font-bold">4</span>
+                </div>
+                <div class="flex-grow min-w-0">
+                  <p class="font-semibold text-sm text-gray-400">TIMERS e Fechamento</p>
+                  <p class="text-[10px] font-bold uppercase tracking-wider mt-0.5 text-gray-500">AGUARDANDO</p>
+                </div>
+              </div>
+            </div>
+            <div class="mt-6 pt-6 border-t border-outline-variant/10">
+              <p class="text-xs text-gray-500 text-center">Passo 1 de 4</p>
+            </div>
+          </div>
+
+          <!-- Form Content -->
+          <div class="space-y-8">
+            <section class="bg-surface-container-low rounded-xl p-8 border border-outline-variant/5">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                  <span class="material-symbols-outlined">person_search</span>
+                </div>
+                <div>
+                  <h2 class="text-lg font-bold font-headline text-on-surface">Identificação e Contexto</h2>
+                  <p class="text-sm text-on-surface-variant">Dados do paciente e informações básicas da avaliação</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2 md:col-span-2">
+                  <label class="text-sm font-medium text-on-surface-variant">Paciente</label>
+                  <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                    <input type="text" class="flex h-10 w-full rounded-md border border-input bg-background text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10" placeholder="Buscar paciente por nome...">
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-on-surface-variant">Data da Avaliação</label>
+                  <input type="date" class="flex h-10 w-full rounded-md border border-input bg-background text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value="2026-03-24">
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-on-surface-variant">Tipo de Ferida</label>
+                  <select class="w-full rounded-xl border border-outline-variant/15 bg-surface-container-high px-4 py-2.5 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer">
+                    <option value="">Selecione o tipo de ferida</option>
+                    <option value="pressure_ulcer">Úlcera por Pressão</option>
+                    <option value="diabetic_ulcer">Úlcera Diabética</option>
+                  </select>
+                </div>
+
+                 <div class="space-y-2 md:col-span-2">
+                  <label class="text-sm font-medium text-on-surface-variant">Localização Anatômica</label>
+                  <input type="text" class="flex h-10 w-full rounded-md border border-input bg-background text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" placeholder="Ex: Região sacral, calcâneo direito">
+                </div>
+
+                <div class="space-y-2 md:col-span-2">
+                  <label class="text-sm font-medium text-on-surface-variant">Resumo Clínico da Lesão</label>
+                  <textarea rows="3" class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" placeholder="Descreva brevemente fatores agravantes, comorbidades recentes ou eventos relevantes..."></textarea>
+                </div>
+              </div>
+            </section>
+            
+            <div class="flex justify-end pt-4">
+              <button class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-on-primary hover:opacity-90 h-10 px-4 py-2 opacity-50 cursor-not-allowed">
+                Próxima Etapa <span class="material-symbols-outlined text-sm ml-2">arrow_forward</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+</body>
+</html>

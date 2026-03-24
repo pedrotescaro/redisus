@@ -1,0 +1,392 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   LIGHT MODE (default) - Luminous Sanctuary
+   ======================================== */
+:root {
+  /* Surfaces */
+  --surface: #f7f9fc;
+  --surface-dim: #d8dadd;
+  --surface-bright: #f7f9fc;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f2f4f7;
+  --surface-container: #eceef1;
+  --surface-container-high: #f8fafc;
+  --surface-container-highest: #ffffff;
+  --surface-variant: #e0e3e6;
+  --background: #f7f9fc;
+
+  /* Primary */
+  --primary: #0061a4;
+  --primary-container: #2196f3;
+  --primary-fixed: #d1e4ff;
+  --primary-fixed-dim: #9ecaff;
+  --on-primary: #ffffff;
+  --on-primary-container: #ffffff;
+  --on-primary-fixed: #001d36;
+  --on-primary-fixed-variant: #00497d;
+  --inverse-primary: #9ecaff;
+
+  /* Secondary */
+  --secondary: #416084;
+  --secondary-container: #b4d4fe;
+  --secondary-fixed: #d1e4ff;
+  --secondary-fixed-dim: #a9c9f2;
+  --on-secondary: #ffffff;
+  --on-secondary-container: #3c5c7f;
+  --on-secondary-fixed: #001d36;
+  --on-secondary-fixed-variant: #28496b;
+
+  /* Tertiary */
+  --tertiary: #904d00;
+  --tertiary-container: #db7900;
+  --tertiary-fixed: #ffdcc2;
+  --tertiary-fixed-dim: #ffb77b;
+  --on-tertiary: #ffffff;
+  --on-tertiary-container: #452200;
+  --on-tertiary-fixed: #2e1500;
+  --on-tertiary-fixed-variant: #6d3900;
+
+  /* Error */
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error: #ffffff;
+  --on-error-container: #93000a;
+
+  /* Surface text colors */
+  --on-surface: #191c1e;
+  --on-surface-variant: #2c3e50;
+  --on-background: #191c1e;
+  --inverse-surface: #2d3133;
+  --inverse-on-surface: #eff1f4;
+
+  /* Outline */
+  --outline: #707883;
+  --outline-variant: #bfc7d4;
+
+  /* Surface tint */
+  --surface-tint: #0061a4;
+
+  /* Shadow */
+  --shadow-ambient: 0px 4px 24px rgba(33, 150, 243, 0.08);
+
+  /* Gradient */
+  --primary-gradient-start: #0061a4;
+  --primary-gradient-end: #2196f3;
+}
+
+/* ========================================
+   DARK MODE
+   ======================================== */
+.dark {
+  /* Surfaces */
+  --surface: #131313;
+  --surface-dim: #131313;
+  --surface-bright: #393939;
+  --surface-container-lowest: #0e0e0e;
+  --surface-container-low: #1c1b1b;
+  --surface-container: #20201f;
+  --surface-container-high: #2a2a2a;
+  --surface-container-highest: #353535;
+  --surface-variant: #353535;
+  --background: #131313;
+
+  /* Primary */
+  --primary: #9ecaff;
+  --primary-container: #2196f3;
+  --primary-fixed: #d1e4ff;
+  --primary-fixed-dim: #9ecaff;
+  --on-primary: #003258;
+  --on-primary-container: #ffffff;
+  --on-primary-fixed: #001d36;
+  --on-primary-fixed-variant: #00497d;
+  --inverse-primary: #0061a4;
+
+  /* Secondary */
+  --secondary: #a9c9f2;
+  --secondary-container: #2b4b6e;
+  --secondary-fixed: #d1e4ff;
+  --secondary-fixed-dim: #a9c9f2;
+  --on-secondary: #0c3253;
+  --on-secondary-container: #9bbbe3;
+  --on-secondary-fixed: #001d36;
+  --on-secondary-fixed-variant: #28496b;
+
+  /* Tertiary */
+  --tertiary: #ffb77b;
+  --tertiary-container: #db7900;
+  --tertiary-fixed: #ffdcc2;
+  --tertiary-fixed-dim: #ffb77b;
+  --on-tertiary: #4d2700;
+  --on-tertiary-container: #452200;
+  --on-tertiary-fixed: #2e1500;
+  --on-tertiary-fixed-variant: #6d3900;
+
+  /* Error */
+  --error: #ffb4ab;
+  --error-container: #93000a;
+  --on-error: #690005;
+  --on-error-container: #ffdad6;
+
+  /* Surface text colors */
+  --on-surface: #e5e2e1;
+  --on-surface-variant: #bfc7d4;
+  --on-background: #e5e2e1;
+  --inverse-surface: #e5e2e1;
+  --inverse-on-surface: #313030;
+
+  /* Outline */
+  --outline: #89919d;
+  --outline-variant: #404752;
+
+  /* Surface tint */
+  --surface-tint: #9ecaff;
+
+  /* Shadow */
+  --shadow-ambient: 0px 10px 40px rgba(229, 226, 225, 0.06);
+
+  /* Gradient */
+  --primary-gradient-start: #2196f3;
+  --primary-gradient-end: #64b5f6;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--on-surface);
+  background-color: var(--background);
+  font-family: 'Manrope', 'Poppins', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.a11y-large-text,
+.a11y-large-text body {
+  font-size: 1.08rem;
+}
+
+/* High contrast — Light mode */
+.a11y-high-contrast:not(.dark) {
+  --on-surface: #000000;
+  --on-surface-variant: #1a1a1a;
+  --background: #ffffff;
+  --surface: #ffffff;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f0f0f0;
+  --surface-container: #e4e4e4;
+  --surface-container-high: #d6d6d6;
+  --surface-container-highest: #c8c8c8;
+  --outline: #000000;
+  --outline-variant: #444444;
+  --primary: #003d8f;
+  --primary-container: #0056c7;
+  --on-primary: #ffffff;
+  --on-primary-container: #ffffff;
+  --shadow-ambient: 0px 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* High contrast — Dark mode */
+.a11y-high-contrast.dark {
+  --on-surface: #ffffff;
+  --on-surface-variant: #f0f0f0;
+  --background: #000000;
+  --surface: #000000;
+  --surface-container-lowest: #000000;
+  --surface-container-low: #0b0b0b;
+  --surface-container: #111111;
+  --surface-container-high: #1a1a1a;
+  --surface-container-highest: #242424;
+  --outline: #ffffff;
+  --outline-variant: #cccccc;
+  --primary: #8ed1ff;
+  --primary-container: #0065b8;
+  --on-primary-container: #ffffff;
+  --shadow-ambient: 0px 4px 16px rgba(255, 255, 255, 0.08);
+}
+
+.a11y-reduced-motion *,
+.a11y-reduced-motion *::before,
+.a11y-reduced-motion *::after {
+  animation: none !important;
+  transition-duration: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Material Symbols Configuration */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Glass Effect */
+.glass-effect {
+  backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.dark .glass-effect {
+  background: rgba(28, 27, 27, 0.6);
+}
+
+/* Primary Gradient for CTAs */
+.bg-primary-gradient {
+  background: linear-gradient(15deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+}
+
+/* Custom Scrollbar - Light */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-container-low);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--outline);
+}
+
+/* Focus visible styles */
+*:focus-visible {
+  outline: 2px solid #2196f3;
+  outline-offset: 2px;
+}
+
+/* Ghost border utility */
+.ghost-border {
+  border: 1px solid rgba(191, 199, 212, 0.15);
+}
+
+.dark .ghost-border {
+  border: 1px solid rgba(64, 71, 82, 0.15);
+}
+
+/* Ambient shadow utility */
+.shadow-ambient {
+  box-shadow: var(--shadow-ambient);
+}
+
+/* Tonal panel (no hard divider lines) */
+.panel-surface {
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--surface-container-lowest) 78%, var(--primary) 22%) 0%,
+    var(--surface-container-low) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--outline-variant) 15%, transparent 85%);
+  box-shadow: var(--shadow-ambient);
+}
+
+.dark .panel-surface {
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--surface-container-lowest) 90%, var(--primary) 10%) 0%,
+    var(--surface-container-low) 100%
+  );
+}
+
+/* Input field focus pop-out effect */
+input:focus,
+textarea:focus,
+select:focus {
+  background-color: var(--surface-container-lowest);
+  border-color: var(--primary);
+}
+
+/* Form field subtle borders - Dark mode fix */
+.dark input,
+.dark select,
+.dark textarea,
+.dark .border,
+.dark .border-outline-variant,
+.dark .border-transparent,
+.dark .border-slate,
+.dark table tr,
+.dark .bg-white {
+  border-color: rgba(68, 68, 68, 0.2) !important;
+}
+
+.dark .border-outline-variant\/15,
+.dark .ghost-border,
+.dark .border-outline-variant\/10,
+.dark .border-brand {
+  border-color: rgba(68, 68, 68, 0.2) !important;
+}
+
+/* Legacy classes from dashboard */
+.dark .border-red,
+.dark .border-brand-100,
+.dark .border-slate-100,
+.dark .shadow-soft {
+  border-color: rgba(68, 68, 68, 0.3) !important;
+  background-color: var(--surface-container-high) !important;
+}
+
+/* DOCX Export button demotion */
+.dark button[data-variant="outline"]:has([aria-label*="DOCX"]),
+.dark .outline-export,
+.dark [class*="Exportar DOCX"] {
+  border-color: rgba(68, 68, 68, 0.2) !important;
+  color: #999 !important;
+}
+
+.dark .outline-export:hover,
+.dark button[data-variant="outline"]:has([aria-label*="DOCX"]):hover,
+.dark [class*="Exportar DOCX"]:hover {
+  background-color: rgba(42, 42, 42, 0.5) !important;
+  border-color: rgba(33, 150, 243, 0.3) !important;
+  color: #ccc !important;
+}
+
+/* Enhanced hover states for interactivity */
+input:hover,
+select:hover,
+textarea:hover,
+button:hover,
+[role="button"]:hover,
+.card-hover:hover,
+.panel-surface:hover {
+  background-color: rgba(var(--surface-container-high-rgb, 42, 42, 42), 0.6) !important;
+  border-color: rgba(33, 150, 243, 0.3) !important;
+  transition: all 0.2s ease;
+}
+
+.dark .card-hover:hover,
+.dark .panel-surface:hover {
+  box-shadow: 0 8px 32px rgba(33, 150, 243, 0.15) !important;
+}
+
+/* Ensure Tailwind hovers work */
+@layer utilities {
+  .hover-surface\:hover {
+    @apply bg-surface-container-high;
+  }
+  .hover-primary\:hover {
+    @apply border-primary/50;
+  }
+}
+
+input:focus,
+textarea:focus {
+  background-color: var(--surface-container-lowest);
+}
+
+/* Theme transition for smooth switching */
+* {
+  transition-property: background-color, border-color;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+}
+
+/* Disable transition for transform and opacity to keep animations smooth */
+*:not(.transition-all):not(.transition-colors):not(.transition-opacity):not(.transition-transform) {
+  transition-property: background-color, border-color;
+}
