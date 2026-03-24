@@ -1364,55 +1364,51 @@ O HEAL+ será validado em ambientes reais do SUS seguindo protocolo multicêntri
 
 ## 20. Referências Bibliográficas
 
-1. **Sen, C. K., et al.** (2009). Human skin wounds: A major and snowballing threat to public health and the economy. *Wound Repair and Regeneration*, 17(6), 763–771.
-2. **Järbrink, K., et al.** (2017). The humanistic and economic burden of chronic wounds: a protocol for a systematic review. *Systematic Reviews*, 6(1), 15.
-3. **Ma, J., et al.** (2024). Segment anything in medical images. *Nature Communications*, 15, 654. *(MedSAM)*
-4. **Zhang, Y., et al.** (2023). BiomedCLIP: A multimodal biomedical foundation model pretrained from fifteen million scientific image-text pairs. *arXiv:2303.00915*. *(BiomedCLIP)*
-5. **Schultz, G. S., et al.** (2003). Wound bed preparation: a systematic approach to wound management. *Wound Repair and Regeneration*, 11(S1), S1–S28. *(Abordagem TIME)*
-6. **O'Meara, S., et al.** (2012). Compression for venous leg ulcers. *Cochrane Database of Systematic Reviews*. *(Compressão multicomponente)*
-7. **Bergstrom, N., et al.** (1987). The Braden Scale for predicting pressure sore risk. *Nursing Research*, 36(4), 205–210.
-8. **Wagner, F. W.** (1981). The dysvascular foot: a system for diagnosis and treatment. *Foot & Ankle*, 2(2), 64–122. *(Escala de Wagner)*
-9. **Anisuzzaman, D. M., et al.** (2022). Image-based artificial intelligence in wound assessment: A systematic review. *Advances in Wound Care*, 11(12), 687–709.
-10. **Ronneberger, O., et al.** (2015). U-Net: Convolutional Networks for Biomedical Image Segmentation. *MICCAI*, 234–241.
-11. **He, K., et al.** (2016). Deep Residual Learning for Image Recognition. *CVPR*, 770–778. *(ResNet)*
-12. **Redmon, J., et al.** (2016–2023). YOLOv1→v8: evolução de detectores de objetos em tempo real. *Ultralytics*. *(YOLOv8)*
-13. **Tan, M. & Le, Q.** (2019). EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks. *ICML*. *(EfficientNet)*
-14. **Wang, C., et al.** (2023). Wound Segmentation Network (WSNet). *WACV 2023*. *(Wseg dataset — 2686 imagens)*
-15. **Cassidy, B., et al.** (2021). The DFUC 2020 dataset: Analysis towards diabetic foot ulcer detection. *BioMedical Engineering OnLine*. *(DFUC Challenge)*
-
-### Referências da Proposta REDI-SUS
-
-16. **Botelho, S. S. C., et al.** (2024). Performance-watt analysis of GPU-based digital twin simulations. In: *IECON 2024 — 50th Annual Conference of the IEEE Industrial Electronics Society* (USA).
-17. **Niemiec, W.; Cota, E.** (2025). Towards a component-based framework for mHealth apps: Bridging the gap between the nursing domain language and the computation domain. *Journal of Systems and Software*, 230:112497. https://doi.org/10.1016/j.jss.2025.112497 *(TAKERE)*
-18. **Niemiec, W.; Tavares, A. R.; Cota, E.** (2025). Leveraging Natural Language Processing for mHealth Development: A Component-Based Approach Using Nursing Taxonomies. *Proc. IEEE CBMS*. doi:10.1109/CBMS65348.2025.00084 *(TAKERE/NLP)*
-19. **Oliveira, V. M., et al.** (2024). Digital Twin Across Industry 5.0: Integrating Dimensional Analysis to a Rotor Inspection Module. In: *2024 IEEE 22nd Int. Conf. on Industrial Informatics*, Beijing. *(Twin@Home)*
-20. **Carvalho, R.; Sampaio, A. F.; Vasconcelos, M. J. M.** (2025). Automating Tissue Segmentation and Quantification for Wound Healing Assessment. In: *2025 IEEE 38th CBMS*, Madrid, p. 160–166. doi:10.1109/CBMS65348.2025.00042
-21. **Bahadır, E. B.; Sezgintürk, M. K.** (2016). Lateral flow assays: principles, designs and labels. *TrAC Trends in Analytical Chemistry*. *(REDE VIVA)*
-22. **Pias, M. R., et al.** (2025). On the scaling of digital twins by aggregation. *Data & Policy*, 7:e9. *(Twin@Home)*
-23. **Gomis-Pastor, M., et al.** Improving patients' experience and medication adherence after heart failure treatment: mixed methods study. *(Experiência do Paciente)*
-24. **INCA.** (2021). *Detecção precoce do câncer*. Rio de Janeiro: INCA. 72 p. ISBN 978-65-88517-22-2. *(DermaSUS)*
-25. **Jakob, R., et al.** (2022). Factors Influencing Adherence to mHealth Apps for Prevention or Management of Noncommunicable Diseases: Systematic Review. *J Med Internet Res*, 24(5):e35371. doi:10.2196/35371 *(mHealth/Adesão)*
-26. **Laubenbacher, R., et al.** (2024). Digital twins in medicine. *Nature Computational Science*. *(Twin@Home)*
-27. **Liu, Y., et al.** (2019). A Novel Cloud-Based Framework for the Elderly Healthcare Services Using Digital Twin. *IEEE Access*. *(Twin@Home)*
-28. **Orofino-Costa, R., et al.** (2017). Sporotrichosis: an update on epidemiology, etiopathogenesis, laboratory and clinical therapeutics. *An Bras Dermatol*. *(REDE VIVA)*
-29. **Sehat Ullah, et al.** (2025). Machine Learning and Digital-Twins-Based Internet of Robotic Things for Remote Patient Monitoring. *IEEE Journals & Magazine*. *(Twin@Home/IoT)*
-30. **Shamsuddeen, A., et al.** (2024). The future of skin cancer diagnosis: a comprehensive systematic review of ML and DL models. *Cogent Engineering*, 11(1):2395425. https://doi.org/10.1080/23311916.2024.2395425 *(DermaSUS)*
-31. **Somfai, E., et al.** (2023). Handling dataset dependence with model ensembles for skin lesion classification from dermoscopic and clinical images. *Int J Imaging Syst Technol*, 33(2):556–571. *(Ensemble/DermaSUS)*
-32. **Tambella, A. M., et al.** (2025). Avanços na medição sem contato da área da ferida usando aplicativo móvel. *Skin Wound Care*, 38(7):360–366. doi:10.1097/ASW.0000000000000296 *(Medição de feridas/mHealth)*
-33. **McMahan, B., et al.** (2017). Communication-Efficient Learning of Deep Networks from Decentralized Data. *AISTATS*. *(Federated Learning)*
-
----
-
-## Aviso Legal
-
-> Este software é uma ferramenta de **auxílio ao diagnóstico** e **não substitui a avaliação clínica profissional**. Todas as decisões terapêuticas devem ser validadas por profissionais de saúde qualificados.  
-> Consulte o Comitê de Ética em Pesquisa (CEP) de sua instituição antes de qualquer uso clínico.  
-> O projeto encontra-se em nível TRL 4–5 (validação em ambiente laboratorial / ambiente relevante simulado).  
-> Dados de pacientes devem ser tratados em conformidade com a LGPD (Lei 13.709/2018) e aprovados pelo CEP/CONEP da instituição responsável.
-
-## Licença
-
-Este projeto é destinado ao uso em **pesquisa acadêmica e desenvolvimento em saúde**, no âmbito da Rede REDI-SUS (Cluster 7 — RNP/RUTE). Para uso comercial ou clínico, entre em contato com os autores e verifique conformidade regulatória (ANVISA, LGPD).
+1. ARAÚJO, T. M. et al. Realidade virtual no alívio da dor durante a troca de curativos de feridas crônicas. Revista da Escola de Enfermagem da USP, São Paulo, v. 55, e20200513, 2021. DOI: https://doi.org/10.1590/1980-220X-REEUSP-2020-0513. Disponível em: https://www.scielo.br/j/reeusp/a/xLqsRvkycBVLt3DD7BsM4tP/?lang=pt&format=pdf. Acesso em: 30 maio 2025.
+2. BORGES, Eline Lima; SOUZA, Perla Oliveira Soares de. Feridas: como tratar. 3. ed. Rio de Janeiro: Rubio, 2024. p. 61-88.
+3. FLORIANÓPOLIS. Prefeitura Municipal. Secretaria Municipal de Saúde. Protocolo de cuidados de feridas. Florianópolis, SC: SMS, 2008.
+4. GERMANO, Renan Soares; ELISEO, Maria Amelia; SILVEIRA, Ismar Frango. Introdução à acessibilidade na Web: do conceito à prática. In: JORNADAS IBERO-AMERICANAS DE INTERAÇÃO HUMANO-COMPUTADOR, 7., 2021, São Paulo. Anais [...]. São Paulo: Sociedade Brasileira de Computação, 2021.
+5. LIMA, E. V. M. et al. Construction of a mobile application for wound assessment for nursing students and professionals. Estima – Brazilian Journal of Enterostomal Therapy, [S. l.], v. 22, art. 1515, 2024. Disponível em: https://www.revistaestima.com.br/estima/article/view/1515. Acesso em: 1 nov. 2024.
+6. MADRIL MEDEIROS, R. M. et al. Contribuição de um software para o registro, monitoramento e avaliação de feridas. Global Academic Nursing Journal, [S. l.], v. 2, n. 3, p. e146, 2021. DOI: 10.5935/2675-5602.20200146. Disponível em: https://www.globalacademicnursing.com/index.php/globacadnurs/article/view/123. Acesso em: 7 mar. 2025.
+7. MEDETEC. Medetec Image Databases. A collection of wound images for research and education. Disponível em: https://www.medetec.co.uk/files/medetec-image-databases.html.
+8. MENOITA, E.; SEARA, A.; SANTOS, V. Plano de Tratamento dirigido aos Sinais Clínicos da Infecção da Ferida. Journal of Aging & Inovation, v. 3, n. 2, p. 62-73, 2014.
+9. PAULA, M. A. B.; SANTOS, V. L. C. G. O significado de ser especialista para o enfermeiro estomaterapeuta. Revista Latino-Americana de Enfermagem, Ribeirão Preto, v. 11, n. 4, p. 474–482, jul. 2003. Disponível em: https://www.scielo.br/j/rlae/a/mvBJQ3wFgTGjT6hJ4NNDVxS/. Acesso em: 13 nov. 2024.
+10. ROCHA, Adiel Andrade. Feridômetro: aplicativo de auxílio à aprendizagem do acrônimo TIMERS. 2021. Trabalho de Conclusão de Curso (Graduação em Ciência da Computação) – Universidade Federal de Campina Grande, Campina Grande, 2021. Disponível em: https://dspace.sti.ufcg.edu.br/bitstream/riufcg/19691/1/ADIEL%20ANDRADE%20ROCHA%20-%20TCC%20CI%C3%8ANCIA%20DA%20COMPUTA%C3%87%C3%83O%202021.pdf. Acesso em: 2 set. 2025.
+11. SILVA, Cláudio Xavier da. Sis-MF - Aplicativo para monitoramento da cicatrização de feridas. 2018. Dissertação (Mestrado Profissional em Ciências) – Universidade Federal de São Paulo, São Paulo, 2018.
+12. SOARES PACZEK, R. et al. A ESTOMATERAPIA COMO CAMPO DE ESTÁGIO. In: CONGRESSO BRASILEIRO DE ESTOMATERAPIA, [S. l.], 2024. Anais [...]. [S. l.]: SOBEST, 2024. Disponível em: https://anais.sobest.com.br/cbe/article/view/447. Acesso em: 20 out. 2024.
+13. Sen, C. K., et al. (2009). Human skin wounds: A major and snowballing threat to public health and the economy. *Wound Repair and Regeneration*, 17(6), 763–771.
+14. Järbrink, K., et al. (2017). The humanistic and economic burden of chronic wounds: a protocol for a systematic review. *Systematic Reviews*, 6(1), 15.
+15. Ma, J., et al. (2024). Segment anything in medical images. *Nature Communications*, 15, 654. *(MedSAM)*
+16. Zhang, Y., et al. (2023). BiomedCLIP: A multimodal biomedical foundation model pretrained from fifteen million scientific image-text pairs. *arXiv:2303.00915*. *(BiomedCLIP)*
+17. Schultz, G. S., et al. (2003). Wound bed preparation: a systematic approach to wound management. *Wound Repair and Regeneration*, 11(S1), S1–S28. *(Abordagem TIME)*
+18. O'Meara, S., et al. (2012). Compression for venous leg ulcers. *Cochrane Database of Systematic Reviews*. *(Compressão multicomponente)*
+19. Bergstrom, N., et al. (1987). The Braden Scale for predicting pressure sore risk. *Nursing Research*, 36(4), 205–210.
+20. Wagner, F. W. (1981). The dysvascular foot: a system for diagnosis and treatment. *Foot & Ankle*, 2(2), 64–122. *(Escala de Wagner)*
+21. Anisuzzaman, D. M., et al. (2022). Image-based artificial intelligence in wound assessment: A systematic review. *Advances in Wound Care*, 11(12), 687–709.
+22. Ronneberger, O., et al. (2015). U-Net: Convolutional Networks for Biomedical Image Segmentation. *MICCAI*, 234–241.
+23. He, K., et al. (2016). Deep Residual Learning for Image Recognition. *CVPR*, 770–778. *(ResNet)*
+24. Redmon, J., et al. (2016–2023). YOLOv1→v8: evolução de detectores de objetos em tempo real. *Ultralytics*. *(YOLOv8)*
+25. Tan, M. & Le, Q. (2019). EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks. *ICML*. *(EfficientNet)*
+26. Wang, C., et al. (2023). Wound Segmentation Network (WSNet). *WACV 2023*. *(Wseg dataset — 2686 imagens)*
+27. Cassidy, B., et al. (2021). The DFUC 2020 dataset: Analysis towards diabetic foot ulcer detection. *BioMedical Engineering OnLine*. *(DFUC Challenge)*
+28. Botelho, S. S. C., et al. (2024). Performance-watt analysis of GPU-based digital twin simulations. In: *IECON 2024 — 50th Annual Conference of the IEEE Industrial Electronics Society* (USA).
+29. Niemiec, W.; Cota, E. (2025). Towards a component-based framework for mHealth apps: Bridging the gap between the nursing domain language and the computation domain. *Journal of Systems and Software*, 230:112497. https://doi.org/10.1016/j.jss.2025.112497 *(TAKERE)*
+30. Niemiec, W.; Tavares, A. R.; Cota, E. (2025). Leveraging Natural Language Processing for mHealth Development: A Component-Based Approach Using Nursing Taxonomies. *Proc. IEEE CBMS*. doi:10.1109/CBMS65348.2025.00084 *(TAKERE/NLP)*
+31. Oliveira, V. M., et al. (2024). Digital Twin Across Industry 5.0: Integrating Dimensional Analysis to a Rotor Inspection Module. In: *2024 IEEE 22nd Int. Conf. on Industrial Informatics*, Beijing. *(Twin@Home)*
+32. Carvalho, R.; Sampaio, A. F.; Vasconcelos, M. J. M. (2025). Automating Tissue Segmentation and Quantification for Wound Healing Assessment. In: *2025 IEEE 38th CBMS*, Madrid, p. 160–166. doi:10.1109/CBMS65348.2025.00042
+33. Bahadır, E. B.; Sezgintürk, M. K. (2016). Lateral flow assays: principles, designs and labels. *TrAC Trends in Analytical Chemistry*. *(REDE VIVA)*
+34. Pias, M. R., et al. (2025). On the scaling of digital twins by aggregation. *Data & Policy*, 7:e9. *(Twin@Home)*
+35. Gomis-Pastor, M., et al. Improving patients' experience and medication adherence after heart failure treatment: mixed methods study. *(Experiência do Paciente)*
+36. INCA. (2021). *Detecção precoce do câncer*. Rio de Janeiro: INCA. 72 p. ISBN 978-65-88517-22-2. *(DermaSUS)*
+37. Jakob, R., et al. (2022). Factors Influencing Adherence to mHealth Apps for Prevention or Management of Noncommunicable Diseases: Systematic Review. *J Med Internet Res*, 24(5):e35371. doi:10.2196/35371 *(mHealth/Adesão)*
+38. Laubenbacher, R., et al. (2024). Digital twins in medicine. *Nature Computational Science*. *(Twin@Home)*
+39. Liu, Y., et al. (2019). A Novel Cloud-Based Framework for the Elderly Healthcare Services Using Digital Twin. *IEEE Access*. *(Twin@Home)*
+40. Orofino-Costa, R., et al. (2017). Sporotrichosis: an update on epidemiology, etiopathogenesis, laboratory and clinical therapeutics. *An Bras Dermatol*. *(REDE VIVA)*
+41. Sehat Ullah, et al. (2025). Machine Learning and Digital-Twins-Based Internet of Robotic Things for Remote Patient Monitoring. *IEEE Journals & Magazine*. *(Twin@Home/IoT)*
+42. Shamsuddeen, A., et al. (2024). The future of skin cancer diagnosis: a comprehensive systematic review of ML and DL models. *Cogent Engineering*, 11(1):2395425. https://doi.org/10.1080/23311916.2024.2395425 *(DermaSUS)*
+43. Somfai, E., et al. (2023). Handling dataset dependence with model ensembles for skin lesion classification from dermoscopic and clinical images. *Int J Imaging Syst Technol*, 33(2):556–571. *(Ensemble/DermaSUS)*
+44. Tambella, A. M., et al. (2025). Avanços na medição sem contato da área da ferida usando aplicativo móvel. *Skin Wound Care*, 38(7):360–366. doi:10.1097/ASW.0000000000000296 *(Medição de feridas/mHealth)*
+45. McMahan, B., et al. (2017). Communication-Efficient Learning of Deep Networks from Decentralized Data. *AISTATS*. *(Federated Learning)*
 
 ---
 

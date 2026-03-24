@@ -137,13 +137,20 @@ export default function HomePage() {
 
           <div className="relative z-10 mx-auto mt-14 w-full max-w-6xl">
             <div className="rounded-2xl bg-surface-container-low p-3 shadow-ambient ghost-border">
-              <div className="flex h-[320px] items-center justify-center rounded-xl bg-gradient-to-br from-surface-container-high to-surface-container">
-                <div className="text-center">
-                  <span className="material-symbols-outlined text-6xl text-primary">monitoring</span>
-                  <p className="mt-3 text-sm font-semibold tracking-wide text-on-surface-variant">
-                    Dashboard clínico do HEAL+
+              <div className="relative flex aspect-video w-full overflow-hidden rounded-xl bg-surface-container-high ring-1 ring-outline-variant/20 shadow-inner">
+                <video
+                  src="/videos/dashboard-heal.mp4"
+                  className="h-full w-full object-cover pointer-events-none"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                >
+                  <p className="text-center text-sm text-on-surface-variant">
+                    Seu navegador não suporta a tag de vídeo.
                   </p>
-                </div>
+                </video>
               </div>
             </div>
           </div>
@@ -239,25 +246,51 @@ export default function HomePage() {
         </section>
       </main>
 
-      <footer className="border-t border-outline-variant/10 bg-surface py-10">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-6 md:flex-row">
-          <div>
-            <p className="text-lg font-bold font-headline text-primary">Heal+</p>
-            <p className="text-xs uppercase tracking-widest text-on-surface-variant">
-              Módulo clínico para apoio ao diagnóstico, plano de cuidado e monitoramento.
+      <footer className="relative mt-20 border-t border-outline-variant/10 bg-surface-container-lowest py-16 overflow-hidden">
+        <div className="pointer-events-none absolute -bottom-24 left-1/2 h-64 w-[600px] -translate-x-1/2 rounded-full bg-primary/5 blur-[100px]" />
+        
+        <div className="relative z-10 mx-auto flex max-w-7xl flex-col items-center justify-between gap-12 px-6 lg:flex-row lg:items-start">
+          <div className="text-center lg:text-left">
+            <div className="flex items-center justify-center gap-2 lg:justify-start">
+              <Image
+                src="/images/logo.png"
+                alt="Heal+ Logo"
+                width={40}
+                height={40}
+              />
+              <p className="text-2xl font-bold font-headline text-primary">Heal+</p>
+            </div>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-on-surface-variant">
+              Plataforma acadêmica avançada com visão computacional para avaliação de lesões crônicas, rastreabilidade clínica e geração inteligente de laudos.
             </p>
           </div>
-          <div className="flex flex-wrap justify-center gap-6 text-xs uppercase tracking-widest text-on-surface-variant">
-            <a href="#sobre" className="hover:text-on-surface transition-colors">
-              Sobre
-            </a>
-            <a href="#funcionalidades" className="hover:text-on-surface transition-colors">
-              Funcionalidades
-            </a>
-            <a href="#beneficios" className="hover:text-on-surface transition-colors">
-              Benefícios
-            </a>
+          
+          <div className="grid grid-cols-2 gap-12 text-sm sm:grid-cols-3">
+            <div className="flex flex-col gap-4">
+              <h4 className="font-bold text-on-surface font-headline uppercase tracking-wider text-xs">Produto</h4>
+              <a href="#funcionalidades" className="text-on-surface-variant hover:text-primary transition-colors">Funcionalidades</a>
+              <a href="#beneficios" className="text-on-surface-variant hover:text-primary transition-colors">Benefícios</a>
+            </div>
+            
+            <div className="flex flex-col gap-4">
+              <h4 className="font-bold text-on-surface font-headline uppercase tracking-wider text-xs">Acesso</h4>
+              <Link href="/login" className="text-on-surface-variant hover:text-primary transition-colors">Área Clínica</Link>
+              <a href="#sobre" className="text-on-surface-variant hover:text-primary transition-colors">Sobre o Projeto</a>
+            </div>
+
+            <div className="col-span-2 flex flex-col gap-4 sm:col-span-1">
+              <h4 className="font-bold text-primary font-headline uppercase tracking-wider text-xs">Pesquisa Acadêmica</h4>
+              <Link href="/referencias" className="group inline-flex items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-primary hover:bg-primary/20 transition-all font-semibold">
+                Referências do Trabalho
+                <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">import_contacts</span>
+              </Link>
+            </div>
           </div>
+        </div>
+        
+        <div className="relative z-10 mx-auto mt-16 max-w-7xl border-t border-outline-variant/10 px-6 pt-8 text-center text-xs text-on-surface-variant lg:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
+          <p>© {new Date().getFullYear()} Projeto HEAL+ REDISUS. Cuidado baseado em evidências.</p>
+          <p>Uso exclusivo para apoio à decisão.</p>
         </div>
       </footer>
     </div>
