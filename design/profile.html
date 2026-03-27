@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redisus | Heal+ - Pacientes</title>
+    <title>Redisus | Heal+ - Mockup Perfil</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -17,7 +17,7 @@
               "primary-container": "var(--primary-container)", "on-primary": "var(--on-primary)",
               "on-primary-container": "var(--on-primary-container)", "on-surface": "var(--on-surface)",
               "on-surface-variant": "var(--on-surface-variant)", "outline-variant": "var(--outline-variant)",
-              error: "var(--error)", "error-container": "var(--error-container)", outline: "var(--outline)"
+              error: "var(--error)", outline: "var(--outline)"
             },
             fontFamily: {
               nav: ["Manrope", "Inter", "sans-serif"], headline: ["Manrope", "Poppins", "sans-serif"],
@@ -48,9 +48,8 @@
             <span class="material-symbols-outlined">dashboard</span>
             <span>Início</span>
         </a>
-        <a href="patients.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-primary-container shadow-ambient" style="background: linear-gradient(15deg, var(--primary) 0%, #2196f3 100%);">
-            <span class="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-surface-container-lowest"></span>
-            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">group</span>
+        <a href="patients.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
+            <span class="material-symbols-outlined">group</span>
             <span>Pacientes</span>
         </a>
         <a href="evaluations.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
@@ -69,8 +68,9 @@
             <span class="material-symbols-outlined">auto_awesome</span>
             <span>Assistente IA</span>
         </a>
-        <a href="profile.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">
-            <span class="material-symbols-outlined">person</span>
+        <a href="profile.html" class="relative flex items-center gap-3 mx-4 px-4 py-3 transition-all font-medium rounded-xl text-on-primary-container shadow-ambient" style="background: linear-gradient(15deg, var(--primary) 0%, #2196f3 100%);">
+            <span class="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-surface-container-lowest"></span>
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
             <span>Perfil</span>
         </a>
         </nav>
@@ -120,89 +120,78 @@
         </div>
       </header>
 
-      <!-- Page Content -->
-      <div class="pt-24 px-8 pb-12 max-w-7xl mx-auto space-y-6">
-        <!-- Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 class="text-3xl font-extrabold font-headline text-on-surface">Pacientes</h1>
-            <p class="text-on-surface-variant mt-1">Gerencie seus pacientes e históricos clínicos</p>
-          </div>
-          <div class="flex gap-3">
-            <button class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-outline bg-transparent hover:bg-surface-container-low h-10 px-4 py-2 text-on-surface">
-              <span class="material-symbols-outlined text-sm mr-2">download</span>
-              Exportar PDF
-            </button>
-            <button class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-on-primary hover:opacity-90 h-10 px-4 py-2">
-              <span class="material-symbols-outlined text-sm mr-2">add</span>
-              Novo Paciente
-            </button>
-          </div>
+      
+      <div class="pt-24 px-8 pb-12 max-w-4xl mx-auto space-y-6">
+        <div>
+          <h1 class="text-3xl font-extrabold font-headline text-on-surface">Perfil</h1>
+          <p class="text-on-surface-variant mt-1">Gerencie suas informações pessoais</p>
         </div>
 
-        <!-- Search Bar -->
-        <div class="flex items-center bg-surface-container-high/50 rounded-xl px-4 py-1.5 max-w-md focus-within:ring-2 focus-within:ring-primary/50 transition-all">
-          <span class="material-symbols-outlined text-gray-400 text-lg mr-2">search</span>
-          <input type="text" class="bg-transparent border-none focus:ring-0 focus:outline-none text-sm w-full text-on-surface placeholder:text-gray-500 font-body py-2" placeholder="Buscar por nome ou histórico clínico...">
-        </div>
-
-        <!-- Patients List -->
-        <div class="bg-surface-container-low rounded-xl border border-outline-variant/5 overflow-hidden">
-          <div class="divide-y divide-outline-variant/10">
-            <!-- Patient Item 1 -->
-            <div class="p-6 hover:bg-surface-container transition-colors group">
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex items-start gap-4">
-                  <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                    <span class="material-symbols-outlined">person</span>
-                  </div>
-                  <div>
-                    <h3 class="text-lg font-bold font-headline text-on-surface">Maria Silva</h3>
-                    <p class="text-sm text-on-surface-variant mt-0.5">65 anos</p>
-                    <p class="text-xs text-on-surface-variant mt-1">(11) 98765-4321 • maria.silva@email.com</p>
-                    <p class="text-xs text-on-surface-variant mt-1">Aposentada • Viúvo(a)</p>
-                    <p class="text-sm text-gray-500 mt-2 line-clamp-2">HPP: Diabetes mellitus, Hipertensão arterial. Comorbidades: Obesidade. Medicamentos: Metformina (850mg 12/12h).</p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button class="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-surface-container-low h-10 px-4 py-2">
-                    <span class="material-symbols-outlined text-sm mr-1">edit</span> Editar
-                  </button>
-                  <button class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-outline bg-transparent hover:bg-error/10 hover:border-error/30 text-error h-10 px-4 py-2">
-                    <span class="material-symbols-outlined text-sm">delete</span>
-                  </button>
-                </div>
-              </div>
+        <div class="bg-surface-container-low rounded-xl p-8 border border-outline-variant/5">
+          <div class="flex flex-col md:flex-row items-start gap-6">
+            <div class="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0 border-4 border-primary-container/20">
+              <span class="material-symbols-outlined text-5xl">person</span>
             </div>
-
-            <!-- Patient Item 2 -->
-            <div class="p-6 hover:bg-surface-container transition-colors group">
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex items-start gap-4">
-                  <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                    <span class="material-symbols-outlined">person</span>
-                  </div>
-                  <div>
-                    <h3 class="text-lg font-bold font-headline text-on-surface">João Souza</h3>
-                    <p class="text-sm text-on-surface-variant mt-0.5">72 anos</p>
-                    <p class="text-xs text-on-surface-variant mt-1">(21) 91234-5678 • joao.souza@email.com</p>
-                    <p class="text-xs text-on-surface-variant mt-1">Marceneiro • Casado(a)</p>
-                    <p class="text-sm text-gray-500 mt-2 line-clamp-2">HPP: Doença vascular periférica. Comorbidades: Doença renal crônica.</p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button class="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-surface-container-low h-10 px-4 py-2">
-                    <span class="material-symbols-outlined text-sm mr-1">edit</span> Editar
-                  </button>
-                  <button class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-outline bg-transparent hover:bg-error/10 hover:border-error/30 text-error h-10 px-4 py-2">
-                    <span class="material-symbols-outlined text-sm">delete</span>
-                  </button>
-                </div>
+            
+            <div class="flex-grow">
+              <h2 class="text-2xl font-bold font-headline text-on-surface">Profissional de Exemplo</h2>
+              <p class="text-on-surface-variant mt-1">profissional@healplus.com</p>
+              
+              <div class="flex items-center gap-2 mt-3">
+                <span class="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">
+                  Profissional de Saúde
+                </span>
+                <span class="text-xs font-bold text-tertiary bg-tertiary/10 px-3 py-1 rounded-full flex items-center gap-1">
+                  <span class="material-symbols-outlined text-sm">verified</span> Verificado
+                </span>
+              </div>
+              
+              <div class="mt-4 flex items-center gap-3">
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-surface-container-high px-3 py-2 text-sm hover:brightness-95 transition-all text-on-surface">
+                  <span class="material-symbols-outlined text-base">photo_camera</span>
+                  Trocar foto
+                </label>
               </div>
             </div>
           </div>
+
+          <div class="mt-8 pt-8 border-t border-outline-variant/10 grid gap-6 md:grid-cols-2">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wider text-outline mb-2">ID da Conta</p>
+              <p class="text-on-surface font-mono text-sm bg-surface-container-high px-4 py-2 rounded-lg">
+                12345abcdef...
+              </p>
+            </div>
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wider text-outline mb-2">Último Login</p>
+              <p class="text-on-surface text-sm bg-surface-container-high px-4 py-2 rounded-lg">
+                24 de março de 2026 às 14:00
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-8 pt-8 border-t border-outline-variant/10 space-y-4">
+            <p class="text-xs font-bold uppercase tracking-wider text-outline">Editar perfil</p>
+            <div class="grid gap-3 md:grid-cols-[1fr_auto]">
+              <input type="text" value="Profissional de Exemplo" class="flex h-10 w-full rounded-md border border-outline-variant/20 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 text-on-surface" placeholder="Digite seu nome de exibicao">
+              <button class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-on-primary hover:bg-primary/90 h-10 px-4 py-2">
+                Salvar nome
+              </button>
+            </div>
+          </div>
         </div>
+
+        <section class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/10">
+          <h3 class="text-xl font-bold font-headline text-on-surface">Preferencias da conta</h3>
+          <p class="text-on-surface-variant text-sm mt-1 mb-4">
+            Configure notificacoes e acessibilidade na pagina de configuracoes.
+          </p>
+          <a href="settings.html" class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-outline-variant/20 bg-transparent hover:bg-surface-container-high h-10 px-4 py-2 text-on-surface">
+            Ir para Configuracoes
+          </a>
+        </section>
       </div>
-    </main>
+
+      </main>
 </body>
 </html>
