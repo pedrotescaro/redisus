@@ -7,16 +7,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, abort, jsonify, request, send_file
 from loguru import logger
 
 from packages.clinical_domain.validation import (
     AIChatPayload,
     AnalyzeEvaluationPayload,
+    AlertActionPayload,
+    CompleteFollowUpPayload,
     CreateCarePlanPayload,
     CreateEvaluationPayload,
     CreateFollowUpPayload,
     GenerateReportPayload,
+    UpdateCarePlanPayload,
     assert_allowed_form_fields,
     normalize_image_role,
     validate_and_sanitize_image_upload,
@@ -41,6 +44,8 @@ from packages.shared.security import (
     ensure_patient_access,
     ensure_report_access,
     user_display_name,
+    user_roles,
+    user_uid,
 )
 
 
@@ -128,6 +133,104 @@ class ClinicalAPI:
                 return None
             firebase_admin.initialize_app(cred)
         return auth
+
+    @staticmethod
+    def _normalize_risk(value: Any) -> str:
+        mapping = {
+            "low": "baixo",
+            "baixo": "baixo",
+            "medium": "moderado",
+            "moderate": "moderado",
+            "moderado": "moderado",
+            "high": "alto",
+            "alto": "alto",
+            "critical": "critico",
+            "critico": "critico",
+            "crítico": "critico",
+        }
+        normalized = str(value or "moderado").strip().lower()
+        return mapping.get(normalized, normalized or "moderado")
+
+    @staticmethod
+    def _primary_role(user: Dict[str, Any] | None) -> str:
+        roles = user_roles(user)
+        ordered = ("admin", "clinical-admin", "doctor", "nurse", "clinician", "estomaterapeuta", "researcher")
+        for role in ordered:
+            if role in roles:
+                return role
+        return "unknown"
+
+    def _record_audit_event(
+        self,
+        *,
+        patient_id: str,
+        case_id: str,
+        entity_type: str,
+        entity_id: str,
+        action: str,
+        user: Dict[str, Any] | None,
+        before: Dict[str, Any] | None = None,
+        after: Dict[str, Any] | None = None,
+        metadata: Dict[str, Any] | None = None,
+    ) -> None:
+        if not hasattr(self.db, "create_audit_event"):
+            return
+        self.db.create_audit_event(
+            {
+                "patient_id": patient_id,
+                "case_id": case_id,
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+                "action": action,
+                "actor_uid": user_uid(user),
+                "actor_name": user_display_name(user),
+                "actor_role": self._primary_role(user),
+                "before_json": before,
+                "after_json": after,
+                "metadata": metadata or {},
+            }
+        )
+
+    def _ensure_alert_action_allowed(self, user: Dict[str, Any], alert: Dict[str, Any], action: str) -> None:
+        roles = user_roles(user)
+        severity = self._normalize_risk(alert.get("severity"))
+        if {"admin", "clinical-admin", "superadmin"} & roles:
+            return
+        if action == "acknowledge":
+            if roles & {"doctor", "nurse", "clinician", "estomaterapeuta"}:
+                return
+            abort(403, description="acknowledge alert requires nurse, doctor, or admin role")
+        if action == "resolve":
+            if "doctor" in roles:
+                return
+            if roles & {"nurse", "clinician", "estomaterapeuta"} and severity in {"baixo", "moderado"}:
+                return
+            abort(403, description="resolve alert requires doctor/admin or nurse for low/moderate severity")
+
+    def _ensure_follow_up_completion_allowed(self, user: Dict[str, Any], follow_up: Dict[str, Any]) -> None:
+        roles = user_roles(user)
+        if {"admin", "clinical-admin", "superadmin"} & roles:
+            return
+        assigned_role = str(follow_up.get("assigned_role") or "").strip().lower()
+        if "doctor" in roles:
+            return
+        if roles & {"nurse", "clinician", "estomaterapeuta"}:
+            if assigned_role in {"", "nurse", "clinician", "estomaterapeuta"}:
+                return
+        abort(403, description="complete follow-up requires assigned clinical role, doctor, or admin")
+
+    def _ensure_care_plan_update_allowed(self, user: Dict[str, Any], plan: Dict[str, Any], updates: Dict[str, Any]) -> None:
+        roles = user_roles(user)
+        if {"admin", "clinical-admin", "superadmin", "doctor"} & roles:
+            return
+        if roles & {"nurse", "clinician", "estomaterapeuta"}:
+            restricted = {"status", "risk_level", "title"}
+            if any(field in updates for field in restricted):
+                abort(403, description="changing care plan status, risk, or title requires doctor or admin")
+            if str(plan.get("risk_level") or "").lower() in {"alto", "critico"}:
+                abort(403, description="updating high-risk care plans requires doctor or admin")
+            return
+        abort(403, description="update care plan requires nurse, doctor, or admin role")
 
     def _register_hooks(self):
         bp = self.blueprint
@@ -353,6 +456,7 @@ class ClinicalAPI:
                 care_plans=raw_timeline["care_plans"],
                 follow_ups=raw_timeline["follow_ups"],
                 alerts=raw_timeline["alerts"],
+                audit_log=raw_timeline.get("audit_log", []),
             )
             return jsonify(timeline), 200
 
@@ -377,6 +481,7 @@ class ClinicalAPI:
                                 care_plans=raw_timeline["care_plans"],
                                 follow_ups=raw_timeline["follow_ups"],
                                 alerts=raw_timeline["alerts"],
+                                audit_log=raw_timeline.get("audit_log", []),
                             )
                         )
                 return jsonify({"patient_id": patient_id, "lesions": cases, "timelines": timelines}), 200
@@ -408,6 +513,16 @@ class ClinicalAPI:
             )
             if not record:
                 return jsonify({"error": "care_plan_creation_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(record["patient_id"]),
+                case_id=str(record["case_id"]),
+                entity_type="care_plan",
+                entity_id=str(record["id"]),
+                action="care_plan_created",
+                user=user,
+                after=record,
+                metadata={"source": "manual_api"},
+            )
             return jsonify(record), 201
 
         @bp.route("/lesions/<case_id>/care-plans", methods=["GET"])
@@ -415,6 +530,42 @@ class ClinicalAPI:
             current_user_required()
             ensure_case_access(self.db, case_id)
             return jsonify(self.db.list_case_care_plans(case_id)), 200
+
+        @bp.route("/care-plans/<plan_id>", methods=["PATCH"])
+        def update_care_plan(plan_id: str):
+            user = current_user_required()
+            plan = self.db.get_care_plan(plan_id)
+            if not plan:
+                return jsonify({"error": "care_plan_not_found"}), 404
+            ensure_case_access(self.db, plan["case_id"], user=user)
+            payload = validate_json_request(UpdateCarePlanPayload).model_dump(exclude_none=True)
+            self._ensure_care_plan_update_allowed(user, plan, payload)
+            metadata = {"updated_by": user_display_name(user)}
+            if payload.get("notes"):
+                metadata["notes"] = payload["notes"]
+            updated = self.db.update_care_plan(
+                plan_id,
+                {
+                    key: value
+                    for key, value in payload.items()
+                    if key in {"title", "status", "risk_level", "goals", "frequency", "tasks", "alerts", "review_due_date"}
+                }
+                | {"metadata": metadata},
+            )
+            if not updated:
+                return jsonify({"error": "care_plan_update_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(plan["patient_id"]),
+                case_id=str(plan["case_id"]),
+                entity_type="care_plan",
+                entity_id=plan_id,
+                action="care_plan_updated",
+                user=user,
+                before=plan,
+                after=updated,
+                metadata={"notes": payload.get("notes")},
+            )
+            return jsonify(updated), 200
 
         @bp.route("/follow-ups", methods=["POST"])
         def create_follow_up():
@@ -440,7 +591,155 @@ class ClinicalAPI:
             )
             if not record:
                 return jsonify({"error": "follow_up_creation_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(record["patient_id"]),
+                case_id=str(record["case_id"]),
+                entity_type="follow_up",
+                entity_id=str(record["id"]),
+                action="follow_up_created",
+                user=user,
+                after=record,
+                metadata={"source": "manual_api"},
+            )
             return jsonify(record), 201
+
+        @bp.route("/lesions/<case_id>/follow-ups", methods=["GET"])
+        def list_lesion_follow_ups(case_id: str):
+            user = current_user_required()
+            ensure_case_access(self.db, case_id, user=user)
+            return jsonify(self.db.list_case_follow_ups(case_id)), 200
+
+        @bp.route("/follow-ups/<follow_up_id>/complete", methods=["PATCH"])
+        def complete_follow_up(follow_up_id: str):
+            user = current_user_required()
+            follow_up = self.db.get_follow_up(follow_up_id)
+            if not follow_up:
+                return jsonify({"error": "follow_up_not_found"}), 404
+            ensure_case_access(self.db, follow_up["case_id"], user=user)
+            self._ensure_follow_up_completion_allowed(user, follow_up)
+            payload = validate_json_request(CompleteFollowUpPayload).model_dump(exclude_none=True)
+            status = payload.get("status", "completed")
+            completed_at = datetime.now().isoformat() if status == "completed" else follow_up.get("completed_at")
+            metadata = {
+                "completed_by_uid": user_uid(user),
+                "completed_by_name": user_display_name(user),
+                "completed_by_role": self._primary_role(user),
+            }
+            updated = self.db.update_follow_up(
+                follow_up_id,
+                {
+                    "status": status,
+                    "scheduled_for": payload.get("scheduled_for", follow_up["scheduled_for"]),
+                    "reason": payload.get("reason", follow_up.get("reason")),
+                    "assigned_role": payload.get("assigned_role", follow_up.get("assigned_role")),
+                    "notes": payload.get("notes", follow_up.get("notes")),
+                    "completed_at": completed_at,
+                    "metadata": metadata,
+                },
+            )
+            if not updated:
+                return jsonify({"error": "follow_up_update_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(follow_up["patient_id"]),
+                case_id=str(follow_up["case_id"]),
+                entity_type="follow_up",
+                entity_id=follow_up_id,
+                action=f"follow_up_{status}",
+                user=user,
+                before=follow_up,
+                after=updated,
+                metadata={"notes": payload.get("notes")},
+            )
+            return jsonify(updated), 200
+
+        @bp.route("/lesions/<case_id>/alerts", methods=["GET"])
+        def list_lesion_alerts(case_id: str):
+            user = current_user_required()
+            ensure_case_access(self.db, case_id, user=user)
+            active_only = request.args.get("activeOnly", "0").strip().lower() in {"1", "true", "yes"}
+            return jsonify(self.db.list_case_alerts(case_id, active_only=active_only)), 200
+
+        @bp.route("/alerts/<alert_id>/acknowledge", methods=["PATCH"])
+        def acknowledge_alert(alert_id: str):
+            user = current_user_required()
+            alert = self.db.get_clinical_alert(alert_id)
+            if not alert:
+                return jsonify({"error": "alert_not_found"}), 404
+            ensure_case_access(self.db, alert["case_id"], user=user)
+            self._ensure_alert_action_allowed(user, alert, "acknowledge")
+            payload = validate_json_request(AlertActionPayload).model_dump(exclude_none=True)
+            updated = self.db.update_clinical_alert(
+                alert_id,
+                {
+                    "status": "acknowledged",
+                    "metadata": {
+                        "acknowledged_by_uid": user_uid(user),
+                        "acknowledged_by_name": user_display_name(user),
+                        "acknowledged_by_role": self._primary_role(user),
+                        "notes": payload.get("notes"),
+                        "reason": payload.get("reason"),
+                    },
+                },
+            )
+            if not updated:
+                return jsonify({"error": "alert_acknowledge_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(alert["patient_id"]),
+                case_id=str(alert["case_id"]),
+                entity_type="alert",
+                entity_id=alert_id,
+                action="alert_acknowledged",
+                user=user,
+                before=alert,
+                after=updated,
+                metadata=payload,
+            )
+            return jsonify(updated), 200
+
+        @bp.route("/alerts/<alert_id>/resolve", methods=["PATCH"])
+        def resolve_alert(alert_id: str):
+            user = current_user_required()
+            alert = self.db.get_clinical_alert(alert_id)
+            if not alert:
+                return jsonify({"error": "alert_not_found"}), 404
+            ensure_case_access(self.db, alert["case_id"], user=user)
+            self._ensure_alert_action_allowed(user, alert, "resolve")
+            payload = validate_json_request(AlertActionPayload).model_dump(exclude_none=True)
+            updated = self.db.update_clinical_alert(
+                alert_id,
+                {
+                    "status": "resolved",
+                    "resolved_at": datetime.now().isoformat(),
+                    "metadata": {
+                        "resolved_by_uid": user_uid(user),
+                        "resolved_by_name": user_display_name(user),
+                        "resolved_by_role": self._primary_role(user),
+                        "notes": payload.get("notes"),
+                        "reason": payload.get("reason"),
+                    },
+                },
+            )
+            if not updated:
+                return jsonify({"error": "alert_resolve_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(alert["patient_id"]),
+                case_id=str(alert["case_id"]),
+                entity_type="alert",
+                entity_id=alert_id,
+                action="alert_resolved",
+                user=user,
+                before=alert,
+                after=updated,
+                metadata=payload,
+            )
+            return jsonify(updated), 200
+
+        @bp.route("/lesions/<case_id>/audit", methods=["GET"])
+        def list_lesion_audit(case_id: str):
+            user = current_user_required()
+            ensure_case_access(self.db, case_id, user=user)
+            limit = max(1, min(int(request.args.get("limit", 50)), 200))
+            return jsonify(self.db.list_case_audit_events(case_id, limit=limit)), 200
 
         @bp.route("/comparisons", methods=["GET"])
         def compare_evaluations():
@@ -597,6 +896,16 @@ class ClinicalAPI:
             saved_result = self.db.save_ai_result(run_id, result_payload)
             if not saved_result:
                 raise ValueError("failed to persist AI result")
+            self._record_audit_event(
+                patient_id=str(evaluation["patient_id"]),
+                case_id=str(case_id),
+                entity_type="inference_result",
+                entity_id=str(saved_result["id"]),
+                action="inference_result_created",
+                user={"uid": "ai-pipeline", "name": "ai-pipeline", "role": "admin"},
+                after=saved_result,
+                metadata={"run_id": run_id},
+            )
 
             care_plan = self.db.create_care_plan(
                 build_care_plan_payload(
@@ -609,6 +918,16 @@ class ClinicalAPI:
                 )
             )
             if care_plan:
+                self._record_audit_event(
+                    patient_id=str(evaluation["patient_id"]),
+                    case_id=str(case_id),
+                    entity_type="care_plan",
+                    entity_id=str(care_plan["id"]),
+                    action="care_plan_created_by_ai",
+                    user={"uid": "ai-pipeline", "name": "ai-pipeline", "role": "admin"},
+                    after=care_plan,
+                    metadata={"run_id": run_id},
+                )
                 follow_up = self.db.create_follow_up(
                     build_follow_up_payload(
                         patient_id=str(evaluation["patient_id"]),
@@ -620,6 +939,16 @@ class ClinicalAPI:
                     )
                 )
                 if follow_up:
+                    self._record_audit_event(
+                        patient_id=str(evaluation["patient_id"]),
+                        case_id=str(case_id),
+                        entity_type="follow_up",
+                        entity_id=str(follow_up["id"]),
+                        action="follow_up_scheduled_by_ai",
+                        user={"uid": "ai-pipeline", "name": "ai-pipeline", "role": "admin"},
+                        after=follow_up,
+                        metadata={"run_id": run_id},
+                    )
                     for alert_payload in build_alert_payloads(
                         patient_id=str(evaluation["patient_id"]),
                         lesion_id=str(case_id),
@@ -627,7 +956,18 @@ class ClinicalAPI:
                         follow_up_id=str(follow_up["id"]),
                         inference_result=result_payload,
                     ):
-                        self.db.create_clinical_alert(alert_payload)
+                        created_alert = self.db.create_clinical_alert(alert_payload)
+                        if created_alert:
+                            self._record_audit_event(
+                                patient_id=str(evaluation["patient_id"]),
+                                case_id=str(case_id),
+                                entity_type="alert",
+                                entity_id=str(created_alert["id"]),
+                                action="alert_created_by_ai",
+                                user={"uid": "ai-pipeline", "name": "ai-pipeline", "role": "admin"},
+                                after=created_alert,
+                                metadata={"run_id": run_id},
+                            )
 
             self.db.update_ai_run(
                 run_id,

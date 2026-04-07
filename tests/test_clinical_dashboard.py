@@ -60,6 +60,7 @@ def mock_database():
 
     timelines = {
         "L001": {
+            "patient": patients[0],
             "lesion": lesions["P001"][0],
             "evaluations": [
                 {
@@ -119,8 +120,20 @@ def mock_database():
                     "created_at": "2026-04-05T12:00:00",
                 }
             ],
+            "audit_log": [
+                {
+                    "id": "AUD1",
+                    "case_id": "L001",
+                    "entity_type": "care_plan",
+                    "entity_id": "CP1",
+                    "action": "care_plan_created_by_ai",
+                    "actor_role": "admin",
+                    "created_at": "2026-04-05T10:01:00",
+                }
+            ],
         },
         "L002": {
+            "patient": patients[1],
             "lesion": lesions["P002"][0],
             "evaluations": [
                 {
@@ -169,6 +182,7 @@ def mock_database():
                 }
             ],
             "alerts": [],
+            "audit_log": [],
         },
     }
 
@@ -182,6 +196,15 @@ def mock_database():
     }
     db.list_patients.return_value = patients
     db.get_patient.side_effect = lambda patient_id: patient_map.get(patient_id)
+    db.get_wound_case.side_effect = lambda case_id: next(
+        (
+            lesion
+            for patient_lesions in lesions.values()
+            for lesion in patient_lesions
+            if lesion["id"] == case_id
+        ),
+        None,
+    )
     db.get_patient_analyses.side_effect = lambda patient_id: [
         {"analysis_id": f"{patient_id}-A1", "date": "2026-04-01"},
         {"analysis_id": f"{patient_id}-A2", "date": "2026-04-05"},
@@ -192,6 +215,7 @@ def mock_database():
     db.list_case_care_plans.return_value = []
     db.list_case_follow_ups.return_value = []
     db.list_case_alerts.return_value = []
+    db.list_case_audit_events.return_value = []
     db.get_latest_ai_result_for_evaluation.return_value = None
     return db
 
@@ -309,15 +333,18 @@ class TestDashboardWithClinicalQueue:
         assert payload["clinical_queue"][0]["patient_id"] == "P001"
 
     def test_clinical_queue_prioritizes_worsening_case(self, client_full):
-        response = client_full.get("/api/dashboard/clinical-queue?view=attention")
+        response = client_full.get("/api/dashboard/clinical-queue?view=attention&roleView=doctor")
         payload = response.get_json()
         assert response.status_code == 200
         assert payload["view"] == "attention"
+        assert payload["role_view"] == "doctor"
         assert payload["total_items"] == 1
         assert payload["items"][0]["patient_id"] == "P001"
         assert payload["items"][0]["worsening"] is True
         assert payload["items"][0]["overdue_follow_up"] is True
         assert payload["items"][0]["open_alert_count"] == 1
+        assert payload["items"][0]["requires_doctor_review"] is True
+        assert "open_case" in payload["items"][0]["available_actions"]
 
     def test_patients_list_is_enriched(self, client_full):
         response = client_full.get("/api/patients")
@@ -362,13 +389,26 @@ class TestDashboardWithClinicalQueue:
         assert payload[1]["value"] == 1
 
     def test_production_report_surfaces_operational_queue(self, client_full):
-        response = client_full.get("/api/reports/production?period=week")
+        response = client_full.get("/api/reports/production?period=week&roleView=doctor")
         payload = response.get_json()
         assert response.status_code == 200
         assert payload["period"] == "week"
+        assert payload["role_view"] == "doctor"
         assert payload["patients_needing_attention"] == 1
         assert payload["follow_ups_overdue"] == 1
         assert payload["top_queue"][0]["patient_id"] == "P001"
+        assert payload["patients_sla_breached"] == 1
+
+    def test_case_detail_returns_timeline_comparison_and_actions(self, client_full):
+        response = client_full.get("/api/dashboard/cases/L001?roleView=doctor")
+        payload = response.get_json()
+        assert response.status_code == 200
+        assert payload["lesion"]["id"] == "L001"
+        assert payload["clinical_summary"]["priority_bucket"] in {"imediata", "urgente", "prioritaria"}
+        assert payload["clinical_summary"]["requires_doctor_review"] is True
+        assert payload["before_vs_after"]["deltas"]["area_delta_cm2"] == pytest.approx(1.2)
+        assert len(payload["timeline"]["audit_log"]) == 1
+        assert "resolve_alert" in payload["clinical_summary"]["available_actions"]
 
 
 class TestInternalMethods:

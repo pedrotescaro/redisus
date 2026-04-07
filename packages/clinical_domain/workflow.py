@@ -351,6 +351,7 @@ def build_case_timeline(
     care_plans: list[Mapping[str, Any]],
     follow_ups: list[Mapping[str, Any]],
     alerts: list[Mapping[str, Any]],
+    audit_log: list[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     patient_payload = patient.to_dict() if hasattr(patient, "to_dict") else dict(patient or {})
     lesion_record = LesionRecord.from_dict(lesion)
@@ -432,10 +433,21 @@ def build_case_timeline(
                 "data": alert.to_dict(),
             }
         )
+    for audit_event in audit_log or []:
+        payload = dict(audit_event)
+        events.append(
+            {
+                "type": "audit",
+                "timestamp": payload.get("created_at"),
+                "title": str(payload.get("action") or "clinical_change").replace("_", " ").title(),
+                "status": "recorded",
+                "data": payload,
+            }
+        )
 
     events.sort(key=lambda item: _event_time(item), reverse=False)
     active_plan = next((plan.to_dict() for plan in plan_records if plan.status == "active"), None)
-    open_alerts = [alert.to_dict() for alert in alert_records if alert.status == "open"]
+    open_alerts = [alert.to_dict() for alert in alert_records if alert.status in {"open", "acknowledged"}]
     next_follow_up = next(
         (follow.to_dict() for follow in sorted(follow_up_records, key=lambda item: item.scheduled_for) if follow.status == "scheduled"),
         None,
@@ -449,11 +461,13 @@ def build_case_timeline(
         "care_plans": [record.to_dict() for record in plan_records],
         "follow_ups": [record.to_dict() for record in follow_up_records],
         "alerts": [record.to_dict() for record in alert_records],
+        "audit_log": [dict(item) for item in audit_log or []],
         "events": events,
         "summary": {
             "assessment_count": len(assessment_records),
             "image_count": sum(len(record.images) for record in assessment_records),
             "open_alert_count": len(open_alerts),
+            "audit_event_count": len(audit_log or []),
             "active_care_plan_id": active_plan["id"] if active_plan else None,
             "latest_risk_level": (
                 (latest_inference or {}).get("interpretation", {}).get("risk_level")

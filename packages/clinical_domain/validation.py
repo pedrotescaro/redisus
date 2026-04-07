@@ -145,6 +145,48 @@ class CreateFollowUpPayload(StrictPayloadModel):
         return _validate_identifier(value, info.field_name)
 
 
+class UpdateCarePlanPayload(StrictPayloadModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    status: Literal["draft", "active", "completed", "cancelled", "superseded"] | None = None
+    risk_level: Literal["baixo", "moderado", "alto", "critico"] | None = None
+    goals: list[str] | None = Field(default=None, max_length=20)
+    frequency: str | None = Field(default=None, max_length=80)
+    tasks: list[dict[str, Any]] | None = Field(default=None, max_length=30)
+    alerts: list[dict[str, Any]] | None = Field(default=None, max_length=20)
+    review_due_date: str | None = Field(default=None, max_length=32)
+    notes: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_non_empty_update(self):
+        fields = (
+            self.title,
+            self.status,
+            self.risk_level,
+            self.goals,
+            self.frequency,
+            self.tasks,
+            self.alerts,
+            self.review_due_date,
+            self.notes,
+        )
+        if all(value is None for value in fields):
+            raise ValueError("at least one care plan field must be provided")
+        return self
+
+
+class CompleteFollowUpPayload(StrictPayloadModel):
+    status: Literal["completed", "missed", "cancelled"] = "completed"
+    scheduled_for: str | None = Field(default=None, max_length=32)
+    reason: str | None = Field(default=None, max_length=120)
+    assigned_role: Literal["nurse", "doctor", "admin", "researcher"] | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class AlertActionPayload(StrictPayloadModel):
+    notes: str | None = Field(default=None, max_length=2000)
+    reason: str | None = Field(default=None, max_length=200)
+
+
 class AIChatContextPayload(StrictPayloadModel):
     patient_id: str | None = Field(default=None, max_length=80)
 

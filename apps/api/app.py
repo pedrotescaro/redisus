@@ -16,6 +16,7 @@ from packages.shared.security import (
     current_user_required,
     enforce_request_auth,
     ensure_admin_access,
+    ensure_case_access,
     ensure_patient_access,
     filter_patients_for_user,
 )
@@ -144,15 +145,21 @@ def create_app() -> Flask:
 
     @app.route("/api/dashboard/summary", methods=["GET"])
     def dashboard_summary():
-        ensure_admin_access()
-        return jsonify(dashboard._get_dashboard_summary())
+        user = current_user_required()
+        role_view = request.args.get("roleView", "")
+        unit = request.args.get("unit", "")
+        team = request.args.get("team", "")
+        return jsonify(dashboard._get_dashboard_summary(user=user, role_view=role_view, unit=unit, team=team))
 
     @app.route("/api/dashboard/clinical-queue", methods=["GET"])
     def dashboard_clinical_queue():
-        ensure_admin_access()
+        user = current_user_required()
         limit = _parse_positive_int("limit", 20, minimum=1, maximum=100)
         view = request.args.get("view", "")
-        return jsonify(dashboard._get_clinical_queue(limit=limit, view=view))
+        role_view = request.args.get("roleView", "")
+        unit = request.args.get("unit", "")
+        team = request.args.get("team", "")
+        return jsonify(dashboard._get_clinical_queue(user=user, limit=limit, view=view, role_view=role_view, unit=unit, team=team))
 
     @app.route("/api/patients", methods=["GET"])
     def dashboard_patients():
@@ -164,6 +171,13 @@ def create_app() -> Flask:
         ensure_patient_access(database, patient_id)
         return jsonify(dashboard._get_patient_detail(patient_id))
 
+    @app.route("/api/dashboard/cases/<case_id>", methods=["GET"])
+    def dashboard_case_detail(case_id: str):
+        user = current_user_required()
+        ensure_case_access(database, case_id, user=user)
+        role_view = request.args.get("roleView", "")
+        return jsonify(dashboard._get_case_detail(case_id, user=user, role_view=role_view))
+
     @app.route("/api/patients/<patient_id>/risk", methods=["GET"])
     def dashboard_patient_risk(patient_id: str):
         ensure_patient_access(database, patient_id)
@@ -171,14 +185,15 @@ def create_app() -> Flask:
 
     @app.route("/api/indicators", methods=["GET"])
     def dashboard_indicators():
-        ensure_admin_access()
+        user = current_user_required()
         region = request.args.get("region", "")
-        return jsonify(dashboard._get_population_indicators(region))
+        return jsonify(dashboard._get_population_indicators(region, user=user))
 
     @app.route("/api/alerts", methods=["GET"])
     def dashboard_alerts():
-        ensure_admin_access()
-        return jsonify(dashboard._get_active_alerts())
+        user = current_user_required()
+        role_view = request.args.get("roleView", "")
+        return jsonify(dashboard._get_active_alerts(user=user, role_view=role_view))
 
     @app.route("/api/surveillance/heatmap", methods=["GET"])
     def dashboard_heatmap():
@@ -194,9 +209,12 @@ def create_app() -> Flask:
 
     @app.route("/api/reports/production", methods=["GET"])
     def dashboard_production_report():
-        ensure_admin_access()
+        user = current_user_required()
         period = request.args.get("period", "month")
-        return jsonify(dashboard._get_production_report(period))
+        role_view = request.args.get("roleView", "")
+        unit = request.args.get("unit", "")
+        team = request.args.get("team", "")
+        return jsonify(dashboard._get_production_report(period, user=user, role_view=role_view, unit=unit, team=team))
 
     @app.route("/api/export/fhir/<patient_id>", methods=["GET"])
     def dashboard_export_fhir(patient_id: str):

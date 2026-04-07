@@ -336,6 +336,26 @@ class Database:
                     FOREIGN KEY (follow_up_id) REFERENCES follow_ups(id)
                 )
             """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS clinical_audit_log (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    case_id TEXT NOT NULL,
+                    entity_type TEXT NOT NULL,
+                    entity_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    actor_uid TEXT,
+                    actor_name TEXT,
+                    actor_role TEXT,
+                    before_json TEXT,
+                    after_json TEXT,
+                    metadata TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id),
+                    FOREIGN KEY (case_id) REFERENCES wound_cases(id)
+                )
+            """)
             
             # Índices
             cursor.execute("""
@@ -385,6 +405,14 @@ class Database:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_clinical_alerts_case_status
                 ON clinical_alerts(case_id, status)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clinical_audit_case_created
+                ON clinical_audit_log(case_id, created_at DESC)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clinical_audit_entity
+                ON clinical_audit_log(entity_type, entity_id)
             """)
             
             conn.commit()
@@ -1009,6 +1037,91 @@ class Database:
                 return plan
         return plans[0] if plans else None
 
+    def get_care_plan(self, plan_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute("SELECT * FROM care_plans WHERE id = ?", (plan_id,)).fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": row["id"],
+                    "patient_id": row["patient_id"],
+                    "case_id": row["case_id"],
+                    "version": row["version"],
+                    "title": row["title"],
+                    "status": row["status"],
+                    "risk_level": row["risk_level"],
+                    "goals": json.loads(row["goals"] or "[]"),
+                    "frequency": row["frequency"],
+                    "tasks": json.loads(row["tasks"] or "[]"),
+                    "alerts": json.loads(row["alerts"] or "[]"),
+                    "source_evaluation_id": row["source_evaluation_id"],
+                    "source_result_id": row["source_result_id"],
+                    "review_due_date": row["review_due_date"],
+                    "created_by": row["created_by"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "metadata": json.loads(row["metadata"] or "{}"),
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar plano de cuidado: {e}")
+            return None
+
+    def update_care_plan(self, plan_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        current = self.get_care_plan(plan_id)
+        if not current:
+            return None
+
+        now = datetime.now().isoformat()
+        merged_metadata = dict(current.get("metadata") or {})
+        if isinstance(updates.get("metadata"), dict):
+            merged_metadata.update(updates["metadata"])
+
+        record = {
+            **current,
+            **{key: value for key, value in updates.items() if key != "metadata"},
+            "metadata": merged_metadata,
+            "updated_at": now,
+        }
+
+        try:
+            with self._get_connection() as conn:
+                if record.get("status") == "active":
+                    conn.execute(
+                        """
+                        UPDATE care_plans
+                        SET status = 'superseded', updated_at = ?
+                        WHERE case_id = ? AND status = 'active' AND id <> ?
+                        """,
+                        (now, record["case_id"], plan_id),
+                    )
+                conn.execute(
+                    """
+                    UPDATE care_plans
+                    SET title = ?, status = ?, risk_level = ?, goals = ?, frequency = ?, tasks = ?, alerts = ?,
+                        review_due_date = ?, updated_at = ?, metadata = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        record["title"],
+                        record["status"],
+                        record["risk_level"],
+                        json.dumps(record.get("goals", [])),
+                        record.get("frequency"),
+                        json.dumps(record.get("tasks", [])),
+                        json.dumps(record.get("alerts", [])),
+                        record.get("review_due_date"),
+                        record["updated_at"],
+                        json.dumps(record.get("metadata", {})),
+                        plan_id,
+                    ),
+                )
+                conn.commit()
+            return self.get_care_plan(plan_id)
+        except Exception as e:
+            logger.error(f"Erro ao atualizar plano de cuidado: {e}")
+            return None
+
     def create_follow_up(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         follow_up_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
@@ -1094,6 +1207,71 @@ class Database:
             logger.error(f"Erro ao listar follow-ups: {e}")
             return []
 
+    def get_follow_up(self, follow_up_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute("SELECT * FROM follow_ups WHERE id = ?", (follow_up_id,)).fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": row["id"],
+                    "patient_id": row["patient_id"],
+                    "case_id": row["case_id"],
+                    "care_plan_id": row["care_plan_id"],
+                    "evaluation_id": row["evaluation_id"],
+                    "scheduled_for": row["scheduled_for"],
+                    "status": row["status"],
+                    "reason": row["reason"],
+                    "assigned_role": row["assigned_role"],
+                    "created_by": row["created_by"],
+                    "notes": row["notes"],
+                    "created_at": row["created_at"],
+                    "completed_at": row["completed_at"],
+                    "metadata": json.loads(row["metadata"] or "{}"),
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar follow-up: {e}")
+            return None
+
+    def update_follow_up(self, follow_up_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        current = self.get_follow_up(follow_up_id)
+        if not current:
+            return None
+
+        merged_metadata = dict(current.get("metadata") or {})
+        if isinstance(updates.get("metadata"), dict):
+            merged_metadata.update(updates["metadata"])
+
+        record = {
+            **current,
+            **{key: value for key, value in updates.items() if key != "metadata"},
+            "metadata": merged_metadata,
+        }
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE follow_ups
+                    SET scheduled_for = ?, status = ?, reason = ?, assigned_role = ?, notes = ?, completed_at = ?, metadata = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        record["scheduled_for"],
+                        record["status"],
+                        record.get("reason"),
+                        record.get("assigned_role"),
+                        record.get("notes"),
+                        record.get("completed_at"),
+                        json.dumps(record.get("metadata", {})),
+                        follow_up_id,
+                    ),
+                )
+                conn.commit()
+            return self.get_follow_up(follow_up_id)
+        except Exception as e:
+            logger.error(f"Erro ao atualizar follow-up: {e}")
+            return None
+
     def create_clinical_alert(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         alert_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
@@ -1152,7 +1330,7 @@ class Database:
                     rows = conn.execute(
                         """
                         SELECT * FROM clinical_alerts
-                        WHERE case_id = ? AND status = 'open'
+                        WHERE case_id = ? AND status IN ('open', 'acknowledged')
                         ORDER BY created_at DESC, id DESC
                         """,
                         (case_id,),
@@ -1189,6 +1367,154 @@ class Database:
             logger.error(f"Erro ao listar alertas clÃ­nicos: {e}")
             return []
 
+    def get_clinical_alert(self, alert_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute("SELECT * FROM clinical_alerts WHERE id = ?", (alert_id,)).fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": row["id"],
+                    "patient_id": row["patient_id"],
+                    "case_id": row["case_id"],
+                    "care_plan_id": row["care_plan_id"],
+                    "follow_up_id": row["follow_up_id"],
+                    "alert_type": row["alert_type"],
+                    "severity": row["severity"],
+                    "status": row["status"],
+                    "title": row["title"],
+                    "message": row["message"],
+                    "due_at": row["due_at"],
+                    "created_at": row["created_at"],
+                    "resolved_at": row["resolved_at"],
+                    "metadata": json.loads(row["metadata"] or "{}"),
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar alerta clÃ­nico: {e}")
+            return None
+
+    def update_clinical_alert(self, alert_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        current = self.get_clinical_alert(alert_id)
+        if not current:
+            return None
+
+        merged_metadata = dict(current.get("metadata") or {})
+        if isinstance(updates.get("metadata"), dict):
+            merged_metadata.update(updates["metadata"])
+
+        record = {
+            **current,
+            **{key: value for key, value in updates.items() if key != "metadata"},
+            "metadata": merged_metadata,
+        }
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE clinical_alerts
+                    SET severity = ?, status = ?, title = ?, message = ?, due_at = ?, resolved_at = ?, metadata = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        record.get("severity"),
+                        record.get("status"),
+                        record.get("title"),
+                        record.get("message"),
+                        record.get("due_at"),
+                        record.get("resolved_at"),
+                        json.dumps(record.get("metadata", {})),
+                        alert_id,
+                    ),
+                )
+                conn.commit()
+            return self.get_clinical_alert(alert_id)
+        except Exception as e:
+            logger.error(f"Erro ao atualizar alerta clÃ­nico: {e}")
+            return None
+
+    def create_audit_event(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        event_id = str(uuid.uuid4())
+        record = {
+            "id": event_id,
+            "patient_id": payload["patient_id"],
+            "case_id": payload["case_id"],
+            "entity_type": payload["entity_type"],
+            "entity_id": payload["entity_id"],
+            "action": payload["action"],
+            "actor_uid": payload.get("actor_uid"),
+            "actor_name": payload.get("actor_name"),
+            "actor_role": payload.get("actor_role"),
+            "before_json": payload.get("before_json"),
+            "after_json": payload.get("after_json"),
+            "metadata": payload.get("metadata", {}),
+            "created_at": payload.get("created_at") or datetime.now().isoformat(),
+        }
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO clinical_audit_log
+                    (id, patient_id, case_id, entity_type, entity_id, action, actor_uid, actor_name, actor_role,
+                     before_json, after_json, metadata, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record["id"],
+                        record["patient_id"],
+                        record["case_id"],
+                        record["entity_type"],
+                        record["entity_id"],
+                        record["action"],
+                        record.get("actor_uid"),
+                        record.get("actor_name"),
+                        record.get("actor_role"),
+                        json.dumps(record.get("before_json")) if record.get("before_json") is not None else None,
+                        json.dumps(record.get("after_json")) if record.get("after_json") is not None else None,
+                        json.dumps(record.get("metadata", {})),
+                        record["created_at"],
+                    ),
+                )
+                conn.commit()
+            return record
+        except Exception as e:
+            logger.error(f"Erro ao registrar auditoria clÃ­nica: {e}")
+            return None
+
+    def list_case_audit_events(self, case_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        safe_limit = max(1, min(int(limit or 100), 500))
+        try:
+            with self._get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM clinical_audit_log
+                    WHERE case_id = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (case_id, safe_limit),
+                ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "patient_id": row["patient_id"],
+                        "case_id": row["case_id"],
+                        "entity_type": row["entity_type"],
+                        "entity_id": row["entity_id"],
+                        "action": row["action"],
+                        "actor_uid": row["actor_uid"],
+                        "actor_name": row["actor_name"],
+                        "actor_role": row["actor_role"],
+                        "before_json": json.loads(row["before_json"]) if row["before_json"] else None,
+                        "after_json": json.loads(row["after_json"]) if row["after_json"] else None,
+                        "metadata": json.loads(row["metadata"] or "{}"),
+                        "created_at": row["created_at"],
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            logger.error(f"Erro ao listar auditoria clÃ­nica: {e}")
+            return []
+
     def get_case_timeline(self, case_id: str) -> Optional[Dict[str, Any]]:
         case = self.get_wound_case(case_id)
         if not case:
@@ -1218,6 +1544,7 @@ class Database:
             "care_plans": list(reversed(self.list_case_care_plans(case_id))),
             "follow_ups": self.list_case_follow_ups(case_id),
             "alerts": self.list_case_alerts(case_id),
+            "audit_log": list(reversed(self.list_case_audit_events(case_id, limit=200))),
         }
 
     def _row_to_evaluation(self, row: sqlite3.Row) -> Dict[str, Any]:

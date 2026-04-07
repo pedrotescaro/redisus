@@ -12,16 +12,21 @@ Implementa:
 """
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Mapping, Optional
 
 from loguru import logger
 from packages.shared.security import (
+    current_user,
     current_user_required,
     enforce_request_auth,
     ensure_admin_access,
+    ensure_case_access,
     ensure_patient_access,
     filter_patients_for_user,
+    is_admin,
+    user_roles,
+    user_units,
 )
 from src.dashboard.clinical_api import ClinicalAPI
 
@@ -102,16 +107,22 @@ class ClinicalDashboard:
         @app.route("/api/dashboard/summary")
         def api_summary():
             """Resumo geral do dashboard"""
-            ensure_admin_access()
-            return jsonify(self._get_dashboard_summary())
+            user = current_user_required()
+            role_view = request.args.get("roleView", "")
+            unit = request.args.get("unit", "")
+            team = request.args.get("team", "")
+            return jsonify(self._get_dashboard_summary(user=user, role_view=role_view, unit=unit, team=team))
 
         @app.route("/api/dashboard/clinical-queue")
         def api_clinical_queue():
             """Fila clínica priorizada para decisão"""
-            ensure_admin_access()
+            user = current_user_required()
             limit = int(request.args.get("limit", 20))
             view = request.args.get("view", "")
-            return jsonify(self._get_clinical_queue(limit=limit, view=view))
+            role_view = request.args.get("roleView", "")
+            unit = request.args.get("unit", "")
+            team = request.args.get("team", "")
+            return jsonify(self._get_clinical_queue(user=user, limit=limit, view=view, role_view=role_view, unit=unit, team=team))
 
         @app.route("/api/patients")
         def api_patients():
@@ -126,6 +137,14 @@ class ClinicalDashboard:
                 ensure_patient_access(self.db, patient_id)
             return jsonify(self._get_patient_detail(patient_id))
 
+        @app.route("/api/dashboard/cases/<case_id>")
+        def api_case_detail(case_id: str):
+            user = current_user_required()
+            if self.db:
+                ensure_case_access(self.db, case_id, user=user)
+            role_view = request.args.get("roleView", "")
+            return jsonify(self._get_case_detail(case_id, user=user, role_view=role_view))
+
         @app.route("/api/patients/<patient_id>/risk")
         def api_patient_risk(patient_id):
             """Score de risco de um paciente"""
@@ -136,15 +155,16 @@ class ClinicalDashboard:
         @app.route("/api/indicators")
         def api_indicators():
             """Indicadores populacionais"""
-            ensure_admin_access()
+            user = current_user_required()
             region = request.args.get("region", "")
-            return jsonify(self._get_population_indicators(region))
+            return jsonify(self._get_population_indicators(region, user=user))
 
         @app.route("/api/alerts")
         def api_alerts():
             """Alertas ativos"""
-            ensure_admin_access()
-            return jsonify(self._get_active_alerts())
+            user = current_user_required()
+            role_view = request.args.get("roleView", "")
+            return jsonify(self._get_active_alerts(user=user, role_view=role_view))
 
         @app.route("/api/surveillance/heatmap")
         def api_heatmap():
@@ -163,9 +183,12 @@ class ClinicalDashboard:
         @app.route("/api/reports/production")
         def api_production():
             """Relatório de produção"""
-            ensure_admin_access()
+            user = current_user_required()
             period = request.args.get("period", "month")
-            return jsonify(self._get_production_report(period))
+            role_view = request.args.get("roleView", "")
+            unit = request.args.get("unit", "")
+            team = request.args.get("team", "")
+            return jsonify(self._get_production_report(period, user=user, role_view=role_view, unit=unit, team=team))
 
         @app.route("/api/export/fhir/<patient_id>")
         def api_export_fhir(patient_id):
@@ -355,6 +378,7 @@ class ClinicalDashboard:
             "scheduled": "agendado",
             "pending": "pendente",
             "open": "aberto",
+            "acknowledged": "reconhecido",
             "closed": "fechado",
             "resolved": "resolvido",
             "active": "ativo",
@@ -419,6 +443,78 @@ class ClinicalDashboard:
         patient_region = self._patient_region(patient).strip().lower()
         return target in patient_region or patient_region in target
 
+    def _patient_unit(self, patient: Mapping[str, Any]) -> str:
+        metadata = patient.get("metadata") if isinstance(patient.get("metadata"), Mapping) else {}
+        for key in ("unit_id", "unit", "facility", "clinic", "health_unit"):
+            value = metadata.get(key)
+            if value:
+                return str(value)
+        return "nao_informada"
+
+    def _patient_team(self, patient: Mapping[str, Any]) -> str:
+        metadata = patient.get("metadata") if isinstance(patient.get("metadata"), Mapping) else {}
+        for key in ("team", "care_team", "team_id", "assigned_team"):
+            value = metadata.get(key)
+            if value:
+                return str(value)
+        return "nao_informada"
+
+    def _normalize_role_view(self, role_view: str, user: Mapping[str, Any] | None = None) -> str:
+        target = str(role_view or "").strip().lower()
+        if target in {"nurse", "doctor", "admin"}:
+            return target
+        roles = user_roles(user) if user is not None else set()
+        if "doctor" in roles:
+            return "doctor"
+        if is_admin(user):
+            return "admin"
+        if roles & {"nurse", "clinician", "estomaterapeuta"}:
+            return "nurse"
+        return "admin"
+
+    def _patient_matches_unit(self, patient: Mapping[str, Any], unit: str) -> bool:
+        if not unit:
+            return True
+        target = unit.strip().lower()
+        patient_unit = self._patient_unit(patient).strip().lower()
+        return target in patient_unit or patient_unit in target
+
+    def _patient_matches_team(self, patient: Mapping[str, Any], team: str) -> bool:
+        if not team:
+            return True
+        target = team.strip().lower()
+        patient_team = self._patient_team(patient).strip().lower()
+        return target in patient_team or patient_team in target
+
+    def _sla_target_days(self, risk_level: Any) -> int:
+        return {"critico": 1, "alto": 3, "moderado": 7, "baixo": 14}.get(self._normalize_risk(risk_level), 7)
+
+    def _allowed_overdue_days(self, risk_level: Any) -> int:
+        return {"critico": 0, "alto": 1, "moderado": 3, "baixo": 7}.get(self._normalize_risk(risk_level), 3)
+
+    def _priority_bucket(self, priority_score: int, *, sla_status: str, requires_doctor_review: bool) -> str:
+        if sla_status == "breached" or priority_score >= 110:
+            return "imediata"
+        if requires_doctor_review or priority_score >= 80:
+            return "urgente"
+        if priority_score >= 45:
+            return "prioritaria"
+        return "rotina"
+
+    def _queue_actions_for_role(self, lesion_snapshot: Mapping[str, Any], role_view: str) -> List[str]:
+        actions = ["open_case"]
+        if lesion_snapshot.get("open_alerts"):
+            actions.append("acknowledge_alert")
+            if role_view in {"doctor", "admin"} or self._severity_rank((lesion_snapshot.get("open_alerts") or [{}])[0].get("severity")) <= 2:
+                actions.append("resolve_alert")
+        if lesion_snapshot.get("next_follow_up") and role_view in {"nurse", "doctor", "admin"}:
+            actions.append("complete_follow_up")
+        if role_view in {"doctor", "admin"} or (
+            role_view == "nurse" and not lesion_snapshot.get("requires_doctor_review")
+        ):
+            actions.append("update_care_plan")
+        return actions
+
     def _evaluation_sort_key(self, evaluation: Mapping[str, Any]) -> datetime:
         return (
             self._parse_datetime(evaluation.get("evaluation_date"))
@@ -473,6 +569,7 @@ class ClinicalDashboard:
             care_plans = [self._to_dict(item) for item in timeline.get("care_plans", [])]
             follow_ups = [self._to_dict(item) for item in timeline.get("follow_ups", [])]
             alerts = [self._to_dict(item) for item in timeline.get("alerts", [])]
+            audit_log = [self._to_dict(item) for item in timeline.get("audit_log", [])]
         else:
             evaluations = [
                 self._to_dict(item)
@@ -481,6 +578,7 @@ class ClinicalDashboard:
             care_plans = [self._to_dict(item) for item in self._db_call("list_case_care_plans", case_id, default=[])]
             follow_ups = [self._to_dict(item) for item in self._db_call("list_case_follow_ups", case_id, default=[])]
             alerts = [self._to_dict(item) for item in self._db_call("list_case_alerts", case_id, default=[])]
+            audit_log = [self._to_dict(item) for item in self._db_call("list_case_audit_events", case_id, default=[])]
 
         evaluations = sorted(evaluations, key=self._evaluation_sort_key)
         latest_evaluation = evaluations[-1] if evaluations else None
@@ -506,7 +604,9 @@ class ClinicalDashboard:
         )
 
         active_alerts = [
-            alert for alert in alerts if self._normalize_status(alert.get("status") or "open") in {"aberto", "pendente"}
+            alert
+            for alert in alerts
+            if self._normalize_status(alert.get("status") or "open") in {"aberto", "pendente", "reconhecido"}
         ]
         active_alerts.sort(
             key=lambda alert: (
@@ -564,6 +664,23 @@ class ClinicalDashboard:
         )
         latest_evaluation_dt = self._parse_datetime(latest_evaluation_date)
         days_since_evaluation = (now.date() - latest_evaluation_dt.date()).days if latest_evaluation_dt else None
+        review_due_date = (active_care_plan or {}).get("review_due_date")
+        review_due_dt = self._parse_datetime(review_due_date) if review_due_date else None
+        if not review_due_dt and latest_evaluation_dt:
+            review_due_dt = latest_evaluation_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            review_due_dt = review_due_dt + timedelta(days=self._sla_target_days(risk_level))
+        sla_target_days = self._sla_target_days(risk_level)
+        overdue_limit_days = self._allowed_overdue_days(risk_level)
+        sla_status = "sem_referencia"
+        sla_days_remaining = None
+        if review_due_dt:
+            sla_days_remaining = (review_due_dt.date() - now.date()).days
+            if sla_days_remaining < 0:
+                sla_status = "breached"
+            elif sla_days_remaining == 0:
+                sla_status = "due_today"
+            else:
+                sla_status = "on_track"
 
         attention_reasons: List[str] = []
         if risk_rank >= 4:
@@ -574,6 +691,10 @@ class ClinicalDashboard:
             attention_reasons.append("piora clinica na ultima comparacao")
         if overdue_follow_up:
             attention_reasons.append(f"follow-up atrasado ha {overdue_days} dia(s)")
+        if sla_status == "breached":
+            attention_reasons.append("sla clinico vencido")
+        elif sla_status == "due_today":
+            attention_reasons.append("sla clinico vence hoje")
         if active_alerts:
             attention_reasons.append(f"{len(active_alerts)} alerta(s) clinico(s) aberto(s)")
         if not active_care_plan:
@@ -590,21 +711,30 @@ class ClinicalDashboard:
             (self._severity_rank(alert.get("severity")) for alert in active_alerts),
             default=0,
         )
+        unresolved_alert_count = len(active_alerts)
+        requires_doctor_review = bool(
+            risk_rank >= 3
+            or highest_alert_severity >= 3
+            or worsening
+            or (next_follow_up or {}).get("assigned_role") == "doctor"
+        )
         priority_score = 10
         priority_score += {1: 10, 2: 24, 3: 46, 4: 70}.get(risk_rank, 0)
-        priority_score += len(active_alerts) * 8
+        priority_score += unresolved_alert_count * 8
         priority_score += highest_alert_severity * 4
         priority_score += min(overdue_days * 2, 24)
         priority_score += 18 if worsening else 0
         priority_score += 10 if not active_care_plan else 0
         priority_score += 8 if latest_inference.get("fallback_used") else 0
         priority_score += 12 if not evaluations else 0
+        priority_score += 20 if sla_status == "breached" else 8 if sla_status == "due_today" else 0
+        priority_score += 12 if requires_doctor_review else 0
         if days_since_evaluation is not None and days_since_evaluation > 14:
             priority_score += min(days_since_evaluation - 14, 14)
         if self._normalize_status(lesion_payload.get("status")) in {"fechado", "resolvido"}:
             priority_score = max(priority_score - 30, 0)
 
-        if risk_rank >= 4 or highest_alert_severity >= 4 or overdue_days >= 3:
+        if risk_rank >= 4 or highest_alert_severity >= 4 or overdue_days > overdue_limit_days or sla_status == "breached":
             lesion_status = "atencao_imediata"
         elif overdue_follow_up:
             lesion_status = "atrasado"
@@ -614,10 +744,16 @@ class ClinicalDashboard:
             lesion_status = "resolvido"
         else:
             lesion_status = "em_acompanhamento"
+        priority_bucket = self._priority_bucket(
+            int(priority_score),
+            sla_status=sla_status,
+            requires_doctor_review=requires_doctor_review,
+        )
 
         return {
             "lesion": lesion_payload,
             "timeline": timeline,
+            "audit_log": audit_log,
             "latest_evaluation": latest_evaluation,
             "previous_evaluation": previous_evaluation,
             "latest_inference": latest_inference,
@@ -631,16 +767,27 @@ class ClinicalDashboard:
             "alerts": alerts,
             "open_alerts": active_alerts,
             "open_alert_count": len(active_alerts),
+            "audit_event_count": len(audit_log),
             "risk_level": risk_level,
             "risk_rank": risk_rank,
             "worsening": worsening,
             "needs_attention": needs_attention,
             "attention_reasons": attention_reasons,
             "priority_score": int(priority_score),
+            "priority_bucket": priority_bucket,
             "status": lesion_status,
             "evaluation_delta": evaluation_delta,
             "latest_evaluation_date": latest_evaluation_date,
             "days_since_evaluation": days_since_evaluation,
+            "review_due_date": review_due_dt.date().isoformat() if review_due_dt else review_due_date,
+            "sla_target_days": sla_target_days,
+            "sla_status": sla_status,
+            "sla_days_remaining": sla_days_remaining,
+            "overdue_limit_days": overdue_limit_days,
+            "requires_doctor_review": requires_doctor_review,
+            "recommended_owner_role": "doctor" if requires_doctor_review else "nurse",
+            "available_actions": [],
+            "decision_rule_version": "2026-04-07-clinical-queue-v2",
         }
 
     def _build_patient_snapshot(self, patient: Any) -> Dict[str, Any]:
@@ -692,6 +839,9 @@ class ClinicalDashboard:
         active_care_plans = sum(1 for lesion in lesions if lesion.get("active_care_plan"))
         open_alert_count = sum(int(lesion.get("open_alert_count") or 0) for lesion in lesions)
         overdue_follow_ups = sum(1 for lesion in lesions if lesion.get("overdue_follow_up_flag"))
+        sla_breaches = sum(1 for lesion in lesions if lesion.get("sla_status") == "breached")
+        doctor_review_cases = sum(1 for lesion in lesions if lesion.get("requires_doctor_review"))
+        audit_event_count = sum(int(lesion.get("audit_event_count") or 0) for lesion in lesions)
         needs_attention = any(lesion.get("needs_attention") for lesion in lesions)
         worsening = any(lesion.get("worsening") for lesion in lesions)
         priority_score = (top_lesion or {}).get("priority_score", 0)
@@ -713,30 +863,50 @@ class ClinicalDashboard:
             "patient": patient_payload,
             "lesions": lesions,
             "lesion_count": len(lesions),
+            "unit": self._patient_unit(patient_payload),
+            "team": self._patient_team(patient_payload),
             "risk_level": risk_level,
             "status": patient_status,
             "priority_score": int(priority_score),
             "needs_attention": needs_attention,
             "worsening": worsening,
             "overdue_follow_ups": overdue_follow_ups,
+            "sla_breaches": sla_breaches,
+            "doctor_review_cases": doctor_review_cases,
             "open_alert_count": open_alert_count,
             "active_care_plans": active_care_plans,
             "scheduled_follow_ups": scheduled_follow_ups,
             "next_follow_up": next_follow_up,
             "latest_evaluation_date": latest_evaluation_date,
             "attention_reasons": attention_reasons,
+            "audit_event_count": audit_event_count,
             "priority_lesion": top_lesion,
         }
 
-    def _get_all_patient_snapshots(self, region: str = "") -> List[Dict[str, Any]]:
+    def _get_all_patient_snapshots(
+        self,
+        region: str = "",
+        *,
+        user: Mapping[str, Any] | None = None,
+        unit: str = "",
+        team: str = "",
+    ) -> List[Dict[str, Any]]:
         patients = [self._serialize_patient(item) for item in self._db_call("list_patients", default=[])]
+        if user is not None:
+            patients = [self._serialize_patient(item) for item in filter_patients_for_user(patients, user=user)]
+            if unit or (not is_admin(user) and user_units(user)):
+                requested_units = {unit.strip()} if unit else set()
+                allowed_units = {item.strip() for item in user_units(user)}
+                if requested_units:
+                    allowed_units = requested_units & allowed_units if not is_admin(user) else requested_units
+                patients = [patient for patient in patients if self._patient_unit(patient) in allowed_units] if allowed_units else []
         snapshots = [self._build_patient_snapshot(patient) for patient in patients]
-        if not region:
-            return snapshots
         return [
             snapshot
             for snapshot in snapshots
             if self._patient_matches_region(snapshot.get("patient", {}), region)
+            and self._patient_matches_unit(snapshot.get("patient", {}), unit)
+            and self._patient_matches_team(snapshot.get("patient", {}), team)
         ]
 
     def _build_clinical_queue_from_snapshots(
@@ -745,17 +915,23 @@ class ClinicalDashboard:
         *,
         limit: int = 20,
         view: str = "",
+        role_view: str = "",
     ) -> Dict[str, Any]:
         items: List[Dict[str, Any]] = []
+        normalized_role_view = self._normalize_role_view(role_view)
         for snapshot in snapshots:
             patient = snapshot.get("patient", {})
             priority_lesion = snapshot.get("priority_lesion") or {}
             lesion_payload = priority_lesion.get("lesion", {}) if isinstance(priority_lesion, Mapping) else {}
+            available_actions = self._queue_actions_for_role(priority_lesion, normalized_role_view)
             items.append(
                 {
                     "patient_id": patient.get("id"),
                     "patient_name": patient.get("name"),
                     "region": self._patient_region(patient),
+                    "unit": snapshot.get("unit") or self._patient_unit(patient),
+                    "team": snapshot.get("team") or self._patient_team(patient),
+                    "role_view": normalized_role_view,
                     "risk_level": snapshot.get("risk_level"),
                     "status": snapshot.get("status"),
                     "priority_score": snapshot.get("priority_score", 0),
@@ -769,6 +945,15 @@ class ClinicalDashboard:
                     "scheduled_follow_ups": snapshot.get("scheduled_follow_ups", 0),
                     "latest_evaluation_date": snapshot.get("latest_evaluation_date"),
                     "next_follow_up": snapshot.get("next_follow_up"),
+                    "next_follow_up_id": (snapshot.get("next_follow_up") or {}).get("id"),
+                    "review_due_date": priority_lesion.get("review_due_date"),
+                    "sla_status": priority_lesion.get("sla_status"),
+                    "sla_target_days": priority_lesion.get("sla_target_days"),
+                    "sla_days_remaining": priority_lesion.get("sla_days_remaining"),
+                    "priority_bucket": priority_lesion.get("priority_bucket"),
+                    "requires_doctor_review": priority_lesion.get("requires_doctor_review", False),
+                    "recommended_owner_role": priority_lesion.get("recommended_owner_role"),
+                    "audit_event_count": priority_lesion.get("audit_event_count", 0),
                     "attention_reasons": snapshot.get("attention_reasons", []),
                     "lesion_id": lesion_payload.get("id"),
                     "lesion_title": lesion_payload.get("title") or lesion_payload.get("location") or lesion_payload.get("wound_type"),
@@ -776,6 +961,10 @@ class ClinicalDashboard:
                     "lesion_location": lesion_payload.get("location"),
                     "evaluation_delta": priority_lesion.get("evaluation_delta", {}),
                     "open_alerts": priority_lesion.get("open_alerts", []),
+                    "open_alert_id": ((priority_lesion.get("open_alerts") or [{}])[0]).get("id"),
+                    "active_care_plan": priority_lesion.get("active_care_plan"),
+                    "active_care_plan_id": (priority_lesion.get("active_care_plan") or {}).get("id"),
+                    "available_actions": available_actions,
                 }
             )
 
@@ -791,19 +980,38 @@ class ClinicalDashboard:
         elif normalized_view == "alerts":
             items = [item for item in items if item["open_alert_count"] > 0]
 
-        items.sort(
-            key=lambda item: (
-                item.get("priority_score", 0),
-                self._risk_rank(item.get("risk_level")),
-                item.get("overdue_days", 0),
-                (self._parse_datetime(item.get("latest_evaluation_date")) or datetime.min).isoformat(),
-            ),
-            reverse=True,
-        )
+        if normalized_role_view == "nurse":
+            items.sort(
+                key=lambda item: (
+                    item.get("overdue_follow_up", False),
+                    item.get("open_alert_count", 0),
+                    item.get("priority_score", 0),
+                ),
+                reverse=True,
+            )
+        elif normalized_role_view == "doctor":
+            items.sort(
+                key=lambda item: (
+                    item.get("requires_doctor_review", False),
+                    self._risk_rank(item.get("risk_level")),
+                    item.get("priority_score", 0),
+                ),
+                reverse=True,
+            )
+        else:
+            items.sort(
+                key=lambda item: (
+                    item.get("sla_status") == "breached",
+                    item.get("priority_score", 0),
+                    item.get("open_alert_count", 0),
+                ),
+                reverse=True,
+            )
 
         return {
             "generated_at": datetime.now().isoformat(),
             "view": normalized_view or "all",
+            "role_view": normalized_role_view,
             "limit": max(limit, 1),
             "total_items": len(items),
             "counts": {
@@ -812,15 +1020,27 @@ class ClinicalDashboard:
                 "worsening": sum(1 for snapshot in snapshots if snapshot.get("worsening")),
                 "overdue": sum(1 for snapshot in snapshots if snapshot.get("overdue_follow_ups", 0) > 0),
                 "high_risk": sum(1 for snapshot in snapshots if self._risk_rank(snapshot.get("risk_level")) >= 3),
+                "sla_breached": sum(1 for snapshot in snapshots if snapshot.get("sla_breaches", 0) > 0),
+                "doctor_review": sum(1 for snapshot in snapshots if snapshot.get("doctor_review_cases", 0) > 0),
             },
             "items": items[: max(limit, 1)],
         }
 
-    def _get_dashboard_summary(self) -> Dict:
+    def _get_dashboard_summary(
+        self,
+        *,
+        user: Mapping[str, Any] | None = None,
+        role_view: str = "",
+        unit: str = "",
+        team: str = "",
+    ) -> Dict:
         """Gera resumo clÃ­nico decisÃ³rio do dashboard."""
         summary = {
             "timestamp": datetime.now().isoformat(),
             "platform": "HEAL/REDISUS",
+            "role_view": self._normalize_role_view(role_view, user),
+            "unit": unit or None,
+            "team": team or None,
             "total_patients": 0,
             "total_analyses": 0,
             "risk_distribution": {"baixo": 0, "moderado": 0, "alto": 0, "critico": 0},
@@ -834,6 +1054,8 @@ class ClinicalDashboard:
             "active_care_plans": 0,
             "scheduled_follow_ups": 0,
             "open_clinical_alerts": 0,
+            "patients_sla_breached": 0,
+            "patients_requiring_doctor_review": 0,
         }
 
         stats = self._db_call("get_statistics", default={}) or {}
@@ -841,7 +1063,7 @@ class ClinicalDashboard:
         summary["total_analyses"] = int(stats.get("total_analyses", 0) or 0)
         summary["top_etiologies"] = list(stats.get("top_etiologies", []) or [])
 
-        snapshots = self._get_all_patient_snapshots()
+        snapshots = self._get_all_patient_snapshots(user=user, unit=unit, team=team)
         if not summary["total_patients"]:
             summary["total_patients"] = len(snapshots)
 
@@ -855,6 +1077,8 @@ class ClinicalDashboard:
             summary["active_care_plans"] += int(snapshot.get("active_care_plans", 0))
             summary["scheduled_follow_ups"] += int(snapshot.get("scheduled_follow_ups", 0))
             summary["open_clinical_alerts"] += int(snapshot.get("open_alert_count", 0))
+            summary["patients_sla_breached"] += int(snapshot.get("sla_breaches", 0) > 0)
+            summary["patients_requiring_doctor_review"] += int(snapshot.get("doctor_review_cases", 0) > 0)
 
         recent_analyses: List[Dict[str, Any]] = []
         for snapshot in snapshots:
@@ -879,7 +1103,11 @@ class ClinicalDashboard:
             reverse=True,
         )
         summary["recent_analyses"] = recent_analyses[:5]
-        summary["clinical_queue"] = self._build_clinical_queue_from_snapshots(snapshots, limit=5)["items"]
+        summary["clinical_queue"] = self._build_clinical_queue_from_snapshots(
+            snapshots,
+            limit=5,
+            role_view=summary["role_view"],
+        )["items"]
 
         surveillance_alerts = 0
         if self.surveillance:
@@ -887,11 +1115,21 @@ class ClinicalDashboard:
         summary["active_alerts"] = summary["open_clinical_alerts"] + surveillance_alerts
         return summary
 
-    def _get_clinical_queue(self, limit: int = 20, view: str = "") -> Dict:
+    def _get_clinical_queue(
+        self,
+        *,
+        user: Mapping[str, Any] | None = None,
+        limit: int = 20,
+        view: str = "",
+        role_view: str = "",
+        unit: str = "",
+        team: str = "",
+    ) -> Dict:
         return self._build_clinical_queue_from_snapshots(
-            self._get_all_patient_snapshots(),
+            self._get_all_patient_snapshots(user=user, unit=unit, team=team),
             limit=limit,
             view=view,
+            role_view=self._normalize_role_view(role_view, user),
         )
 
     def _get_patients_list(self) -> List[Dict]:
@@ -956,6 +1194,8 @@ class ClinicalDashboard:
                     "needs_attention": snapshot.get("needs_attention"),
                     "worsening": snapshot.get("worsening"),
                     "priority_score": snapshot.get("priority_score"),
+                    "sla_breaches": snapshot.get("sla_breaches"),
+                    "doctor_review_cases": snapshot.get("doctor_review_cases"),
                     "open_alert_count": snapshot.get("open_alert_count"),
                     "overdue_follow_ups": snapshot.get("overdue_follow_ups"),
                     "latest_evaluation_date": snapshot.get("latest_evaluation_date"),
@@ -968,6 +1208,81 @@ class ClinicalDashboard:
         except Exception as e:
             logger.error(f"Erro ao buscar paciente {patient_id}: {e}")
             return {"error": str(e)}
+
+    def _get_case_detail(
+        self,
+        case_id: str,
+        *,
+        user: Mapping[str, Any] | None = None,
+        role_view: str = "",
+    ) -> Dict[str, Any]:
+        if not self.db:
+            return {"error": "Database nÃ£o configurado"}
+
+        raw_timeline = self._db_call("get_case_timeline", case_id, default=None)
+        if not raw_timeline:
+            return {"error": "Lesao nÃ£o encontrada"}
+
+        timeline = raw_timeline.get("timeline")
+        if not timeline:
+            from packages.clinical_domain.workflow import build_case_timeline
+
+            timeline = build_case_timeline(
+                patient=raw_timeline["patient"],
+                lesion=raw_timeline["lesion"],
+                evaluations=raw_timeline["evaluations"],
+                care_plans=raw_timeline["care_plans"],
+                follow_ups=raw_timeline["follow_ups"],
+                alerts=raw_timeline["alerts"],
+                audit_log=raw_timeline.get("audit_log", []),
+            )
+
+        patient_payload = self._serialize_patient(raw_timeline["patient"])
+        lesion_snapshot = self._build_lesion_snapshot(str(patient_payload.get("id") or ""), raw_timeline["lesion"])
+        evaluations = [self._to_dict(item) for item in raw_timeline.get("evaluations", [])]
+        latest = lesion_snapshot.get("latest_evaluation")
+        previous = lesion_snapshot.get("previous_evaluation")
+        before_vs_after = {
+            "latest": latest,
+            "previous": previous,
+            "deltas": lesion_snapshot.get("evaluation_delta", {}),
+        }
+
+        return {
+            "patient": patient_payload,
+            "lesion": self._to_dict(raw_timeline.get("lesion")),
+            "clinical_summary": {
+                "risk_level": lesion_snapshot.get("risk_level"),
+                "status": lesion_snapshot.get("status"),
+                "priority_score": lesion_snapshot.get("priority_score"),
+                "priority_bucket": lesion_snapshot.get("priority_bucket"),
+                "sla_status": lesion_snapshot.get("sla_status"),
+                "sla_target_days": lesion_snapshot.get("sla_target_days"),
+                "sla_days_remaining": lesion_snapshot.get("sla_days_remaining"),
+                "review_due_date": lesion_snapshot.get("review_due_date"),
+                "needs_attention": lesion_snapshot.get("needs_attention"),
+                "worsening": lesion_snapshot.get("worsening"),
+                "requires_doctor_review": lesion_snapshot.get("requires_doctor_review"),
+                "recommended_owner_role": lesion_snapshot.get("recommended_owner_role"),
+                "attention_reasons": lesion_snapshot.get("attention_reasons"),
+                "available_actions": self._queue_actions_for_role(
+                    lesion_snapshot,
+                    self._normalize_role_view(role_view, user),
+                ),
+            },
+            "timeline": timeline,
+            "before_vs_after": before_vs_after,
+            "active_care_plan": lesion_snapshot.get("active_care_plan"),
+            "follow_ups": lesion_snapshot.get("follow_ups"),
+            "alerts": lesion_snapshot.get("alerts"),
+            "audit_log": lesion_snapshot.get("audit_log"),
+            "metrics": {
+                "evaluation_count": len(evaluations),
+                "open_alert_count": lesion_snapshot.get("open_alert_count"),
+                "audit_event_count": lesion_snapshot.get("audit_event_count"),
+                "follow_up_count": len(lesion_snapshot.get("follow_ups") or []),
+            },
+        }
 
     def _get_patient_risk(self, patient_id: str) -> Dict:
         """Resumo de risco orientado a decisÃ£o clÃ­nica."""
@@ -1009,9 +1324,9 @@ class ClinicalDashboard:
             "lesions": lesion_risks,
         }
 
-    def _get_population_indicators(self, region: str) -> List[Dict]:
+    def _get_population_indicators(self, region: str, *, user: Mapping[str, Any] | None = None) -> List[Dict]:
         """Indicadores populacionais orientados Ã  operaÃ§Ã£o clÃ­nica."""
-        snapshots = self._get_all_patient_snapshots(region=region)
+        snapshots = self._get_all_patient_snapshots(region=region, user=user)
         region_label = region or "todas"
         return [
             {"name": "Pacientes em acompanhamento", "value": len(snapshots), "region": region_label},
@@ -1037,9 +1352,15 @@ class ClinicalDashboard:
             },
         ]
 
-    def _get_active_alerts(self) -> List[Dict]:
+    def _get_active_alerts(
+        self,
+        *,
+        user: Mapping[str, Any] | None = None,
+        role_view: str = "",
+    ) -> List[Dict]:
         """Alertas ativos do sistema, combinando vigilÃ¢ncia e alertas clÃ­nicos."""
         alerts: List[Dict[str, Any]] = []
+        normalized_role_view = self._normalize_role_view(role_view, user)
         if self.surveillance:
             for alert in self.surveillance.alerts:
                 if alert.acknowledged:
@@ -1057,18 +1378,21 @@ class ClinicalDashboard:
                     }
                 )
 
-        for snapshot in self._get_all_patient_snapshots():
+        for snapshot in self._get_all_patient_snapshots(user=user):
             patient = snapshot.get("patient", {})
             for lesion in snapshot.get("lesions", []):
                 lesion_payload = lesion.get("lesion") or {}
                 for alert in lesion.get("open_alerts", []):
+                    severity = self._normalize_risk(alert.get("severity"))
+                    if normalized_role_view == "doctor" and self._risk_rank(severity) < 3:
+                        continue
                     alerts.append(
                         {
                             "id": alert.get("id"),
                             "source": "clinical",
                             "condition": lesion_payload.get("wound_type") or lesion_payload.get("title") or "lesao",
                             "region": self._patient_region(patient),
-                            "severity": self._normalize_risk(alert.get("severity")),
+                            "severity": severity,
                             "message": alert.get("message") or alert.get("title"),
                             "case_count": 1,
                             "timestamp": alert.get("created_at"),
@@ -1089,20 +1413,34 @@ class ClinicalDashboard:
         )
         return alerts
 
-    def _get_production_report(self, period: str) -> Dict:
+    def _get_production_report(
+        self,
+        period: str,
+        *,
+        user: Mapping[str, Any] | None = None,
+        role_view: str = "",
+        unit: str = "",
+        team: str = "",
+    ) -> Dict:
         """RelatÃ³rio operacional com foco no fluxo clÃ­nico principal."""
-        snapshots = self._get_all_patient_snapshots()
-        queue = self._build_clinical_queue_from_snapshots(snapshots, limit=10)
+        normalized_role_view = self._normalize_role_view(role_view, user)
+        snapshots = self._get_all_patient_snapshots(user=user, unit=unit, team=team)
+        queue = self._build_clinical_queue_from_snapshots(snapshots, limit=10, role_view=normalized_role_view)
         return {
             "period": period,
             "generated_at": datetime.now().isoformat(),
             "generated_by": "HEAL/REDISUS",
+            "role_view": normalized_role_view,
+            "unit": unit or None,
+            "team": team or None,
             "message": "Relatorio operacional do fluxo paciente -> lesao -> imagem -> IA -> avaliacao -> evolucao -> plano -> acompanhamento",
             "patients_in_follow_up": len(snapshots),
             "patients_needing_attention": queue["counts"]["needs_attention"],
             "patients_worsening": queue["counts"]["worsening"],
             "follow_ups_overdue": queue["counts"]["overdue"],
             "high_risk_patients": queue["counts"]["high_risk"],
+            "patients_sla_breached": queue["counts"]["sla_breached"],
+            "patients_requiring_doctor_review": queue["counts"]["doctor_review"],
             "open_clinical_alerts": sum(snapshot.get("open_alert_count", 0) for snapshot in snapshots),
             "active_care_plans": sum(snapshot.get("active_care_plans", 0) for snapshot in snapshots),
             "scheduled_follow_ups": sum(snapshot.get("scheduled_follow_ups", 0) for snapshot in snapshots),
@@ -1632,6 +1970,109 @@ DASHBOARD_HTML = """
             padding: 1.5rem 0.75rem;
             font-size: 0.85rem;
         }
+        .queue-context {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        .queue-context select,
+        .queue-context input {
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 0.55rem 0.75rem;
+            font-size: 0.8rem;
+            min-width: 150px;
+        }
+        .queue-context button,
+        .queue-action-btn,
+        .case-action-btn {
+            background: rgba(99,102,241,0.18);
+            color: #fff;
+            border: 1px solid rgba(129,140,248,0.35);
+            border-radius: 10px;
+            padding: 0.55rem 0.8rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .queue-actions,
+        .case-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.85rem;
+        }
+        .case-panel {
+            margin-top: 1rem;
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 1rem 1.1rem;
+            background: rgba(255,255,255,0.02);
+        }
+        .case-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+            margin-top: 0.75rem;
+        }
+        .case-block {
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 0.9rem;
+            background: rgba(255,255,255,0.02);
+        }
+        .case-block h4 {
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+        .case-stat {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            margin-bottom: 0.45rem;
+        }
+        .case-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+        .case-event {
+            border-left: 2px solid rgba(99,102,241,0.35);
+            padding-left: 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+        .case-event strong {
+            display: block;
+            color: var(--text);
+            font-size: 0.82rem;
+            margin-bottom: 0.15rem;
+        }
+        .case-inline-form {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.75rem;
+        }
+        .case-inline-form input,
+        .case-inline-form select {
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 0.5rem 0.7rem;
+            font-size: 0.8rem;
+        }
 
         /* ---- EIXOS / FEATURE CARDS ---- */
         .features-grid {
@@ -1834,6 +2275,16 @@ DASHBOARD_HTML = """
                 <div style="color:var(--text-muted); font-size:0.8rem;" id="queue-summary">Carregando fila...</div>
             </div>
             <div class="table-card" style="padding:1rem 1.25rem;">
+                <div class="queue-context">
+                    <select id="queue-role-view">
+                        <option value="admin">Visão admin</option>
+                        <option value="doctor">Visão médico</option>
+                        <option value="nurse">Visão enfermagem</option>
+                    </select>
+                    <input id="queue-unit-filter" type="text" placeholder="Filtrar por unidade">
+                    <input id="queue-team-filter" type="text" placeholder="Filtrar por equipe">
+                    <button id="queue-context-apply" type="button">Aplicar contexto</button>
+                </div>
                 <div class="queue-toolbar" id="queue-filters">
                     <button class="queue-filter active" data-view="all">Tudo</button>
                     <button class="queue-filter" data-view="attention">Precisam de atenÃ§Ã£o</button>
@@ -1845,6 +2296,10 @@ DASHBOARD_HTML = """
                     <div class="queue-empty">Carregando fila clÃ­nica...</div>
                 </div>
             </div>
+        </div>
+
+        <div class="case-panel" id="case-panel">
+            <div class="queue-empty">Abra um caso da fila para ver timeline, comparação e ações clínicas.</div>
         </div>
 
         <!-- Patients Table -->
@@ -2100,7 +2555,281 @@ DASHBOARD_HTML = """
             }
         }
 
+        let activeCaseId = null;
+        const queueContext = { roleView: 'admin', unit: '', team: '' };
+
+        function buildContextQuery(extra = {}) {
+            const params = new URLSearchParams();
+            params.set('roleView', queueContext.roleView || 'admin');
+            if (queueContext.unit) params.set('unit', queueContext.unit);
+            if (queueContext.team) params.set('team', queueContext.team);
+            Object.entries(extra).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+            });
+            return params.toString();
+        }
+
+        function renderCaseDetail(detail) {
+            const panel = document.getElementById('case-panel');
+            if (!panel) return;
+            if (!detail || detail.error) {
+                panel.innerHTML = '<div class="queue-empty">Nao foi possivel carregar o caso clinico.</div>';
+                return;
+            }
+
+            const summary = detail.clinical_summary || {};
+            const alerts = detail.alerts || [];
+            const unresolvedAlerts = alerts.filter(alert => !['resolved', 'resolvido'].includes(String(alert.status || '').toLowerCase()));
+            const followUps = detail.follow_ups || [];
+            const pendingFollowUp = followUps.find(item => !['completed', 'cancelled', 'missed', 'concluido', 'cancelado'].includes(String(item.status || '').toLowerCase()));
+            const carePlan = detail.active_care_plan || {};
+            const events = (detail.timeline?.events || []).slice(-8).reverse();
+            const deltas = detail.before_vs_after?.deltas || {};
+
+            panel.innerHTML = `
+                <div class="queue-top">
+                    <div>
+                        <div class="queue-title">${escapeHtml(detail.patient?.name || 'Paciente sem nome')} · ${escapeHtml(detail.lesion?.title || detail.lesion?.location || 'Lesao')}</div>
+                        <div class="queue-meta">
+                            <span>Risco: ${escapeHtml(summary.risk_level || 'moderado')}</span>
+                            <span>Status: ${escapeHtml(summary.status || 'em_acompanhamento')}</span>
+                            <span>SLA: ${escapeHtml(summary.sla_status || 'sem_referencia')}</span>
+                            <span>Plano: ${escapeHtml(carePlan.title || 'sem plano ativo')}</span>
+                        </div>
+                    </div>
+                    <div class="queue-score">${escapeHtml(summary.priority_bucket || 'rotina')}</div>
+                </div>
+                <div class="queue-reasons">${(summary.attention_reasons || []).map(reason => `<span class="reason-chip">${escapeHtml(reason)}</span>`).join('') || '<span class="reason-chip">Acompanhamento regular</span>'}</div>
+                <div class="case-actions">
+                    ${unresolvedAlerts[0] ? `<button class="case-action-btn" data-action="ack-alert" data-id="${escapeHtml(unresolvedAlerts[0].id)}">Reconhecer alerta</button>` : ''}
+                    ${unresolvedAlerts[0] ? `<button class="case-action-btn" data-action="resolve-alert" data-id="${escapeHtml(unresolvedAlerts[0].id)}">Resolver alerta</button>` : ''}
+                    ${pendingFollowUp ? `<button class="case-action-btn" data-action="complete-follow-up" data-id="${escapeHtml(pendingFollowUp.id)}">Concluir follow-up</button>` : ''}
+                </div>
+                <div class="case-grid">
+                    <div class="case-block">
+                        <h4>Comparação clínica</h4>
+                        <div class="case-stat"><span>Área</span><strong>${escapeHtml(deltas.area_delta_cm2 ?? '—')}</strong></div>
+                        <div class="case-stat"><span>% área</span><strong>${escapeHtml(deltas.area_change_pct ?? '—')}</strong></div>
+                        <div class="case-stat"><span>PUSH</span><strong>${escapeHtml(deltas.push_delta ?? '—')}</strong></div>
+                        <div class="case-stat"><span>Dor</span><strong>${escapeHtml(deltas.pain_delta ?? '—')}</strong></div>
+                    </div>
+                    <div class="case-block">
+                        <h4>Plano de cuidado</h4>
+                        <div class="case-stat"><span>Título</span><strong>${escapeHtml(carePlan.title || 'Sem plano ativo')}</strong></div>
+                        <div class="case-stat"><span>Revisão</span><strong>${escapeHtml(summary.review_due_date || carePlan.review_due_date || '—')}</strong></div>
+                        <div class="case-inline-form">
+                            <input id="care-plan-review-date" type="date" value="${escapeHtml(summary.review_due_date || carePlan.review_due_date || '')}">
+                            <select id="care-plan-risk-level">
+                                <option value="baixo" ${summary.risk_level === 'baixo' ? 'selected' : ''}>baixo</option>
+                                <option value="moderado" ${summary.risk_level === 'moderado' ? 'selected' : ''}>moderado</option>
+                                <option value="alto" ${summary.risk_level === 'alto' ? 'selected' : ''}>alto</option>
+                                <option value="critico" ${summary.risk_level === 'critico' ? 'selected' : ''}>critico</option>
+                            </select>
+                            <button class="case-action-btn" data-action="update-care-plan" data-id="${escapeHtml(carePlan.id || '')}">Atualizar plano</button>
+                        </div>
+                    </div>
+                    <div class="case-block">
+                        <h4>Alertas e follow-ups</h4>
+                        <div class="case-stat"><span>Alertas abertos</span><strong>${unresolvedAlerts.length}</strong></div>
+                        <div class="case-stat"><span>Próximo follow-up</span><strong>${escapeHtml(formatDate(pendingFollowUp || summary.next_follow_up))}</strong></div>
+                        <div class="case-stat"><span>Requer médico</span><strong>${summary.requires_doctor_review ? 'sim' : 'não'}</strong></div>
+                    </div>
+                    <div class="case-block">
+                        <h4>Timeline</h4>
+                        <div class="case-timeline">
+                            ${events.map(event => `
+                                <div class="case-event">
+                                    <strong>${escapeHtml(event.title || event.type || 'Evento')}</strong>
+                                    <span>${escapeHtml(formatDate(event.timestamp))} · ${escapeHtml(event.status || 'registrado')}</span>
+                                </div>
+                            `).join('') || '<div class="queue-empty">Sem eventos ainda.</div>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            panel.querySelectorAll('[data-action]').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const action = button.dataset.action;
+                    const id = button.dataset.id;
+                    if (!id && action !== 'update-care-plan') return;
+                    if (action === 'ack-alert') {
+                        await fetch(`/api/v1/alerts/${encodeURIComponent(id)}/acknowledge`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ notes: 'Reconhecido via dashboard' })
+                        });
+                    } else if (action === 'resolve-alert') {
+                        await fetch(`/api/v1/alerts/${encodeURIComponent(id)}/resolve`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ notes: 'Resolvido via dashboard' })
+                        });
+                    } else if (action === 'complete-follow-up') {
+                        await fetch(`/api/v1/follow-ups/${encodeURIComponent(id)}/complete`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: 'completed', notes: 'Concluído via dashboard' })
+                        });
+                    } else if (action === 'update-care-plan') {
+                        const reviewDate = document.getElementById('care-plan-review-date')?.value;
+                        const riskLevel = document.getElementById('care-plan-risk-level')?.value;
+                        await fetch(`/api/v1/care-plans/${encodeURIComponent(id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                review_due_date: reviewDate || undefined,
+                                risk_level: riskLevel || undefined,
+                                notes: 'Atualizado via dashboard'
+                            })
+                        });
+                    }
+                    if (activeCaseId) await openCase(activeCaseId);
+                    await loadDashboard();
+                    await loadClinicalQueue();
+                    await loadPatients();
+                });
+            });
+        }
+
+        async function openCase(caseId) {
+            activeCaseId = caseId;
+            const panel = document.getElementById('case-panel');
+            if (panel) panel.innerHTML = '<div class="queue-empty">Carregando caso clínico...</div>';
+            try {
+                const resp = await fetch(`/api/dashboard/cases/${encodeURIComponent(caseId)}?${buildContextQuery()}`);
+                const detail = await resp.json();
+                renderCaseDetail(detail);
+            } catch (e) {
+                renderCaseDetail({ error: true });
+                console.log('Case detail not available:', e);
+            }
+        }
+
+        function renderQueueItems(items) {
+            const container = document.getElementById('clinical-queue-list');
+            if (!container) return;
+            if (!items.length) {
+                container.innerHTML = '<div class="queue-empty">Nenhum paciente nesta visao agora.</div>';
+                return;
+            }
+            container.innerHTML = items.map(item => {
+                const reasons = (item.attention_reasons || []).slice(0, 4).map(reason => (
+                    `<span class="reason-chip">${escapeHtml(reason)}</span>`
+                )).join('');
+                const risk = item.risk_level || 'moderado';
+                return `
+                    <div class="queue-item risk-${risk}">
+                        <div class="queue-top">
+                            <div>
+                                <div class="queue-title">${escapeHtml(item.patient_name || 'Paciente sem nome')}</div>
+                                <div class="queue-meta">
+                                    <span>${escapeHtml(item.lesion_title || 'Lesao sem titulo')}</span>
+                                    <span>Status: ${escapeHtml(item.status || 'em_acompanhamento')}</span>
+                                    <span>Bucket: ${escapeHtml(item.priority_bucket || 'rotina')}</span>
+                                    <span>Risco: ${escapeHtml(risk)}</span>
+                                    <span>Alertas: ${item.open_alert_count || 0}</span>
+                                    <span>Unidade: ${escapeHtml(item.unit || '—')}</span>
+                                    <span>Follow-up: ${formatDate(item.next_follow_up)}</span>
+                                </div>
+                            </div>
+                            <div class="queue-score">Prioridade ${item.priority_score || 0}</div>
+                        </div>
+                        <div class="queue-reasons">${reasons || '<span class="reason-chip">Acompanhamento regular</span>'}</div>
+                        <div class="queue-actions">
+                            <button class="queue-action-btn" data-case-id="${escapeHtml(item.lesion_id || '')}">Abrir caso</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            container.querySelectorAll('[data-case-id]').forEach(button => {
+                button.addEventListener('click', () => openCase(button.dataset.caseId));
+            });
+        }
+
+        function bindQueueContext() {
+            const applyButton = document.getElementById('queue-context-apply');
+            if (!applyButton) return;
+            applyButton.addEventListener('click', async () => {
+                queueContext.roleView = document.getElementById('queue-role-view')?.value || 'admin';
+                queueContext.unit = document.getElementById('queue-unit-filter')?.value?.trim() || '';
+                queueContext.team = document.getElementById('queue-team-filter')?.value?.trim() || '';
+                await loadDashboard();
+                await loadClinicalQueue();
+                await loadPatients();
+                if (activeCaseId) await openCase(activeCaseId);
+            });
+        }
+
+        function bindQueueFilters() {
+            const filters = document.querySelectorAll('.queue-filter');
+            filters.forEach(button => {
+                button.addEventListener('click', async () => {
+                    activeQueueView = button.dataset.view || 'all';
+                    filters.forEach(item => item.classList.toggle('active', item === button));
+                    await loadClinicalQueue();
+                });
+            });
+        }
+
+        async function loadDashboard() {
+            try {
+                const resp = await fetch(`/api/dashboard/summary?${buildContextQuery()}`);
+                const data = await resp.json();
+                animateValue('total-patients', data.total_patients || 0);
+                animateValue('total-analyses', data.total_analyses || 0);
+                animateValue('high-risk', (data.risk_distribution?.alto || 0) + (data.risk_distribution?.critico || 0));
+                animateValue('active-alerts', data.active_alerts || 0);
+                const queueSummary = document.getElementById('queue-summary');
+                if (queueSummary) {
+                    queueSummary.textContent = `${data.patients_needing_attention || 0} precisam de atencao · ${data.patients_overdue || 0} atrasados · ${data.patients_sla_breached || 0} com SLA vencido`;
+                }
+                updateClock();
+            } catch(e) {
+                console.log('Dashboard data not available:', e);
+            }
+        }
+
+        async function loadClinicalQueue() {
+            try {
+                const resp = await fetch(`/api/dashboard/clinical-queue?${buildContextQuery({ limit: 6, view: activeQueueView })}`);
+                const payload = await resp.json();
+                renderQueueItems(payload.items || []);
+            } catch(e) {
+                const container = document.getElementById('clinical-queue-list');
+                if (container) {
+                    container.innerHTML = '<div class="queue-empty">Nao foi possivel carregar a fila clinica.</div>';
+                }
+                console.log('Clinical queue not available:', e);
+            }
+        }
+
+        async function loadPatients() {
+            try {
+                const resp = await fetch('/api/patients');
+                const patients = await resp.json();
+                const tbody = document.getElementById('patients-tbody');
+                if (patients.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2.5rem; color: var(--text-muted);">Nenhum paciente registrado</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = patients.map(p => `
+                    <tr>
+                        <td style="font-weight:500;">${escapeHtml(p.name || 'N/A')}</td>
+                        <td>${escapeHtml(p.metadata?.status || 'em_acompanhamento')}</td>
+                        <td><span class="badge badge-${p.metadata?.risk_level || 'moderado'}">${escapeHtml(p.metadata?.risk_level || 'N/A')}</span></td>
+                        <td>${p.metadata?.open_alerts ?? 0}</td>
+                        <td>${formatDate(p.metadata?.next_follow_up)}</td>
+                        <td style="color:var(--text-secondary);">${formatDate(p.metadata?.latest_evaluation_date || p.created_at)}</td>
+                    </tr>
+                `).join('');
+            } catch(e) {
+                console.log('Patient data not available:', e);
+            }
+        }
+
         hydratePatientHeaders();
+        bindQueueContext();
         bindQueueFilters();
         loadDashboard();
         loadClinicalQueue();
