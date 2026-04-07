@@ -49,9 +49,15 @@ dataset/
 
 # ===== Temporary files =====
 tmpclaude-*
+tmp_*.docx
 *.tmp
 *.bak
 
 # ===== Environment variables =====
 .env
 .env.local
+
+# ===== Organized artifact buckets (future generated files) =====
+artifacts/generated/
+artifacts/tmp/
+artifacts/cache/

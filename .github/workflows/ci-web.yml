@@ -1,0 +1,44 @@
+name: CI Web
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/redisus-frontend
+    env:
+      NEXT_PUBLIC_FIREBASE_API_KEY: demo-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: demo.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-project
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo.appspot.com
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "1234567890"
+      NEXT_PUBLIC_FIREBASE_APP_ID: 1:1234567890:web:demo
+      NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: G-DEMO1234
+      NEXT_PUBLIC_CLINICAL_API_URL: http://localhost:3000/api/clinical
+      NEXT_PUBLIC_HEAL_AI_API_URL: http://localhost:5000/api/v1
+      GOOGLE_GENAI_API_KEY: demo-key
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/redisus-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build

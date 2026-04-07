@@ -1,0 +1,37 @@
+# Security Policy
+
+## Escopo
+
+Este repositório trata de software para apoio ao diagnóstico e pode lidar com dados clínicos, imagens sensíveis e integrações com serviços externos. Segurança e privacidade não são opcionais.
+
+## Regras Imediatas
+
+- nunca versionar credenciais, chaves de API ou service accounts;
+- nunca subir imagens de pacientes reais para o Git;
+- nunca usar dados clínicos identificáveis em exemplos, screenshots ou testes;
+- manter arquivos `.env`, `.env.local` e equivalentes apenas no ambiente local;
+- preferir IDs sintéticos e datasets públicos ou explicitamente autorizados.
+
+## Reporte de Vulnerabilidades
+
+Se você identificar uma vulnerabilidade:
+
+1. não abra issue pública com detalhes sensíveis;
+2. envie a descrição, o impacto e os passos de reprodução ao mantenedor do projeto;
+3. aguarde alinhamento antes de divulgar publicamente.
+
+## Áreas Sensíveis
+
+- integrações com Firebase e autenticação;
+- armazenamento de imagens e relatórios;
+- tokens de IA generativa;
+- rastreabilidade de eventos clínicos;
+- dados pessoais e sensíveis regulados pela LGPD.
+
+## Hardening Prioritário
+
+- remover segredos do workspace versionável;
+- centralizar o contrato de ambiente em exemplos seguros;
+- adicionar verificação de segredos no CI;
+- restringir CORS e validar autenticação por ambiente;
+- formalizar política de retenção e anonimização de dados.

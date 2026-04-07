@@ -22,7 +22,8 @@ from collections import Counter
 sys.stdout.reconfigure(line_buffering=True)
 
 # Log to file as well
-LOG_FILE = Path(__file__).resolve().parent.parent / "train_resnet50_log.txt"
+LOG_FILE = Path(__file__).resolve().parent.parent / "artifacts" / "logs" / "train_resnet50_log.txt"
+LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 _log_fh = open(LOG_FILE, "w", encoding="utf-8")
 
 _orig_print = print

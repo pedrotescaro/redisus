@@ -1,0 +1,24 @@
+name: Research task
+description: Abrir uma tarefa de investigação, benchmark, curadoria de dados ou validação.
+title: "[Research] "
+labels: ["type:research"]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hipótese ou objetivo
+    validations:
+      required: true
+
+  - type: textarea
+    id: data
+    attributes:
+      label: Dados e artefatos envolvidos
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_output
+    attributes:
+      label: Saída esperada
+      description: Relatório, benchmark, dataset card, model card, experimento, notebook ou script.

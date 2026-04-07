@@ -55,7 +55,13 @@ if torch.cuda.is_available():
 import functools
 import io
 
-_LOG_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "train_v3_log.txt")
+_ARTIFACTS_LOG_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "artifacts",
+    "logs",
+)
+os.makedirs(_ARTIFACTS_LOG_DIR, exist_ok=True)
+_LOG_FILE_PATH = os.path.join(_ARTIFACTS_LOG_DIR, "train_v3_log.txt")
 _log_file_handle = open(_LOG_FILE_PATH, "w", encoding="utf-8", buffering=1)  # line-buffered
 
 _builtin_print = print

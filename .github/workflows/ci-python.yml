@@ -1,0 +1,31 @@
+name: CI Python
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  python-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install smoke dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest numpy opencv-python-headless flask loguru requests python-dotenv pillow reportlab fpdf2 pydantic fhir.resources
+
+      - name: Compile sources
+        run: python -m compileall src backend scripts main.py heal_platform.py realtime_app.py
+
+      - name: Run smoke tests
+        run: |
+          python -m pytest tests/test_clinical_api_contracts.py tests/test_fhir_client.py tests/test_risk_stratification.py -q

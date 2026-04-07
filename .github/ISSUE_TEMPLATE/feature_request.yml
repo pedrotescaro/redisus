@@ -1,0 +1,26 @@
+name: Feature request
+description: Proponha uma funcionalidade, melhoria de produto ou reorganização técnica.
+title: "[Feature] "
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Que dor ou limitação essa feature resolve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: O que você quer construir?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Escopo sugerido
+      description: Backend, frontend, dados, ML, docs, infra ou produto.

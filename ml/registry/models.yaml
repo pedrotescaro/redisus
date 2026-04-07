@@ -1,0 +1,28 @@
+models:
+  - id: wound-classifier-v1
+    status: legacy
+    task: wound-image-classification
+    artifact: models/wound_classifier/wound_classifier_final.keras
+    metadata: models/wound_classifier/model_metadata.json
+    notes: baseline inicial com 24 classes do acervo original
+
+  - id: wound-classifier-v3
+    status: experimental
+    task: wound-image-classification
+    artifact: models/wound_classifier_v2/wound_classifier_v2.pt
+    metadata: models/wound_classifier_v2/model_metadata_v2.json
+    notes: melhor baseline documentado no repositório atual
+
+  - id: body-part-detector
+    status: experimental
+    task: body-region-detection
+    artifact: models/body_part_detector/body_part_detector.pt
+    metadata: models/body_part_detector/metadata.json
+    notes: apoio a filtragem anatômica e contexto da imagem
+
+  - id: yolo-wound-detector
+    status: exploratory
+    task: wound-detection
+    artifact: runs/detect/runs/detect/wound/wound_yolov8/weights/best.pt
+    metadata: runs/detect/runs/detect/wound/wound_yolov8/results.csv
+    notes: ainda sem benchmark congelado e sem export oficial ONNX no repo
