@@ -274,6 +274,25 @@ Antes de produção real, ainda é necessário:
 - ativar branch protection;
 - fechar o processo de release.
 
+## Licença
+
+Este repositório está licenciado sob a [Apache License 2.0](LICENSE).
+
+Pontos práticos da licença neste projeto:
+
+- o código pode ser usado, modificado e redistribuído sob os termos da Apache-2.0;
+- avisos de copyright e licença devem ser preservados;
+- arquivos modificados devem indicar que houve alterações;
+- a licença inclui concessão expressa de patentes dos contribuidores;
+- a licença não concede direitos de marca sobre nomes, identidade visual ou logotipos.
+
+Avisos adicionais do projeto estão em [NOTICE](NOTICE).
+
+Importante:
+
+- datasets, pesos de modelos, serviços externos e dependências de terceiros continuam sujeitos às suas próprias licenças e termos de uso;
+- se a titularidade institucional do código mudar no futuro, o copyright e o `NOTICE` devem ser atualizados para refletir isso corretamente.
+
 ## Importante
 
 - O projeto já roda e demonstra valor técnico real.
