@@ -147,6 +147,13 @@ def create_app() -> Flask:
         ensure_admin_access()
         return jsonify(dashboard._get_dashboard_summary())
 
+    @app.route("/api/dashboard/clinical-queue", methods=["GET"])
+    def dashboard_clinical_queue():
+        ensure_admin_access()
+        limit = _parse_positive_int("limit", 20, minimum=1, maximum=100)
+        view = request.args.get("view", "")
+        return jsonify(dashboard._get_clinical_queue(limit=limit, view=view))
+
     @app.route("/api/patients", methods=["GET"])
     def dashboard_patients():
         user = current_user_required()
