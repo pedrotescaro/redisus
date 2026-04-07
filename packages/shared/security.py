@@ -185,6 +185,16 @@ def _extract_identifier(obj: Any, field: str = "id") -> str | None:
     return str(value) if value else None
 
 
+def _extract_field(obj: Any, field: str) -> str | None:
+    if obj is None:
+        return None
+    if isinstance(obj, Mapping):
+        value = obj.get(field)
+        return str(value) if value else None
+    value = getattr(obj, field, None)
+    return str(value) if value else None
+
+
 def can_access_patient_record(user: Mapping[str, Any] | None, patient: Any) -> bool:
     if auth_disabled():
         return True
@@ -224,6 +234,7 @@ def can_access_patient_record(user: Mapping[str, Any] | None, patient: Any) -> b
         return True
 
     metadata_units = {
+        *(_normalize_list(_extract_field(patient, "unit_id"))),
         *(_normalize_list(metadata.get("unit_id"))),
         *(_normalize_list(metadata.get("unit_ids"))),
         *(_normalize_list(metadata.get("allowed_unit_ids"))),

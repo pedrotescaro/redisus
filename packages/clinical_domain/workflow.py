@@ -168,6 +168,10 @@ def normalize_ai_output(
             2,
         ),
         "fallback_used": bool(raw_output.get("fallback_used", fallback_used)),
+        "needs_expert_review": bool(raw_output.get("needs_expert_review")),
+        "confidence_level": str(raw_output.get("confidence_level") or ""),
+        "confidence_entropy": round(_safe_float(raw_output.get("confidence_entropy"), 0.0), 4),
+        "confidence_margin": round(_safe_float(raw_output.get("confidence_margin"), 0.0), 4),
     }
     risk_level = derive_risk_level(evaluation, inference)
     follow_up_days = derive_follow_up_days(risk_level)
@@ -186,8 +190,15 @@ def normalize_ai_output(
         "risk_level": risk_level,
         "priority": "urgente" if risk_level == "critico" else risk_level,
         "follow_up_days": follow_up_days,
+        "requires_expert_review": bool(inference.get("needs_expert_review")),
         "recommendations": [str(item) for item in recommendations],
     }
+    metadata = {
+        "source": "clinical_api_pipeline",
+        "evaluation_date": evaluation.get("evaluation_date"),
+    }
+    if isinstance(raw_output.get("metadata"), Mapping):
+        metadata.update(dict(raw_output.get("metadata") or {}))
     return {
         "contract_version": AI_RESULT_CONTRACT_VERSION,
         "analysis_type": "wound_assessment",
@@ -198,10 +209,7 @@ def normalize_ai_output(
         "evaluation_id": str(evaluation.get("id") or ""),
         "inference": inference,
         "interpretation": interpretation,
-        "metadata": {
-            "source": "clinical_api_pipeline",
-            "evaluation_date": evaluation.get("evaluation_date"),
-        },
+        "metadata": metadata,
     }
 
 
@@ -276,10 +284,18 @@ def build_follow_up_payload(
         "scheduled_for": scheduled_for,
         "status": "scheduled",
         "reason": "clinical_review",
-        "assigned_role": "doctor" if risk_level in {"alto", "critico"} else "nurse",
+        "assigned_role": (
+            "doctor"
+            if risk_level in {"alto", "critico"} or bool(interpretation.get("requires_expert_review"))
+            else "nurse"
+        ),
         "created_by": created_by,
         "notes": str(interpretation.get("summary") or ""),
-        "metadata": {"risk_level": risk_level, "follow_up_days": follow_up_days},
+        "metadata": {
+            "risk_level": risk_level,
+            "follow_up_days": follow_up_days,
+            "requires_expert_review": bool(interpretation.get("requires_expert_review")),
+        },
     }
 
 
@@ -330,6 +346,27 @@ def build_alert_payloads(
                 "message": "AI fallback was used. Clinical validation is required.",
                 "due_at": datetime.now().date().isoformat(),
                 "metadata": {"contract_version": inference_result.get("contract_version")},
+            }
+        )
+
+    if bool(inference.get("needs_expert_review")):
+        alerts.append(
+            {
+                "patient_id": patient_id,
+                "case_id": lesion_id,
+                "care_plan_id": care_plan_id,
+                "follow_up_id": follow_up_id,
+                "alert_type": "expert_review_required",
+                "severity": "alto" if risk_level in {"alto", "critico"} else "moderado",
+                "status": "open",
+                "title": "Expert review required",
+                "message": "Model confidence requires specialist confirmation before clinical decision.",
+                "due_at": datetime.now().date().isoformat(),
+                "metadata": {
+                    "confidence_level": inference.get("confidence_level"),
+                    "confidence_margin": inference.get("confidence_margin"),
+                    "confidence_entropy": inference.get("confidence_entropy"),
+                },
             }
         )
 

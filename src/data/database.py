@@ -23,6 +23,8 @@ class PatientRecord:
     name: str
     birth_date: Optional[str] = None
     medical_record: Optional[str] = None
+    unit_id: Optional[str] = None
+    team_id: Optional[str] = None
     notes: str = ""
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     metadata: Dict = field(default_factory=dict)
@@ -33,6 +35,8 @@ class PatientRecord:
             "name": self.name,
             "birth_date": self.birth_date,
             "medical_record": self.medical_record,
+            "unit_id": self.unit_id,
+            "team_id": self.team_id,
             "notes": self.notes,
             "created_at": self.created_at,
             "metadata": self.metadata
@@ -123,6 +127,8 @@ class Database:
                     name TEXT NOT NULL,
                     birth_date TEXT,
                     medical_record TEXT,
+                    unit_id TEXT,
+                    team_id TEXT,
                     notes TEXT,
                     created_at TEXT,
                     metadata TEXT
@@ -164,6 +170,19 @@ class Database:
                     title TEXT,
                     wound_type TEXT,
                     location TEXT,
+                    unit_id TEXT,
+                    team_id TEXT,
+                    assigned_to_uid TEXT,
+                    assigned_to_name TEXT,
+                    assigned_to_role TEXT,
+                    claimed_by_uid TEXT,
+                    claimed_by_name TEXT,
+                    claimed_by_role TEXT,
+                    claimed_at TEXT,
+                    handoff_to_uid TEXT,
+                    handoff_to_name TEXT,
+                    handoff_to_role TEXT,
+                    handoff_at TEXT,
                     status TEXT,
                     opened_at TEXT,
                     closed_at TEXT,
@@ -270,6 +289,8 @@ class Database:
                     id TEXT PRIMARY KEY,
                     patient_id TEXT NOT NULL,
                     case_id TEXT NOT NULL,
+                    unit_id TEXT,
+                    team_id TEXT,
                     version INTEGER NOT NULL DEFAULT 1,
                     title TEXT NOT NULL,
                     status TEXT NOT NULL,
@@ -296,12 +317,17 @@ class Database:
                     id TEXT PRIMARY KEY,
                     patient_id TEXT NOT NULL,
                     case_id TEXT NOT NULL,
+                    unit_id TEXT,
+                    team_id TEXT,
                     care_plan_id TEXT,
                     evaluation_id TEXT,
                     scheduled_for TEXT NOT NULL,
                     status TEXT NOT NULL,
                     reason TEXT,
                     assigned_role TEXT,
+                    assigned_to_uid TEXT,
+                    assigned_to_name TEXT,
+                    assigned_to_role TEXT,
                     created_by TEXT,
                     notes TEXT,
                     created_at TEXT,
@@ -319,6 +345,8 @@ class Database:
                     id TEXT PRIMARY KEY,
                     patient_id TEXT NOT NULL,
                     case_id TEXT NOT NULL,
+                    unit_id TEXT,
+                    team_id TEXT,
                     care_plan_id TEXT,
                     follow_up_id TEXT,
                     alert_type TEXT,
@@ -326,6 +354,17 @@ class Database:
                     status TEXT,
                     title TEXT,
                     message TEXT,
+                    assigned_to_uid TEXT,
+                    assigned_to_name TEXT,
+                    assigned_to_role TEXT,
+                    claimed_by_uid TEXT,
+                    claimed_by_name TEXT,
+                    claimed_by_role TEXT,
+                    claimed_at TEXT,
+                    handoff_to_uid TEXT,
+                    handoff_to_name TEXT,
+                    handoff_to_role TEXT,
+                    handoff_at TEXT,
                     due_at TEXT,
                     created_at TEXT,
                     resolved_at TEXT,
@@ -357,6 +396,58 @@ class Database:
                 )
             """)
             
+            self._ensure_columns(conn, "patients", {"unit_id": "TEXT", "team_id": "TEXT"})
+            self._ensure_columns(
+                conn,
+                "wound_cases",
+                {
+                    "unit_id": "TEXT",
+                    "team_id": "TEXT",
+                    "assigned_to_uid": "TEXT",
+                    "assigned_to_name": "TEXT",
+                    "assigned_to_role": "TEXT",
+                    "claimed_by_uid": "TEXT",
+                    "claimed_by_name": "TEXT",
+                    "claimed_by_role": "TEXT",
+                    "claimed_at": "TEXT",
+                    "handoff_to_uid": "TEXT",
+                    "handoff_to_name": "TEXT",
+                    "handoff_to_role": "TEXT",
+                    "handoff_at": "TEXT",
+                },
+            )
+            self._ensure_columns(conn, "care_plans", {"unit_id": "TEXT", "team_id": "TEXT"})
+            self._ensure_columns(
+                conn,
+                "follow_ups",
+                {
+                    "unit_id": "TEXT",
+                    "team_id": "TEXT",
+                    "assigned_to_uid": "TEXT",
+                    "assigned_to_name": "TEXT",
+                    "assigned_to_role": "TEXT",
+                },
+            )
+            self._ensure_columns(
+                conn,
+                "clinical_alerts",
+                {
+                    "unit_id": "TEXT",
+                    "team_id": "TEXT",
+                    "assigned_to_uid": "TEXT",
+                    "assigned_to_name": "TEXT",
+                    "assigned_to_role": "TEXT",
+                    "claimed_by_uid": "TEXT",
+                    "claimed_by_name": "TEXT",
+                    "claimed_by_role": "TEXT",
+                    "claimed_at": "TEXT",
+                    "handoff_to_uid": "TEXT",
+                    "handoff_to_name": "TEXT",
+                    "handoff_to_role": "TEXT",
+                    "handoff_at": "TEXT",
+                },
+            )
+
             # Índices
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_analyses_patient 
@@ -369,6 +460,18 @@ class Database:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_wound_cases_patient
                 ON wound_cases(patient_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_patients_unit_team
+                ON patients(unit_id, team_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wound_cases_scope
+                ON wound_cases(unit_id, team_id, status)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wound_cases_assigned
+                ON wound_cases(assigned_to_uid, claimed_at DESC)
             """)
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_wound_evaluations_patient_date
@@ -403,8 +506,20 @@ class Database:
                 ON follow_ups(case_id, status)
             """)
             cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_follow_ups_scope
+                ON follow_ups(unit_id, team_id, status)
+            """)
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_clinical_alerts_case_status
                 ON clinical_alerts(case_id, status)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clinical_alerts_scope
+                ON clinical_alerts(unit_id, team_id, status)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clinical_alerts_assigned
+                ON clinical_alerts(assigned_to_uid, claimed_at DESC)
             """)
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_clinical_audit_case_created
@@ -414,26 +529,180 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_clinical_audit_entity
                 ON clinical_audit_log(entity_type, entity_id)
             """)
+
+            self._ensure_columns(conn, "patients", {"unit_id": "TEXT", "team_id": "TEXT"})
+            self._ensure_columns(
+                conn,
+                "wound_cases",
+                {
+                    "unit_id": "TEXT",
+                    "team_id": "TEXT",
+                    "assigned_to_uid": "TEXT",
+                    "assigned_to_name": "TEXT",
+                    "assigned_to_role": "TEXT",
+                    "claimed_by_uid": "TEXT",
+                    "claimed_by_name": "TEXT",
+                    "claimed_by_role": "TEXT",
+                    "claimed_at": "TEXT",
+                    "handoff_to_uid": "TEXT",
+                    "handoff_to_name": "TEXT",
+                    "handoff_to_role": "TEXT",
+                    "handoff_at": "TEXT",
+                },
+            )
+            self._ensure_columns(conn, "care_plans", {"unit_id": "TEXT", "team_id": "TEXT"})
+            self._ensure_columns(
+                conn,
+                "follow_ups",
+                {
+                    "unit_id": "TEXT",
+                    "team_id": "TEXT",
+                    "assigned_to_uid": "TEXT",
+                    "assigned_to_name": "TEXT",
+                    "assigned_to_role": "TEXT",
+                },
+            )
+            self._ensure_columns(
+                conn,
+                "clinical_alerts",
+                {
+                    "unit_id": "TEXT",
+                    "team_id": "TEXT",
+                    "assigned_to_uid": "TEXT",
+                    "assigned_to_name": "TEXT",
+                    "assigned_to_role": "TEXT",
+                    "claimed_by_uid": "TEXT",
+                    "claimed_by_name": "TEXT",
+                    "claimed_by_role": "TEXT",
+                    "claimed_at": "TEXT",
+                    "handoff_to_uid": "TEXT",
+                    "handoff_to_name": "TEXT",
+                    "handoff_to_role": "TEXT",
+                    "handoff_at": "TEXT",
+                },
+            )
+            self._backfill_formal_scope_columns(conn)
             
             conn.commit()
             
         logger.info(f"Banco de dados inicializado: {self.db_path}")
 
+    def _ensure_columns(self, conn: sqlite3.Connection, table: str, columns: Dict[str, str]) -> None:
+        existing = {str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        for column, definition in columns.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    @staticmethod
+    def _metadata_dict(raw: Any) -> Dict[str, Any]:
+        if isinstance(raw, dict):
+            return dict(raw)
+        if not raw:
+            return {}
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    def _backfill_formal_scope_columns(self, conn: sqlite3.Connection) -> None:
+        patient_rows = conn.execute("SELECT id, unit_id, team_id, metadata FROM patients").fetchall()
+        for row in patient_rows:
+            metadata = self._metadata_dict(row["metadata"])
+            unit_id = row["unit_id"] or metadata.get("unit_id") or metadata.get("unit")
+            team_id = row["team_id"] or metadata.get("team_id") or metadata.get("team")
+            if unit_id != row["unit_id"] or team_id != row["team_id"]:
+                conn.execute(
+                    "UPDATE patients SET unit_id = ?, team_id = ? WHERE id = ?",
+                    (unit_id, team_id, row["id"]),
+                )
+
+        case_rows = conn.execute(
+            """
+            SELECT wc.id, wc.unit_id, wc.team_id, wc.metadata, p.unit_id AS patient_unit_id, p.team_id AS patient_team_id
+            FROM wound_cases wc
+            LEFT JOIN patients p ON p.id = wc.patient_id
+            """
+        ).fetchall()
+        for row in case_rows:
+            metadata = self._metadata_dict(row["metadata"])
+            unit_id = row["unit_id"] or metadata.get("unit_id") or metadata.get("unit") or row["patient_unit_id"]
+            team_id = row["team_id"] or metadata.get("team_id") or metadata.get("team") or row["patient_team_id"]
+            if unit_id != row["unit_id"] or team_id != row["team_id"]:
+                conn.execute(
+                    "UPDATE wound_cases SET unit_id = ?, team_id = ? WHERE id = ?",
+                    (unit_id, team_id, row["id"]),
+                )
+
+        for table in ("care_plans", "follow_ups", "clinical_alerts"):
+            rows = conn.execute(
+                f"""
+                SELECT item.id, item.case_id, item.unit_id, item.team_id, item.metadata,
+                       wc.unit_id AS case_unit_id, wc.team_id AS case_team_id
+                FROM {table} item
+                LEFT JOIN wound_cases wc ON wc.id = item.case_id
+                """
+            ).fetchall()
+            for row in rows:
+                metadata = self._metadata_dict(row["metadata"])
+                unit_id = row["unit_id"] or metadata.get("unit_id") or metadata.get("unit") or row["case_unit_id"]
+                team_id = row["team_id"] or metadata.get("team_id") or metadata.get("team") or row["case_team_id"]
+                if unit_id != row["unit_id"] or team_id != row["team_id"]:
+                    conn.execute(
+                        f"UPDATE {table} SET unit_id = ?, team_id = ? WHERE id = ?",
+                        (unit_id, team_id, row["id"]),
+                    )
+
     # === MODELO CLÍNICO E JOBS ===
+
+    def _patient_scope(self, patient_id: str) -> Tuple[Optional[str], Optional[str]]:
+        patient = self.get_patient(patient_id)
+        if not patient:
+            return None, None
+        metadata = dict(patient.metadata or {})
+        return (
+            patient.unit_id or metadata.get("unit_id") or metadata.get("unit"),
+            patient.team_id or metadata.get("team_id") or metadata.get("team"),
+        )
+
+    def _case_scope(self, case_id: str) -> Tuple[Optional[str], Optional[str]]:
+        wound_case = self.get_wound_case(case_id)
+        if not wound_case:
+            return None, None
+        metadata = dict(wound_case.get("metadata") or {})
+        return (
+            wound_case.get("unit_id") or metadata.get("unit_id") or metadata.get("unit"),
+            wound_case.get("team_id") or metadata.get("team_id") or metadata.get("team"),
+        )
 
     def create_wound_case(self, patient_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         case_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
+        patient_unit_id, patient_team_id = self._patient_scope(patient_id)
+        metadata = dict(payload.get("metadata", {}) or {})
         case = {
             "id": case_id,
             "patient_id": patient_id,
             "title": payload.get("title"),
             "wound_type": payload.get("wound_type"),
             "location": payload.get("location"),
+            "unit_id": payload.get("unit_id") or metadata.get("unit_id") or metadata.get("unit") or patient_unit_id,
+            "team_id": payload.get("team_id") or metadata.get("team_id") or metadata.get("team") or patient_team_id,
+            "assigned_to_uid": payload.get("assigned_to_uid"),
+            "assigned_to_name": payload.get("assigned_to_name"),
+            "assigned_to_role": payload.get("assigned_to_role"),
+            "claimed_by_uid": payload.get("claimed_by_uid"),
+            "claimed_by_name": payload.get("claimed_by_name"),
+            "claimed_by_role": payload.get("claimed_by_role"),
+            "claimed_at": payload.get("claimed_at"),
+            "handoff_to_uid": payload.get("handoff_to_uid"),
+            "handoff_to_name": payload.get("handoff_to_name"),
+            "handoff_to_role": payload.get("handoff_to_role"),
+            "handoff_at": payload.get("handoff_at"),
             "status": payload.get("status", "active"),
             "opened_at": payload.get("opened_at", now),
             "closed_at": payload.get("closed_at"),
-            "metadata": payload.get("metadata", {}),
+            "metadata": metadata,
         }
         try:
             with self._get_connection() as conn:
@@ -441,12 +710,18 @@ class Database:
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO wound_cases
-                    (id, patient_id, title, wound_type, location, status, opened_at, closed_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, patient_id, title, wound_type, location, unit_id, team_id, assigned_to_uid, assigned_to_name,
+                     assigned_to_role, claimed_by_uid, claimed_by_name, claimed_by_role, claimed_at, handoff_to_uid,
+                     handoff_to_name, handoff_to_role, handoff_at, status, opened_at, closed_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        case["id"], case["patient_id"], case["title"], case["wound_type"],
-                        case["location"], case["status"], case["opened_at"], case["closed_at"],
+                        case["id"], case["patient_id"], case["title"], case["wound_type"], case["location"],
+                        case["unit_id"], case["team_id"], case["assigned_to_uid"], case["assigned_to_name"],
+                        case["assigned_to_role"], case["claimed_by_uid"], case["claimed_by_name"],
+                        case["claimed_by_role"], case["claimed_at"], case["handoff_to_uid"],
+                        case["handoff_to_name"], case["handoff_to_role"], case["handoff_at"],
+                        case["status"], case["opened_at"], case["closed_at"],
                         json.dumps(case["metadata"]),
                     ),
                 )
@@ -468,6 +743,19 @@ class Database:
                     "title": row["title"],
                     "wound_type": row["wound_type"],
                     "location": row["location"],
+                    "unit_id": row["unit_id"],
+                    "team_id": row["team_id"],
+                    "assigned_to_uid": row["assigned_to_uid"],
+                    "assigned_to_name": row["assigned_to_name"],
+                    "assigned_to_role": row["assigned_to_role"],
+                    "claimed_by_uid": row["claimed_by_uid"],
+                    "claimed_by_name": row["claimed_by_name"],
+                    "claimed_by_role": row["claimed_by_role"],
+                    "claimed_at": row["claimed_at"],
+                    "handoff_to_uid": row["handoff_to_uid"],
+                    "handoff_to_name": row["handoff_to_name"],
+                    "handoff_to_role": row["handoff_to_role"],
+                    "handoff_at": row["handoff_at"],
                     "status": row["status"],
                     "opened_at": row["opened_at"],
                     "closed_at": row["closed_at"],
@@ -495,6 +783,19 @@ class Database:
                         "title": row["title"],
                         "wound_type": row["wound_type"],
                         "location": row["location"],
+                        "unit_id": row["unit_id"],
+                        "team_id": row["team_id"],
+                        "assigned_to_uid": row["assigned_to_uid"],
+                        "assigned_to_name": row["assigned_to_name"],
+                        "assigned_to_role": row["assigned_to_role"],
+                        "claimed_by_uid": row["claimed_by_uid"],
+                        "claimed_by_name": row["claimed_by_name"],
+                        "claimed_by_role": row["claimed_by_role"],
+                        "claimed_at": row["claimed_at"],
+                        "handoff_to_uid": row["handoff_to_uid"],
+                        "handoff_to_name": row["handoff_to_name"],
+                        "handoff_to_role": row["handoff_to_role"],
+                        "handoff_at": row["handoff_at"],
                         "status": row["status"],
                         "opened_at": row["opened_at"],
                         "closed_at": row["closed_at"],
@@ -505,6 +806,61 @@ class Database:
         except Exception as e:
             logger.error(f"Erro ao listar casos clÃ­nicos: {e}")
             return []
+
+    def update_wound_case(self, case_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        current = self.get_wound_case(case_id)
+        if not current:
+            return None
+
+        merged_metadata = dict(current.get("metadata") or {})
+        if isinstance(updates.get("metadata"), dict):
+            merged_metadata.update(updates["metadata"])
+
+        record = {
+            **current,
+            **{key: value for key, value in updates.items() if key != "metadata"},
+            "metadata": merged_metadata,
+        }
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE wound_cases
+                    SET title = ?, wound_type = ?, location = ?, unit_id = ?, team_id = ?, assigned_to_uid = ?,
+                        assigned_to_name = ?, assigned_to_role = ?, claimed_by_uid = ?, claimed_by_name = ?,
+                        claimed_by_role = ?, claimed_at = ?, handoff_to_uid = ?, handoff_to_name = ?,
+                        handoff_to_role = ?, handoff_at = ?, status = ?, opened_at = ?, closed_at = ?, metadata = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        record.get("title"),
+                        record.get("wound_type"),
+                        record.get("location"),
+                        record.get("unit_id"),
+                        record.get("team_id"),
+                        record.get("assigned_to_uid"),
+                        record.get("assigned_to_name"),
+                        record.get("assigned_to_role"),
+                        record.get("claimed_by_uid"),
+                        record.get("claimed_by_name"),
+                        record.get("claimed_by_role"),
+                        record.get("claimed_at"),
+                        record.get("handoff_to_uid"),
+                        record.get("handoff_to_name"),
+                        record.get("handoff_to_role"),
+                        record.get("handoff_at"),
+                        record.get("status"),
+                        record.get("opened_at"),
+                        record.get("closed_at"),
+                        json.dumps(record.get("metadata", {})),
+                        case_id,
+                    ),
+                )
+                conn.commit()
+            return self.get_wound_case(case_id)
+        except Exception as e:
+            logger.error(f"Erro ao atualizar caso clÃ­nico: {e}")
+            return None
 
     def create_wound_evaluation(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         evaluation_id = str(uuid.uuid4())
@@ -670,6 +1026,32 @@ class Database:
         except Exception as e:
             logger.error(f"Erro ao listar imagens: {e}")
             return []
+
+    def get_wound_image(self, image_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute("SELECT * FROM wound_images WHERE id = ?", (image_id,)).fetchone()
+                if not row:
+                    return None
+                metadata = json.loads(row["metadata"] or "{}")
+                evaluation = self.get_wound_evaluation(row["evaluation_id"])
+                return {
+                    "id": row["id"],
+                    "evaluation_id": row["evaluation_id"],
+                    "image_role": row["image_role"],
+                    "image_path": row["image_path"],
+                    "content_type": row["content_type"],
+                    "metadata": metadata,
+                    "created_at": row["created_at"],
+                    "version": int(metadata.get("version", 1) or 1),
+                    "review_status": metadata.get("review_status", "nao_revisada"),
+                    "captured_at": metadata.get("captured_at"),
+                    "patient_id": metadata.get("patient_id") or (evaluation or {}).get("patient_id"),
+                    "case_id": metadata.get("case_id") or (evaluation or {}).get("case_id"),
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar imagem: {e}")
+            return None
 
     def list_ai_runs_for_evaluation(self, evaluation_id: str) -> List[Dict[str, Any]]:
         try:
@@ -921,6 +1303,7 @@ class Database:
     def create_care_plan(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         plan_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
+        unit_id, team_id = self._case_scope(payload["case_id"])
         try:
             with self._get_connection() as conn:
                 version_row = conn.execute(
@@ -942,6 +1325,8 @@ class Database:
                     "id": plan_id,
                     "patient_id": payload["patient_id"],
                     "case_id": payload["case_id"],
+                    "unit_id": payload.get("unit_id") or unit_id,
+                    "team_id": payload.get("team_id") or team_id,
                     "version": version,
                     "title": payload.get("title", "Care plan"),
                     "status": payload.get("status", "draft"),
@@ -961,14 +1346,16 @@ class Database:
                 conn.execute(
                     """
                     INSERT INTO care_plans
-                    (id, patient_id, case_id, version, title, status, risk_level, goals, frequency, tasks, alerts,
+                    (id, patient_id, case_id, unit_id, team_id, version, title, status, risk_level, goals, frequency, tasks, alerts,
                      source_evaluation_id, source_result_id, review_due_date, created_by, created_at, updated_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         record["id"],
                         record["patient_id"],
                         record["case_id"],
+                        record["unit_id"],
+                        record["team_id"],
                         record["version"],
                         record["title"],
                         record["status"],
@@ -1008,6 +1395,8 @@ class Database:
                         "id": row["id"],
                         "patient_id": row["patient_id"],
                         "case_id": row["case_id"],
+                        "unit_id": row["unit_id"],
+                        "team_id": row["team_id"],
                         "version": row["version"],
                         "title": row["title"],
                         "status": row["status"],
@@ -1047,6 +1436,8 @@ class Database:
                     "id": row["id"],
                     "patient_id": row["patient_id"],
                     "case_id": row["case_id"],
+                    "unit_id": row["unit_id"],
+                    "team_id": row["team_id"],
                     "version": row["version"],
                     "title": row["title"],
                     "status": row["status"],
@@ -1098,11 +1489,13 @@ class Database:
                 conn.execute(
                     """
                     UPDATE care_plans
-                    SET title = ?, status = ?, risk_level = ?, goals = ?, frequency = ?, tasks = ?, alerts = ?,
+                    SET unit_id = ?, team_id = ?, title = ?, status = ?, risk_level = ?, goals = ?, frequency = ?, tasks = ?, alerts = ?,
                         review_due_date = ?, updated_at = ?, metadata = ?
                     WHERE id = ?
                     """,
                     (
+                        record.get("unit_id"),
+                        record.get("team_id"),
                         record["title"],
                         record["status"],
                         record["risk_level"],
@@ -1125,16 +1518,22 @@ class Database:
     def create_follow_up(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         follow_up_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
+        unit_id, team_id = self._case_scope(payload["case_id"])
         record = {
             "id": follow_up_id,
             "patient_id": payload["patient_id"],
             "case_id": payload["case_id"],
+            "unit_id": payload.get("unit_id") or unit_id,
+            "team_id": payload.get("team_id") or team_id,
             "care_plan_id": payload.get("care_plan_id"),
             "evaluation_id": payload.get("evaluation_id"),
             "scheduled_for": payload["scheduled_for"],
             "status": payload.get("status", "scheduled"),
             "reason": payload.get("reason"),
             "assigned_role": payload.get("assigned_role"),
+            "assigned_to_uid": payload.get("assigned_to_uid"),
+            "assigned_to_name": payload.get("assigned_to_name"),
+            "assigned_to_role": payload.get("assigned_to_role"),
             "created_by": payload.get("created_by"),
             "notes": payload.get("notes"),
             "created_at": now,
@@ -1146,20 +1545,25 @@ class Database:
                 conn.execute(
                     """
                     INSERT INTO follow_ups
-                    (id, patient_id, case_id, care_plan_id, evaluation_id, scheduled_for, status, reason, assigned_role,
-                     created_by, notes, created_at, completed_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, patient_id, case_id, unit_id, team_id, care_plan_id, evaluation_id, scheduled_for, status, reason, assigned_role,
+                     assigned_to_uid, assigned_to_name, assigned_to_role, created_by, notes, created_at, completed_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         record["id"],
                         record["patient_id"],
                         record["case_id"],
+                        record["unit_id"],
+                        record["team_id"],
                         record["care_plan_id"],
                         record["evaluation_id"],
                         record["scheduled_for"],
                         record["status"],
                         record["reason"],
                         record["assigned_role"],
+                        record["assigned_to_uid"],
+                        record["assigned_to_name"],
+                        record["assigned_to_role"],
                         record["created_by"],
                         record["notes"],
                         record["created_at"],
@@ -1189,12 +1593,17 @@ class Database:
                         "id": row["id"],
                         "patient_id": row["patient_id"],
                         "case_id": row["case_id"],
+                        "unit_id": row["unit_id"],
+                        "team_id": row["team_id"],
                         "care_plan_id": row["care_plan_id"],
                         "evaluation_id": row["evaluation_id"],
                         "scheduled_for": row["scheduled_for"],
                         "status": row["status"],
                         "reason": row["reason"],
                         "assigned_role": row["assigned_role"],
+                        "assigned_to_uid": row["assigned_to_uid"],
+                        "assigned_to_name": row["assigned_to_name"],
+                        "assigned_to_role": row["assigned_to_role"],
                         "created_by": row["created_by"],
                         "notes": row["notes"],
                         "created_at": row["created_at"],
@@ -1217,12 +1626,17 @@ class Database:
                     "id": row["id"],
                     "patient_id": row["patient_id"],
                     "case_id": row["case_id"],
+                    "unit_id": row["unit_id"],
+                    "team_id": row["team_id"],
                     "care_plan_id": row["care_plan_id"],
                     "evaluation_id": row["evaluation_id"],
                     "scheduled_for": row["scheduled_for"],
                     "status": row["status"],
                     "reason": row["reason"],
                     "assigned_role": row["assigned_role"],
+                    "assigned_to_uid": row["assigned_to_uid"],
+                    "assigned_to_name": row["assigned_to_name"],
+                    "assigned_to_role": row["assigned_to_role"],
                     "created_by": row["created_by"],
                     "notes": row["notes"],
                     "created_at": row["created_at"],
@@ -1252,14 +1666,20 @@ class Database:
                 conn.execute(
                     """
                     UPDATE follow_ups
-                    SET scheduled_for = ?, status = ?, reason = ?, assigned_role = ?, notes = ?, completed_at = ?, metadata = ?
+                    SET unit_id = ?, team_id = ?, scheduled_for = ?, status = ?, reason = ?, assigned_role = ?,
+                        assigned_to_uid = ?, assigned_to_name = ?, assigned_to_role = ?, notes = ?, completed_at = ?, metadata = ?
                     WHERE id = ?
                     """,
                     (
+                        record.get("unit_id"),
+                        record.get("team_id"),
                         record["scheduled_for"],
                         record["status"],
                         record.get("reason"),
                         record.get("assigned_role"),
+                        record.get("assigned_to_uid"),
+                        record.get("assigned_to_name"),
+                        record.get("assigned_to_role"),
                         record.get("notes"),
                         record.get("completed_at"),
                         json.dumps(record.get("metadata", {})),
@@ -1275,10 +1695,13 @@ class Database:
     def create_clinical_alert(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         alert_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
+        unit_id, team_id = self._case_scope(payload["case_id"])
         record = {
             "id": alert_id,
             "patient_id": payload["patient_id"],
             "case_id": payload["case_id"],
+            "unit_id": payload.get("unit_id") or unit_id,
+            "team_id": payload.get("team_id") or team_id,
             "care_plan_id": payload.get("care_plan_id"),
             "follow_up_id": payload.get("follow_up_id"),
             "alert_type": payload.get("alert_type", "clinical"),
@@ -1286,6 +1709,17 @@ class Database:
             "status": payload.get("status", "open"),
             "title": payload.get("title", "Clinical alert"),
             "message": payload.get("message", ""),
+            "assigned_to_uid": payload.get("assigned_to_uid"),
+            "assigned_to_name": payload.get("assigned_to_name"),
+            "assigned_to_role": payload.get("assigned_to_role"),
+            "claimed_by_uid": payload.get("claimed_by_uid"),
+            "claimed_by_name": payload.get("claimed_by_name"),
+            "claimed_by_role": payload.get("claimed_by_role"),
+            "claimed_at": payload.get("claimed_at"),
+            "handoff_to_uid": payload.get("handoff_to_uid"),
+            "handoff_to_name": payload.get("handoff_to_name"),
+            "handoff_to_role": payload.get("handoff_to_role"),
+            "handoff_at": payload.get("handoff_at"),
             "due_at": payload.get("due_at"),
             "created_at": now,
             "resolved_at": payload.get("resolved_at"),
@@ -1296,14 +1730,18 @@ class Database:
                 conn.execute(
                     """
                     INSERT INTO clinical_alerts
-                    (id, patient_id, case_id, care_plan_id, follow_up_id, alert_type, severity, status,
-                     title, message, due_at, created_at, resolved_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, patient_id, case_id, unit_id, team_id, care_plan_id, follow_up_id, alert_type, severity, status,
+                     title, message, assigned_to_uid, assigned_to_name, assigned_to_role, claimed_by_uid, claimed_by_name,
+                     claimed_by_role, claimed_at, handoff_to_uid, handoff_to_name, handoff_to_role, handoff_at, due_at,
+                     created_at, resolved_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         record["id"],
                         record["patient_id"],
                         record["case_id"],
+                        record["unit_id"],
+                        record["team_id"],
                         record["care_plan_id"],
                         record["follow_up_id"],
                         record["alert_type"],
@@ -1311,6 +1749,17 @@ class Database:
                         record["status"],
                         record["title"],
                         record["message"],
+                        record["assigned_to_uid"],
+                        record["assigned_to_name"],
+                        record["assigned_to_role"],
+                        record["claimed_by_uid"],
+                        record["claimed_by_name"],
+                        record["claimed_by_role"],
+                        record["claimed_at"],
+                        record["handoff_to_uid"],
+                        record["handoff_to_name"],
+                        record["handoff_to_role"],
+                        record["handoff_at"],
                         record["due_at"],
                         record["created_at"],
                         record["resolved_at"],
@@ -1349,6 +1798,8 @@ class Database:
                         "id": row["id"],
                         "patient_id": row["patient_id"],
                         "case_id": row["case_id"],
+                        "unit_id": row["unit_id"],
+                        "team_id": row["team_id"],
                         "care_plan_id": row["care_plan_id"],
                         "follow_up_id": row["follow_up_id"],
                         "alert_type": row["alert_type"],
@@ -1356,6 +1807,17 @@ class Database:
                         "status": row["status"],
                         "title": row["title"],
                         "message": row["message"],
+                        "assigned_to_uid": row["assigned_to_uid"],
+                        "assigned_to_name": row["assigned_to_name"],
+                        "assigned_to_role": row["assigned_to_role"],
+                        "claimed_by_uid": row["claimed_by_uid"],
+                        "claimed_by_name": row["claimed_by_name"],
+                        "claimed_by_role": row["claimed_by_role"],
+                        "claimed_at": row["claimed_at"],
+                        "handoff_to_uid": row["handoff_to_uid"],
+                        "handoff_to_name": row["handoff_to_name"],
+                        "handoff_to_role": row["handoff_to_role"],
+                        "handoff_at": row["handoff_at"],
                         "due_at": row["due_at"],
                         "created_at": row["created_at"],
                         "resolved_at": row["resolved_at"],
@@ -1377,6 +1839,8 @@ class Database:
                     "id": row["id"],
                     "patient_id": row["patient_id"],
                     "case_id": row["case_id"],
+                    "unit_id": row["unit_id"],
+                    "team_id": row["team_id"],
                     "care_plan_id": row["care_plan_id"],
                     "follow_up_id": row["follow_up_id"],
                     "alert_type": row["alert_type"],
@@ -1384,6 +1848,17 @@ class Database:
                     "status": row["status"],
                     "title": row["title"],
                     "message": row["message"],
+                    "assigned_to_uid": row["assigned_to_uid"],
+                    "assigned_to_name": row["assigned_to_name"],
+                    "assigned_to_role": row["assigned_to_role"],
+                    "claimed_by_uid": row["claimed_by_uid"],
+                    "claimed_by_name": row["claimed_by_name"],
+                    "claimed_by_role": row["claimed_by_role"],
+                    "claimed_at": row["claimed_at"],
+                    "handoff_to_uid": row["handoff_to_uid"],
+                    "handoff_to_name": row["handoff_to_name"],
+                    "handoff_to_role": row["handoff_to_role"],
+                    "handoff_at": row["handoff_at"],
                     "due_at": row["due_at"],
                     "created_at": row["created_at"],
                     "resolved_at": row["resolved_at"],
@@ -1412,14 +1887,30 @@ class Database:
                 conn.execute(
                     """
                     UPDATE clinical_alerts
-                    SET severity = ?, status = ?, title = ?, message = ?, due_at = ?, resolved_at = ?, metadata = ?
+                    SET unit_id = ?, team_id = ?, severity = ?, status = ?, title = ?, message = ?, assigned_to_uid = ?,
+                        assigned_to_name = ?, assigned_to_role = ?, claimed_by_uid = ?, claimed_by_name = ?,
+                        claimed_by_role = ?, claimed_at = ?, handoff_to_uid = ?, handoff_to_name = ?, handoff_to_role = ?,
+                        handoff_at = ?, due_at = ?, resolved_at = ?, metadata = ?
                     WHERE id = ?
                     """,
                     (
+                        record.get("unit_id"),
+                        record.get("team_id"),
                         record.get("severity"),
                         record.get("status"),
                         record.get("title"),
                         record.get("message"),
+                        record.get("assigned_to_uid"),
+                        record.get("assigned_to_name"),
+                        record.get("assigned_to_role"),
+                        record.get("claimed_by_uid"),
+                        record.get("claimed_by_name"),
+                        record.get("claimed_by_role"),
+                        record.get("claimed_at"),
+                        record.get("handoff_to_uid"),
+                        record.get("handoff_to_name"),
+                        record.get("handoff_to_role"),
+                        record.get("handoff_at"),
                         record.get("due_at"),
                         record.get("resolved_at"),
                         json.dumps(record.get("metadata", {})),
@@ -1585,20 +2076,25 @@ class Database:
     def save_patient(self, patient: PatientRecord) -> bool:
         """Salva ou atualiza registro de paciente"""
         try:
+            metadata = dict(patient.metadata or {})
+            unit_id = patient.unit_id or metadata.get("unit_id") or metadata.get("unit")
+            team_id = patient.team_id or metadata.get("team_id") or metadata.get("team")
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     INSERT OR REPLACE INTO patients 
-                    (id, name, birth_date, medical_record, notes, created_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (id, name, birth_date, medical_record, unit_id, team_id, notes, created_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     patient.id,
                     patient.name,
                     patient.birth_date,
                     patient.medical_record,
+                    unit_id,
+                    team_id,
                     patient.notes,
                     patient.created_at,
-                    json.dumps(patient.metadata)
+                    json.dumps(metadata)
                 ))
                 conn.commit()
                 return True
@@ -1620,6 +2116,8 @@ class Database:
                         name=row["name"],
                         birth_date=row["birth_date"],
                         medical_record=row["medical_record"],
+                        unit_id=row["unit_id"],
+                        team_id=row["team_id"],
                         notes=row["notes"],
                         created_at=row["created_at"],
                         metadata=json.loads(row["metadata"] or "{}")
@@ -1646,6 +2144,8 @@ class Database:
                         name=row["name"],
                         birth_date=row["birth_date"],
                         medical_record=row["medical_record"],
+                        unit_id=row["unit_id"],
+                        team_id=row["team_id"],
                         notes=row["notes"],
                         created_at=row["created_at"],
                         metadata=json.loads(row["metadata"] or "{}")

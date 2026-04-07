@@ -426,6 +426,8 @@ class ClinicalDashboard:
         payload = self._to_dict(patient)
         metadata = payload.get("metadata")
         payload["metadata"] = dict(metadata) if isinstance(metadata, Mapping) else {}
+        payload.setdefault("unit_id", payload["metadata"].get("unit_id") or payload["metadata"].get("unit"))
+        payload.setdefault("team_id", payload["metadata"].get("team_id") or payload["metadata"].get("team"))
         return payload
 
     def _patient_region(self, patient: Mapping[str, Any]) -> str:
@@ -446,6 +448,9 @@ class ClinicalDashboard:
     def _patient_unit(self, patient: Mapping[str, Any]) -> str:
         metadata = patient.get("metadata") if isinstance(patient.get("metadata"), Mapping) else {}
         for key in ("unit_id", "unit", "facility", "clinic", "health_unit"):
+            value = patient.get(key)
+            if value:
+                return str(value)
             value = metadata.get(key)
             if value:
                 return str(value)
@@ -454,10 +459,51 @@ class ClinicalDashboard:
     def _patient_team(self, patient: Mapping[str, Any]) -> str:
         metadata = patient.get("metadata") if isinstance(patient.get("metadata"), Mapping) else {}
         for key in ("team", "care_team", "team_id", "assigned_team"):
+            value = patient.get(key)
+            if value:
+                return str(value)
             value = metadata.get(key)
             if value:
                 return str(value)
         return "nao_informada"
+
+    @staticmethod
+    def _assignment_payload(record: Mapping[str, Any] | None) -> Dict[str, Any]:
+        record = record or {}
+        return {
+            "uid": record.get("assigned_to_uid"),
+            "name": record.get("assigned_to_name"),
+            "role": record.get("assigned_to_role"),
+            "claimed_at": record.get("claimed_at"),
+            "handoff_to_uid": record.get("handoff_to_uid"),
+            "handoff_to_name": record.get("handoff_to_name"),
+            "handoff_to_role": record.get("handoff_to_role"),
+            "handoff_at": record.get("handoff_at"),
+        }
+
+    @staticmethod
+    def _primary_image(evaluation: Mapping[str, Any] | None) -> Dict[str, Any]:
+        if not evaluation:
+            return {}
+        images = evaluation.get("images")
+        if not isinstance(images, list):
+            return {}
+        preferred = [
+            image
+            for image in images
+            if str((image or {}).get("image_role") or "clinical").strip().lower() in {"clinical", "frontal", "measurement"}
+        ]
+        selected = (preferred or images)[-1] if (preferred or images) else None
+        return dict(selected) if isinstance(selected, Mapping) else {}
+
+    @staticmethod
+    def _image_url(image: Mapping[str, Any] | None) -> str | None:
+        if not image:
+            return None
+        image_id = image.get("id")
+        if not image_id:
+            return None
+        return f"/api/v1/images/{image_id}/content"
 
     def _normalize_role_view(self, role_view: str, user: Mapping[str, Any] | None = None) -> str:
         target = str(role_view or "").strip().lower()
@@ -503,9 +549,20 @@ class ClinicalDashboard:
 
     def _queue_actions_for_role(self, lesion_snapshot: Mapping[str, Any], role_view: str) -> List[str]:
         actions = ["open_case"]
+        if role_view in {"nurse", "doctor", "admin"}:
+            if not lesion_snapshot.get("assigned_to_uid"):
+                actions.append("claim_case")
+            else:
+                actions.append("handoff_case")
         if lesion_snapshot.get("open_alerts"):
+            primary_alert = (lesion_snapshot.get("open_alerts") or [{}])[0]
+            if role_view in {"nurse", "doctor", "admin"}:
+                if not primary_alert.get("assigned_to_uid"):
+                    actions.append("claim_alert")
+                else:
+                    actions.append("handoff_alert")
             actions.append("acknowledge_alert")
-            if role_view in {"doctor", "admin"} or self._severity_rank((lesion_snapshot.get("open_alerts") or [{}])[0].get("severity")) <= 2:
+            if role_view in {"doctor", "admin"} or self._severity_rank(primary_alert.get("severity")) <= 2:
                 actions.append("resolve_alert")
         if lesion_snapshot.get("next_follow_up") and role_view in {"nurse", "doctor", "admin"}:
             actions.append("complete_follow_up")
@@ -648,6 +705,7 @@ class ClinicalDashboard:
         )
 
         lesion_metadata = lesion_payload.get("metadata") if isinstance(lesion_payload.get("metadata"), Mapping) else {}
+        assignment = self._assignment_payload(lesion_payload)
         risk_level = self._normalize_risk(
             interpretation.get("risk_level")
             or latest_inference.get("risk_level")
@@ -697,10 +755,18 @@ class ClinicalDashboard:
             attention_reasons.append("sla clinico vence hoje")
         if active_alerts:
             attention_reasons.append(f"{len(active_alerts)} alerta(s) clinico(s) aberto(s)")
+            if not active_alerts[0].get("assigned_to_uid"):
+                attention_reasons.append("alerta clinico sem responsavel atribuido")
         if not active_care_plan:
             attention_reasons.append("sem plano de cuidado ativo")
+        if not assignment.get("uid") and (
+            active_alerts or overdue_follow_up or worsening or risk_rank >= 3 or sla_status in {"breached", "due_today"}
+        ):
+            attention_reasons.append("caso sem responsavel atribuido")
         if latest_inference.get("fallback_used"):
             attention_reasons.append("resultado de IA em fallback requer revisao")
+        if latest_inference.get("needs_expert_review"):
+            attention_reasons.append("IA requer revisao especialista")
         if days_since_evaluation is not None and days_since_evaluation >= 14:
             attention_reasons.append(f"sem nova avaliacao ha {days_since_evaluation} dia(s)")
         if not evaluations:
@@ -726,9 +792,12 @@ class ClinicalDashboard:
         priority_score += 18 if worsening else 0
         priority_score += 10 if not active_care_plan else 0
         priority_score += 8 if latest_inference.get("fallback_used") else 0
+        priority_score += 10 if latest_inference.get("needs_expert_review") else 0
         priority_score += 12 if not evaluations else 0
         priority_score += 20 if sla_status == "breached" else 8 if sla_status == "due_today" else 0
         priority_score += 12 if requires_doctor_review else 0
+        priority_score += 10 if not assignment.get("uid") and needs_attention else 0
+        priority_score += 6 if active_alerts and not active_alerts[0].get("assigned_to_uid") else 0
         if days_since_evaluation is not None and days_since_evaluation > 14:
             priority_score += min(days_since_evaluation - 14, 14)
         if self._normalize_status(lesion_payload.get("status")) in {"fechado", "resolvido"}:
@@ -768,6 +837,11 @@ class ClinicalDashboard:
             "open_alerts": active_alerts,
             "open_alert_count": len(active_alerts),
             "audit_event_count": len(audit_log),
+            "assigned_to_uid": assignment.get("uid"),
+            "assigned_to_name": assignment.get("name"),
+            "assigned_to_role": assignment.get("role"),
+            "claimed_at": assignment.get("claimed_at"),
+            "ownership": assignment,
             "risk_level": risk_level,
             "risk_rank": risk_rank,
             "worsening": worsening,
@@ -953,6 +1027,10 @@ class ClinicalDashboard:
                     "priority_bucket": priority_lesion.get("priority_bucket"),
                     "requires_doctor_review": priority_lesion.get("requires_doctor_review", False),
                     "recommended_owner_role": priority_lesion.get("recommended_owner_role"),
+                    "assigned_to_uid": priority_lesion.get("assigned_to_uid"),
+                    "assigned_to_name": priority_lesion.get("assigned_to_name"),
+                    "assigned_to_role": priority_lesion.get("assigned_to_role"),
+                    "claimed_at": priority_lesion.get("claimed_at"),
                     "audit_event_count": priority_lesion.get("audit_event_count", 0),
                     "attention_reasons": snapshot.get("attention_reasons", []),
                     "lesion_id": lesion_payload.get("id"),
@@ -962,6 +1040,9 @@ class ClinicalDashboard:
                     "evaluation_delta": priority_lesion.get("evaluation_delta", {}),
                     "open_alerts": priority_lesion.get("open_alerts", []),
                     "open_alert_id": ((priority_lesion.get("open_alerts") or [{}])[0]).get("id"),
+                    "open_alert_owner_uid": ((priority_lesion.get("open_alerts") or [{}])[0]).get("assigned_to_uid"),
+                    "open_alert_owner_name": ((priority_lesion.get("open_alerts") or [{}])[0]).get("assigned_to_name"),
+                    "open_alert_owner_role": ((priority_lesion.get("open_alerts") or [{}])[0]).get("assigned_to_role"),
                     "active_care_plan": priority_lesion.get("active_care_plan"),
                     "active_care_plan_id": (priority_lesion.get("active_care_plan") or {}).get("id"),
                     "available_actions": available_actions,
@@ -1242,10 +1323,17 @@ class ClinicalDashboard:
         evaluations = [self._to_dict(item) for item in raw_timeline.get("evaluations", [])]
         latest = lesion_snapshot.get("latest_evaluation")
         previous = lesion_snapshot.get("previous_evaluation")
+        latest_image = self._primary_image(latest)
+        previous_image = self._primary_image(previous)
+        primary_alert = ((lesion_snapshot.get("open_alerts") or [{}])[0]) if lesion_snapshot.get("open_alerts") else {}
         before_vs_after = {
             "latest": latest,
             "previous": previous,
             "deltas": lesion_snapshot.get("evaluation_delta", {}),
+            "latest_image": latest_image,
+            "previous_image": previous_image,
+            "latest_image_url": self._image_url(latest_image),
+            "previous_image_url": self._image_url(previous_image),
         }
 
         return {
@@ -1272,6 +1360,10 @@ class ClinicalDashboard:
             },
             "timeline": timeline,
             "before_vs_after": before_vs_after,
+            "ownership": {
+                "case": lesion_snapshot.get("ownership"),
+                "primary_alert": self._assignment_payload(primary_alert),
+            },
             "active_care_plan": lesion_snapshot.get("active_care_plan"),
             "follow_ups": lesion_snapshot.get("follow_ups"),
             "alerts": lesion_snapshot.get("alerts"),
@@ -2065,12 +2157,45 @@ DASHBOARD_HTML = """
             margin-top: 0.75rem;
         }
         .case-inline-form input,
-        .case-inline-form select {
+        .case-inline-form select,
+        .case-inline-form textarea {
             background: rgba(255,255,255,0.04);
             color: var(--text);
             border: 1px solid var(--card-border);
             border-radius: 10px;
             padding: 0.5rem 0.7rem;
+            font-size: 0.8rem;
+        }
+        .case-inline-form textarea {
+            min-height: 88px;
+            width: 100%;
+            resize: vertical;
+        }
+        .case-compare {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.85rem;
+            margin-top: 0.85rem;
+        }
+        .case-compare-card {
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.02);
+        }
+        .case-compare-card img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-top: 0.55rem;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .case-owner {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            color: var(--text-secondary);
             font-size: 0.8rem;
         }
 
@@ -2433,6 +2558,7 @@ DASHBOARD_HTML = """
         function formatDate(value) {
             if (!value) return '—';
             if (typeof value === 'object' && value.scheduled_for) return String(value.scheduled_for).split('T')[0];
+            if (typeof value === 'object' && value.evaluation_date) return String(value.evaluation_date).split('T')[0];
             return String(value).split('T')[0];
         }
 
@@ -2585,6 +2711,11 @@ DASHBOARD_HTML = """
             const carePlan = detail.active_care_plan || {};
             const events = (detail.timeline?.events || []).slice(-8).reverse();
             const deltas = detail.before_vs_after?.deltas || {};
+            const ownership = detail.ownership || {};
+            const caseOwner = ownership.case || {};
+            const alertOwner = ownership.primary_alert || {};
+            const latestImageUrl = detail.before_vs_after?.latest_image_url || '';
+            const previousImageUrl = detail.before_vs_after?.previous_image_url || '';
 
             panel.innerHTML = `
                 <div class="queue-top">
@@ -2595,12 +2726,21 @@ DASHBOARD_HTML = """
                             <span>Status: ${escapeHtml(summary.status || 'em_acompanhamento')}</span>
                             <span>SLA: ${escapeHtml(summary.sla_status || 'sem_referencia')}</span>
                             <span>Plano: ${escapeHtml(carePlan.title || 'sem plano ativo')}</span>
+                            <span>Unidade: ${escapeHtml(detail.patient?.unit_id || detail.patient?.metadata?.unit_id || '—')}</span>
+                            <span>Equipe: ${escapeHtml(detail.patient?.team_id || detail.patient?.metadata?.team_id || '—')}</span>
                         </div>
                     </div>
                     <div class="queue-score">${escapeHtml(summary.priority_bucket || 'rotina')}</div>
                 </div>
                 <div class="queue-reasons">${(summary.attention_reasons || []).map(reason => `<span class="reason-chip">${escapeHtml(reason)}</span>`).join('') || '<span class="reason-chip">Acompanhamento regular</span>'}</div>
+                <div class="case-inline-form" style="margin-top:0.85rem;">
+                    <textarea id="case-action-note" placeholder="Nota clinica obrigatoria para claim, handoff, alerta, follow-up e plano."></textarea>
+                </div>
                 <div class="case-actions">
+                    ${!caseOwner.uid ? `<button class="case-action-btn" data-action="claim-case" data-id="${escapeHtml(detail.lesion?.id || '')}">Assumir caso</button>` : ''}
+                    <button class="case-action-btn" data-action="handoff-case" data-id="${escapeHtml(detail.lesion?.id || '')}">Passar caso</button>
+                    ${unresolvedAlerts[0] && !alertOwner.uid ? `<button class="case-action-btn" data-action="claim-alert" data-id="${escapeHtml(unresolvedAlerts[0].id)}">Assumir alerta</button>` : ''}
+                    ${unresolvedAlerts[0] ? `<button class="case-action-btn" data-action="handoff-alert" data-id="${escapeHtml(unresolvedAlerts[0].id)}">Passar alerta</button>` : ''}
                     ${unresolvedAlerts[0] ? `<button class="case-action-btn" data-action="ack-alert" data-id="${escapeHtml(unresolvedAlerts[0].id)}">Reconhecer alerta</button>` : ''}
                     ${unresolvedAlerts[0] ? `<button class="case-action-btn" data-action="resolve-alert" data-id="${escapeHtml(unresolvedAlerts[0].id)}">Resolver alerta</button>` : ''}
                     ${pendingFollowUp ? `<button class="case-action-btn" data-action="complete-follow-up" data-id="${escapeHtml(pendingFollowUp.id)}">Concluir follow-up</button>` : ''}
@@ -2612,6 +2752,16 @@ DASHBOARD_HTML = """
                         <div class="case-stat"><span>% área</span><strong>${escapeHtml(deltas.area_change_pct ?? '—')}</strong></div>
                         <div class="case-stat"><span>PUSH</span><strong>${escapeHtml(deltas.push_delta ?? '—')}</strong></div>
                         <div class="case-stat"><span>Dor</span><strong>${escapeHtml(deltas.pain_delta ?? '—')}</strong></div>
+                        <div class="case-compare">
+                            <div class="case-compare-card">
+                                <div class="case-owner"><strong>Anterior</strong><span>${escapeHtml(formatDate(detail.before_vs_after?.previous))}</span></div>
+                                ${previousImageUrl ? `<img src="${escapeHtml(previousImageUrl)}" alt="Imagem anterior">` : '<div class="queue-empty">Sem imagem anterior.</div>'}
+                            </div>
+                            <div class="case-compare-card">
+                                <div class="case-owner"><strong>Atual</strong><span>${escapeHtml(formatDate(detail.before_vs_after?.latest))}</span></div>
+                                ${latestImageUrl ? `<img src="${escapeHtml(latestImageUrl)}" alt="Imagem atual">` : '<div class="queue-empty">Sem imagem atual.</div>'}
+                            </div>
+                        </div>
                     </div>
                     <div class="case-block">
                         <h4>Plano de cuidado</h4>
@@ -2633,6 +2783,23 @@ DASHBOARD_HTML = """
                         <div class="case-stat"><span>Alertas abertos</span><strong>${unresolvedAlerts.length}</strong></div>
                         <div class="case-stat"><span>Próximo follow-up</span><strong>${escapeHtml(formatDate(pendingFollowUp || summary.next_follow_up))}</strong></div>
                         <div class="case-stat"><span>Requer médico</span><strong>${summary.requires_doctor_review ? 'sim' : 'não'}</strong></div>
+                        <div class="case-owner">
+                            <span><strong>Caso:</strong> ${escapeHtml(caseOwner.name || 'Sem responsável')}</span>
+                            <span><strong>Role do caso:</strong> ${escapeHtml(caseOwner.role || '—')}</span>
+                            <span><strong>Claim:</strong> ${escapeHtml(formatDate(caseOwner.claimed_at))}</span>
+                            <span><strong>Alerta principal:</strong> ${escapeHtml(alertOwner.name || 'Sem responsável')}</span>
+                        </div>
+                        <div class="case-inline-form">
+                            <input id="handoff-uid" type="text" placeholder="uid destino">
+                            <input id="handoff-name" type="text" placeholder="nome destino">
+                            <select id="handoff-role">
+                                <option value="nurse">nurse</option>
+                                <option value="doctor">doctor</option>
+                                <option value="admin">admin</option>
+                            </select>
+                            <input id="handoff-unit" type="text" placeholder="unidade destino">
+                            <input id="handoff-team" type="text" placeholder="equipe destino">
+                        </div>
                     </div>
                     <div class="case-block">
                         <h4>Timeline</h4>
@@ -2652,24 +2819,73 @@ DASHBOARD_HTML = """
                 button.addEventListener('click', async () => {
                     const action = button.dataset.action;
                     const id = button.dataset.id;
+                    const note = document.getElementById('case-action-note')?.value?.trim() || '';
+                    const target = {
+                        assigned_to_uid: document.getElementById('handoff-uid')?.value?.trim() || '',
+                        assigned_to_name: document.getElementById('handoff-name')?.value?.trim() || '',
+                        assigned_to_role: document.getElementById('handoff-role')?.value || 'nurse',
+                        unit_id: document.getElementById('handoff-unit')?.value?.trim() || '',
+                        team_id: document.getElementById('handoff-team')?.value?.trim() || '',
+                    };
+                    if (!note) {
+                        window.alert('Informe uma nota clínica antes de executar a ação.');
+                        return;
+                    }
                     if (!id && action !== 'update-care-plan') return;
-                    if (action === 'ack-alert') {
+                    if (action === 'claim-case') {
+                        await fetch(`/api/v1/lesions/${encodeURIComponent(id)}/claim`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ notes: note })
+                        });
+                    } else if (action === 'handoff-case') {
+                        if (!target.assigned_to_uid || !target.assigned_to_name) {
+                            window.alert('Preencha uid e nome do destino para o handoff.');
+                            return;
+                        }
+                        await fetch(`/api/v1/lesions/${encodeURIComponent(id)}/handoff`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ...target, notes: note })
+                        });
+                    } else if (action === 'claim-alert') {
+                        await fetch(`/api/v1/alerts/${encodeURIComponent(id)}/claim`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ notes: note })
+                        });
+                    } else if (action === 'handoff-alert') {
+                        if (!target.assigned_to_uid || !target.assigned_to_name) {
+                            window.alert('Preencha uid e nome do destino para o handoff.');
+                            return;
+                        }
+                        await fetch(`/api/v1/alerts/${encodeURIComponent(id)}/handoff`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                assigned_to_uid: target.assigned_to_uid,
+                                assigned_to_name: target.assigned_to_name,
+                                assigned_to_role: target.assigned_to_role,
+                                notes: note
+                            })
+                        });
+                    } else if (action === 'ack-alert') {
                         await fetch(`/api/v1/alerts/${encodeURIComponent(id)}/acknowledge`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ notes: 'Reconhecido via dashboard' })
+                            body: JSON.stringify({ notes: note })
                         });
                     } else if (action === 'resolve-alert') {
                         await fetch(`/api/v1/alerts/${encodeURIComponent(id)}/resolve`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ notes: 'Resolvido via dashboard' })
+                            body: JSON.stringify({ notes: note })
                         });
                     } else if (action === 'complete-follow-up') {
                         await fetch(`/api/v1/follow-ups/${encodeURIComponent(id)}/complete`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ status: 'completed', notes: 'Concluído via dashboard' })
+                            body: JSON.stringify({ status: 'completed', notes: note })
                         });
                     } else if (action === 'update-care-plan') {
                         const reviewDate = document.getElementById('care-plan-review-date')?.value;
@@ -2680,7 +2896,7 @@ DASHBOARD_HTML = """
                             body: JSON.stringify({
                                 review_due_date: reviewDate || undefined,
                                 risk_level: riskLevel || undefined,
-                                notes: 'Atualizado via dashboard'
+                                notes: note
                             })
                         });
                     }

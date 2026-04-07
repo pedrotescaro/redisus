@@ -154,7 +154,7 @@ class UpdateCarePlanPayload(StrictPayloadModel):
     tasks: list[dict[str, Any]] | None = Field(default=None, max_length=30)
     alerts: list[dict[str, Any]] | None = Field(default=None, max_length=20)
     review_due_date: str | None = Field(default=None, max_length=32)
-    notes: str | None = Field(default=None, max_length=2000)
+    notes: str = Field(min_length=3, max_length=2000)
 
     @model_validator(mode="after")
     def validate_non_empty_update(self):
@@ -179,12 +179,36 @@ class CompleteFollowUpPayload(StrictPayloadModel):
     scheduled_for: str | None = Field(default=None, max_length=32)
     reason: str | None = Field(default=None, max_length=120)
     assigned_role: Literal["nurse", "doctor", "admin", "researcher"] | None = None
-    notes: str | None = Field(default=None, max_length=2000)
+    notes: str = Field(min_length=3, max_length=2000)
 
 
 class AlertActionPayload(StrictPayloadModel):
-    notes: str | None = Field(default=None, max_length=2000)
+    notes: str = Field(min_length=3, max_length=2000)
     reason: str | None = Field(default=None, max_length=200)
+
+
+class ClaimCasePayload(StrictPayloadModel):
+    notes: str = Field(min_length=3, max_length=2000)
+
+
+class HandoffCasePayload(StrictPayloadModel):
+    assigned_to_uid: str = Field(min_length=1, max_length=120)
+    assigned_to_name: str = Field(min_length=1, max_length=200)
+    assigned_to_role: Literal["nurse", "doctor", "admin", "researcher", "clinician", "estomaterapeuta"]
+    unit_id: str | None = Field(default=None, max_length=120)
+    team_id: str | None = Field(default=None, max_length=120)
+    notes: str = Field(min_length=3, max_length=2000)
+
+
+class ClaimAlertPayload(StrictPayloadModel):
+    notes: str = Field(min_length=3, max_length=2000)
+
+
+class HandoffAlertPayload(StrictPayloadModel):
+    assigned_to_uid: str = Field(min_length=1, max_length=120)
+    assigned_to_name: str = Field(min_length=1, max_length=200)
+    assigned_to_role: Literal["nurse", "doctor", "admin", "researcher", "clinician", "estomaterapeuta"]
+    notes: str = Field(min_length=3, max_length=2000)
 
 
 class AIChatContextPayload(StrictPayloadModel):

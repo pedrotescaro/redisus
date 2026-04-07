@@ -32,6 +32,19 @@ class LesionRecord:
     title: str | None = None
     wound_type: str | None = None
     location: str | None = None
+    unit_id: str | None = None
+    team_id: str | None = None
+    assigned_to_uid: str | None = None
+    assigned_to_name: str | None = None
+    assigned_to_role: str | None = None
+    claimed_by_uid: str | None = None
+    claimed_by_name: str | None = None
+    claimed_by_role: str | None = None
+    claimed_at: str | None = None
+    handoff_to_uid: str | None = None
+    handoff_to_name: str | None = None
+    handoff_to_role: str | None = None
+    handoff_at: str | None = None
     status: str = "active"
     opened_at: str = field(default_factory=_now_iso)
     closed_at: str | None = None
@@ -44,6 +57,19 @@ class LesionRecord:
             "title": self.title,
             "wound_type": self.wound_type,
             "location": self.location,
+            "unit_id": self.unit_id,
+            "team_id": self.team_id,
+            "assigned_to_uid": self.assigned_to_uid,
+            "assigned_to_name": self.assigned_to_name,
+            "assigned_to_role": self.assigned_to_role,
+            "claimed_by_uid": self.claimed_by_uid,
+            "claimed_by_name": self.claimed_by_name,
+            "claimed_by_role": self.claimed_by_role,
+            "claimed_at": self.claimed_at,
+            "handoff_to_uid": self.handoff_to_uid,
+            "handoff_to_name": self.handoff_to_name,
+            "handoff_to_role": self.handoff_to_role,
+            "handoff_at": self.handoff_at,
             "status": self.status,
             "opened_at": self.opened_at,
             "closed_at": self.closed_at,
@@ -58,6 +84,19 @@ class LesionRecord:
             title=data.get("title"),
             wound_type=data.get("wound_type"),
             location=data.get("location"),
+            unit_id=data.get("unit_id"),
+            team_id=data.get("team_id"),
+            assigned_to_uid=data.get("assigned_to_uid"),
+            assigned_to_name=data.get("assigned_to_name"),
+            assigned_to_role=data.get("assigned_to_role"),
+            claimed_by_uid=data.get("claimed_by_uid"),
+            claimed_by_name=data.get("claimed_by_name"),
+            claimed_by_role=data.get("claimed_by_role"),
+            claimed_at=data.get("claimed_at"),
+            handoff_to_uid=data.get("handoff_to_uid"),
+            handoff_to_name=data.get("handoff_to_name"),
+            handoff_to_role=data.get("handoff_to_role"),
+            handoff_at=data.get("handoff_at"),
             status=str(data.get("status") or "active"),
             opened_at=str(data.get("opened_at") or data.get("created_at") or _now_iso()),
             closed_at=data.get("closed_at"),
@@ -313,6 +352,8 @@ class CarePlanRecord:
     title: str
     status: str
     risk_level: str
+    unit_id: str | None = None
+    team_id: str | None = None
     goals: list[str] = field(default_factory=list)
     frequency: str | None = None
     tasks: list[dict[str, Any]] = field(default_factory=list)
@@ -330,6 +371,8 @@ class CarePlanRecord:
             "id": self.id,
             "patient_id": self.patient_id,
             "lesion_id": self.lesion_id,
+            "unit_id": self.unit_id,
+            "team_id": self.team_id,
             "version": self.version,
             "title": self.title,
             "status": self.status,
@@ -359,6 +402,8 @@ class CarePlanRecord:
             id=str(data.get("id") or ""),
             patient_id=str(data.get("patient_id") or ""),
             lesion_id=str(data.get("lesion_id") or data.get("case_id") or lesion_id or ""),
+            unit_id=data.get("unit_id"),
+            team_id=data.get("team_id"),
             version=max(1, version_int),
             title=str(data.get("title") or "Care plan"),
             status=str(data.get("status") or "draft"),
@@ -382,12 +427,17 @@ class FollowUpRecord:
     id: str
     patient_id: str
     lesion_id: str
+    unit_id: str | None
+    team_id: str | None
     care_plan_id: str | None
     evaluation_id: str | None
     scheduled_for: str
     status: str
     reason: str | None = None
     assigned_role: str | None = None
+    assigned_to_uid: str | None = None
+    assigned_to_name: str | None = None
+    assigned_to_role: str | None = None
     created_by: str | None = None
     notes: str | None = None
     created_at: str = field(default_factory=_now_iso)
@@ -399,12 +449,17 @@ class FollowUpRecord:
             "id": self.id,
             "patient_id": self.patient_id,
             "lesion_id": self.lesion_id,
+            "unit_id": self.unit_id,
+            "team_id": self.team_id,
             "care_plan_id": self.care_plan_id,
             "evaluation_id": self.evaluation_id,
             "scheduled_for": self.scheduled_for,
             "status": self.status,
             "reason": self.reason,
             "assigned_role": self.assigned_role,
+            "assigned_to_uid": self.assigned_to_uid,
+            "assigned_to_name": self.assigned_to_name,
+            "assigned_to_role": self.assigned_to_role,
             "created_by": self.created_by,
             "notes": self.notes,
             "created_at": self.created_at,
@@ -418,12 +473,17 @@ class FollowUpRecord:
             id=str(data.get("id") or ""),
             patient_id=str(data.get("patient_id") or ""),
             lesion_id=str(data.get("lesion_id") or data.get("case_id") or lesion_id or ""),
+            unit_id=data.get("unit_id"),
+            team_id=data.get("team_id"),
             care_plan_id=data.get("care_plan_id"),
             evaluation_id=data.get("evaluation_id"),
             scheduled_for=str(data.get("scheduled_for") or data.get("due_at") or _now_iso()),
             status=str(data.get("status") or "scheduled"),
             reason=data.get("reason"),
             assigned_role=data.get("assigned_role"),
+            assigned_to_uid=data.get("assigned_to_uid"),
+            assigned_to_name=data.get("assigned_to_name"),
+            assigned_to_role=data.get("assigned_to_role"),
             created_by=data.get("created_by"),
             notes=data.get("notes"),
             created_at=str(data.get("created_at") or _now_iso()),
@@ -437,6 +497,8 @@ class AlertRecord:
     id: str
     patient_id: str
     lesion_id: str
+    unit_id: str | None
+    team_id: str | None
     care_plan_id: str | None
     follow_up_id: str | None
     alert_type: str
@@ -444,6 +506,17 @@ class AlertRecord:
     status: str
     title: str
     message: str
+    assigned_to_uid: str | None = None
+    assigned_to_name: str | None = None
+    assigned_to_role: str | None = None
+    claimed_by_uid: str | None = None
+    claimed_by_name: str | None = None
+    claimed_by_role: str | None = None
+    claimed_at: str | None = None
+    handoff_to_uid: str | None = None
+    handoff_to_name: str | None = None
+    handoff_to_role: str | None = None
+    handoff_at: str | None = None
     due_at: str | None = None
     created_at: str = field(default_factory=_now_iso)
     resolved_at: str | None = None
@@ -454,6 +527,8 @@ class AlertRecord:
             "id": self.id,
             "patient_id": self.patient_id,
             "lesion_id": self.lesion_id,
+            "unit_id": self.unit_id,
+            "team_id": self.team_id,
             "care_plan_id": self.care_plan_id,
             "follow_up_id": self.follow_up_id,
             "alert_type": self.alert_type,
@@ -461,6 +536,17 @@ class AlertRecord:
             "status": self.status,
             "title": self.title,
             "message": self.message,
+            "assigned_to_uid": self.assigned_to_uid,
+            "assigned_to_name": self.assigned_to_name,
+            "assigned_to_role": self.assigned_to_role,
+            "claimed_by_uid": self.claimed_by_uid,
+            "claimed_by_name": self.claimed_by_name,
+            "claimed_by_role": self.claimed_by_role,
+            "claimed_at": self.claimed_at,
+            "handoff_to_uid": self.handoff_to_uid,
+            "handoff_to_name": self.handoff_to_name,
+            "handoff_to_role": self.handoff_to_role,
+            "handoff_at": self.handoff_at,
             "due_at": self.due_at,
             "created_at": self.created_at,
             "resolved_at": self.resolved_at,
@@ -473,6 +559,8 @@ class AlertRecord:
             id=str(data.get("id") or ""),
             patient_id=str(data.get("patient_id") or ""),
             lesion_id=str(data.get("lesion_id") or data.get("case_id") or lesion_id or ""),
+            unit_id=data.get("unit_id"),
+            team_id=data.get("team_id"),
             care_plan_id=data.get("care_plan_id"),
             follow_up_id=data.get("follow_up_id"),
             alert_type=str(data.get("alert_type") or "clinical"),
@@ -480,6 +568,17 @@ class AlertRecord:
             status=str(data.get("status") or "open"),
             title=str(data.get("title") or "Clinical alert"),
             message=str(data.get("message") or ""),
+            assigned_to_uid=data.get("assigned_to_uid"),
+            assigned_to_name=data.get("assigned_to_name"),
+            assigned_to_role=data.get("assigned_to_role"),
+            claimed_by_uid=data.get("claimed_by_uid"),
+            claimed_by_name=data.get("claimed_by_name"),
+            claimed_by_role=data.get("claimed_by_role"),
+            claimed_at=data.get("claimed_at"),
+            handoff_to_uid=data.get("handoff_to_uid"),
+            handoff_to_name=data.get("handoff_to_name"),
+            handoff_to_role=data.get("handoff_to_role"),
+            handoff_at=data.get("handoff_at"),
             due_at=data.get("due_at"),
             created_at=str(data.get("created_at") or _now_iso()),
             resolved_at=data.get("resolved_at"),

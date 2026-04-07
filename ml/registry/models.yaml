@@ -1,4 +1,14 @@
 models:
+  - id: heal-two-stage-resnet50
+    status: runtime-preferred
+    task: clinical-wound-triage
+    artifact: models/wound_classifier_v2/modelo_estagio1.pth + models/wound_classifier_v2/modelo_estagio2_semAugmentation.pth
+    metadata: models/wound_classifier_v2/model_metadata_v2.json
+    thresholds:
+      expert_review: 0.80
+      high_confidence: 0.95
+    notes: pipeline clínico com confidence margin, entropy e revisão especialista
+
   - id: wound-classifier-v1
     status: legacy
     task: wound-image-classification

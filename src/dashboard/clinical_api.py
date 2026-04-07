@@ -14,17 +14,22 @@ from packages.clinical_domain.validation import (
     AIChatPayload,
     AnalyzeEvaluationPayload,
     AlertActionPayload,
+    ClaimAlertPayload,
+    ClaimCasePayload,
     CompleteFollowUpPayload,
     CreateCarePlanPayload,
     CreateEvaluationPayload,
     CreateFollowUpPayload,
     GenerateReportPayload,
+    HandoffAlertPayload,
+    HandoffCasePayload,
     UpdateCarePlanPayload,
     assert_allowed_form_fields,
     normalize_image_role,
     validate_and_sanitize_image_upload,
     validate_json_request,
 )
+from src.diagnosis.clinical_ml import ClinicalMLService
 from packages.clinical_domain.workflow import (
     DEFAULT_MODEL_VERSION,
     build_alert_payloads,
@@ -82,14 +87,16 @@ class ClinicalAPI:
     def __init__(self, database, service_status_provider: Optional[Callable[[], Dict[str, Any]]] = None):
         self.db = database
         self.blueprint = Blueprint("clinical_api", __name__, url_prefix="/api/v1")
-        self.upload_dir = Path("output/uploads")
+        self.project_root = Path(__file__).resolve().parents[2]
+        self.upload_dir = self.project_root / "output" / "uploads"
         self.upload_dir.mkdir(parents=True, exist_ok=True)
-        self.report_dir = Path("output/reports")
+        self.report_dir = self.project_root / "output" / "reports"
         self.report_dir.mkdir(parents=True, exist_ok=True)
         self.service_status_provider = service_status_provider
         self.require_auth = os.getenv("CLINICAL_API_REQUIRE_AUTH", "1") != "0"
         self.allowed_origin = os.getenv("CLINICAL_API_ALLOWED_ORIGIN", "http://localhost:3000")
         self.firebase_auth = self._init_firebase_auth()
+        self.ml_service = ClinicalMLService()
         if self.require_auth and not self.firebase_auth:
             logger.error(
                 "CLINICAL_API_REQUIRE_AUTH=1 mas Firebase Admin nao foi configurado. "
@@ -231,6 +238,30 @@ class ClinicalAPI:
                 abort(403, description="updating high-risk care plans requires doctor or admin")
             return
         abort(403, description="update care plan requires nurse, doctor, or admin role")
+
+    def _ensure_case_assignment_allowed(self, user: Dict[str, Any], wound_case: Dict[str, Any], action: str) -> None:
+        roles = user_roles(user)
+        if {"admin", "clinical-admin", "superadmin", "doctor"} & roles:
+            return
+        if action == "claim" and roles & {"nurse", "clinician", "estomaterapeuta"}:
+            return
+        current_owner = str(wound_case.get("assigned_to_uid") or "").strip()
+        if action == "handoff" and roles & {"nurse", "clinician", "estomaterapeuta"}:
+            if current_owner and current_owner == str(user_uid(user) or ""):
+                return
+        abort(403, description=f"{action} case requires assigned owner, doctor, or admin role")
+
+    def _ensure_alert_assignment_allowed(self, user: Dict[str, Any], alert: Dict[str, Any], action: str) -> None:
+        roles = user_roles(user)
+        if {"admin", "clinical-admin", "superadmin", "doctor"} & roles:
+            return
+        if action == "claim" and roles & {"nurse", "clinician", "estomaterapeuta"}:
+            return
+        current_owner = str(alert.get("assigned_to_uid") or "").strip()
+        if action == "handoff" and roles & {"nurse", "clinician", "estomaterapeuta"}:
+            if current_owner and current_owner == str(user_uid(user) or ""):
+                return
+        abort(403, description=f"{action} alert requires assigned owner, doctor, or admin role")
 
     def _register_hooks(self):
         bp = self.blueprint
@@ -395,6 +426,20 @@ class ClinicalAPI:
             thread.start()
             return jsonify({"jobId": run["id"], "status": run["status"]}), 202
 
+        @bp.route("/images/<image_id>/content", methods=["GET"])
+        def get_image_content(image_id: str):
+            user = current_user_required()
+            image = self.db.get_wound_image(image_id)
+            if not image:
+                return jsonify({"error": "image_not_found"}), 404
+            ensure_evaluation_access(self.db, str(image["evaluation_id"]), user=user)
+            path = Path(str(image.get("image_path") or ""))
+            if not path.is_absolute():
+                path = (self.project_root / path).resolve()
+            if not path.exists():
+                return jsonify({"error": "image_file_not_found"}), 404
+            return send_file(str(path), mimetype=image.get("content_type") or "image/jpeg")
+
         @bp.route("/analysis-jobs/<job_id>", methods=["GET"])
         def get_job(job_id: str):
             current_user_required()
@@ -486,6 +531,80 @@ class ClinicalAPI:
                         )
                 return jsonify({"patient_id": patient_id, "lesions": cases, "timelines": timelines}), 200
             return lesion_timeline(case_id)
+
+        @bp.route("/lesions/<case_id>/claim", methods=["PATCH"])
+        def claim_case(case_id: str):
+            user = current_user_required()
+            wound_case = ensure_case_access(self.db, case_id, user=user)
+            self._ensure_case_assignment_allowed(user, wound_case, "claim")
+            payload = validate_json_request(ClaimCasePayload).model_dump()
+            updated = self.db.update_wound_case(
+                case_id,
+                {
+                    "assigned_to_uid": user_uid(user),
+                    "assigned_to_name": user_display_name(user),
+                    "assigned_to_role": self._primary_role(user),
+                    "claimed_by_uid": user_uid(user),
+                    "claimed_by_name": user_display_name(user),
+                    "claimed_by_role": self._primary_role(user),
+                    "claimed_at": datetime.now().isoformat(),
+                    "metadata": {"last_assignment_note": payload["notes"]},
+                },
+            )
+            if not updated:
+                return jsonify({"error": "case_claim_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(wound_case["patient_id"]),
+                case_id=str(case_id),
+                entity_type="case",
+                entity_id=str(case_id),
+                action="case_claimed",
+                user=user,
+                before=wound_case,
+                after=updated,
+                metadata=payload,
+            )
+            return jsonify(updated), 200
+
+        @bp.route("/lesions/<case_id>/handoff", methods=["PATCH"])
+        def handoff_case(case_id: str):
+            user = current_user_required()
+            wound_case = ensure_case_access(self.db, case_id, user=user)
+            self._ensure_case_assignment_allowed(user, wound_case, "handoff")
+            payload = validate_json_request(HandoffCasePayload).model_dump(exclude_none=True)
+            updated = self.db.update_wound_case(
+                case_id,
+                {
+                    "assigned_to_uid": payload["assigned_to_uid"],
+                    "assigned_to_name": payload["assigned_to_name"],
+                    "assigned_to_role": payload["assigned_to_role"],
+                    "handoff_to_uid": payload["assigned_to_uid"],
+                    "handoff_to_name": payload["assigned_to_name"],
+                    "handoff_to_role": payload["assigned_to_role"],
+                    "handoff_at": datetime.now().isoformat(),
+                    "unit_id": payload.get("unit_id", wound_case.get("unit_id")),
+                    "team_id": payload.get("team_id", wound_case.get("team_id")),
+                    "metadata": {
+                        "last_assignment_note": payload["notes"],
+                        "handoff_from_uid": user_uid(user),
+                        "handoff_from_name": user_display_name(user),
+                    },
+                },
+            )
+            if not updated:
+                return jsonify({"error": "case_handoff_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(wound_case["patient_id"]),
+                case_id=str(case_id),
+                entity_type="case",
+                entity_id=str(case_id),
+                action="case_handoff",
+                user=user,
+                before=wound_case,
+                after=updated,
+                metadata=payload,
+            )
+            return jsonify(updated), 200
 
         @bp.route("/care-plans", methods=["POST"])
         def create_care_plan():
@@ -658,6 +777,84 @@ class ClinicalAPI:
             ensure_case_access(self.db, case_id, user=user)
             active_only = request.args.get("activeOnly", "0").strip().lower() in {"1", "true", "yes"}
             return jsonify(self.db.list_case_alerts(case_id, active_only=active_only)), 200
+
+        @bp.route("/alerts/<alert_id>/claim", methods=["PATCH"])
+        def claim_alert(alert_id: str):
+            user = current_user_required()
+            alert = self.db.get_clinical_alert(alert_id)
+            if not alert:
+                return jsonify({"error": "alert_not_found"}), 404
+            ensure_case_access(self.db, alert["case_id"], user=user)
+            self._ensure_alert_assignment_allowed(user, alert, "claim")
+            payload = validate_json_request(ClaimAlertPayload).model_dump()
+            updated = self.db.update_clinical_alert(
+                alert_id,
+                {
+                    "assigned_to_uid": user_uid(user),
+                    "assigned_to_name": user_display_name(user),
+                    "assigned_to_role": self._primary_role(user),
+                    "claimed_by_uid": user_uid(user),
+                    "claimed_by_name": user_display_name(user),
+                    "claimed_by_role": self._primary_role(user),
+                    "claimed_at": datetime.now().isoformat(),
+                    "metadata": {"last_assignment_note": payload["notes"]},
+                },
+            )
+            if not updated:
+                return jsonify({"error": "alert_claim_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(alert["patient_id"]),
+                case_id=str(alert["case_id"]),
+                entity_type="alert",
+                entity_id=alert_id,
+                action="alert_claimed",
+                user=user,
+                before=alert,
+                after=updated,
+                metadata=payload,
+            )
+            return jsonify(updated), 200
+
+        @bp.route("/alerts/<alert_id>/handoff", methods=["PATCH"])
+        def handoff_alert(alert_id: str):
+            user = current_user_required()
+            alert = self.db.get_clinical_alert(alert_id)
+            if not alert:
+                return jsonify({"error": "alert_not_found"}), 404
+            ensure_case_access(self.db, alert["case_id"], user=user)
+            self._ensure_alert_assignment_allowed(user, alert, "handoff")
+            payload = validate_json_request(HandoffAlertPayload).model_dump()
+            updated = self.db.update_clinical_alert(
+                alert_id,
+                {
+                    "assigned_to_uid": payload["assigned_to_uid"],
+                    "assigned_to_name": payload["assigned_to_name"],
+                    "assigned_to_role": payload["assigned_to_role"],
+                    "handoff_to_uid": payload["assigned_to_uid"],
+                    "handoff_to_name": payload["assigned_to_name"],
+                    "handoff_to_role": payload["assigned_to_role"],
+                    "handoff_at": datetime.now().isoformat(),
+                    "metadata": {
+                        "last_assignment_note": payload["notes"],
+                        "handoff_from_uid": user_uid(user),
+                        "handoff_from_name": user_display_name(user),
+                    },
+                },
+            )
+            if not updated:
+                return jsonify({"error": "alert_handoff_failed"}), 500
+            self._record_audit_event(
+                patient_id=str(alert["patient_id"]),
+                case_id=str(alert["case_id"]),
+                entity_type="alert",
+                entity_id=alert_id,
+                action="alert_handoff",
+                user=user,
+                before=alert,
+                after=updated,
+                metadata=payload,
+            )
+            return jsonify(updated), 200
 
         @bp.route("/alerts/<alert_id>/acknowledge", methods=["PATCH"])
         def acknowledge_alert(alert_id: str):
@@ -868,19 +1065,34 @@ class ClinicalAPI:
 
             self.db.update_ai_run(run_id, {"status": "running_stage2", "stage1_latency_ms": stage1_latency})
             stage2_start = time.time()
-            raw_output = {
-                "etiology": "ulcera_venosa",
-                "confidence": 0.74,
-                "tissue_percentages": {"granulation": 62, "slough": 30, "necrosis": 8},
-                "wound_area_cm2": 9.8,
-                "diagnosis_summary": "Leito com granulacao predominante e reducao de necrose.",
-                "recommendations": [
-                    "Manter cobertura absorvente.",
-                    "Controle de exsudato e protecao perilesional.",
-                    "Reavaliacao clinica em 7 dias.",
-                ],
-                "fallback_used": bool(force_fallback or True),
+            evaluation = {
+                **evaluation,
+                "images": self.db.list_evaluation_images(evaluation_id),
             }
+            runtime_inference = (
+                self.ml_service.run_inference(evaluation)
+                if not force_fallback
+                else {
+                    "raw_output": {
+                        "etiology": "venous_ulcer",
+                        "confidence": 0.68,
+                        "tissue_percentages": {"granulation": 55, "slough": 28, "necrosis": 17},
+                        "wound_area_cm2": float(evaluation.get("wound_area_cm2") or 0.0),
+                        "diagnosis_summary": "Fallback operacional ativado para manter continuidade assistencial.",
+                        "recommendations": [
+                            "Validar manualmente a inferência antes de decisão terapêutica.",
+                            "Reavaliar a lesão em até 72h se houver piora clínica.",
+                        ],
+                        "fallback_used": True,
+                        "needs_expert_review": True,
+                        "confidence_level": "low",
+                        "metadata": {"source": "forced-fallback"},
+                    },
+                    "model_version": os.getenv("REDISUS_MODEL_VERSION", DEFAULT_MODEL_VERSION),
+                    "model_descriptor": {"id": "forced-fallback"},
+                }
+            )
+            raw_output = dict(runtime_inference.get("raw_output") or {})
             time.sleep(0.8)
             stage2_latency = int((time.time() - stage2_start) * 1000)
             self.metrics["stage2_latency_ms_sum"] += stage2_latency
@@ -890,9 +1102,11 @@ class ClinicalAPI:
                 patient_id=str(evaluation["patient_id"]),
                 lesion_id=str(case_id),
                 evaluation=evaluation,
-                fallback_used=bool(raw_output["fallback_used"]),
-                model_version=os.getenv("REDISUS_MODEL_VERSION", DEFAULT_MODEL_VERSION),
+                fallback_used=bool(raw_output.get("fallback_used")),
+                model_version=str(runtime_inference.get("model_version") or os.getenv("REDISUS_MODEL_VERSION", DEFAULT_MODEL_VERSION)),
             )
+            if isinstance(runtime_inference.get("model_descriptor"), dict):
+                result_payload.setdefault("metadata", {})["model_descriptor"] = dict(runtime_inference["model_descriptor"])
             saved_result = self.db.save_ai_result(run_id, result_payload)
             if not saved_result:
                 raise ValueError("failed to persist AI result")
