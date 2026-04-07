@@ -176,12 +176,13 @@ def validate_and_sanitize_image_upload(file_storage: FileStorage) -> ValidatedIm
         probe = Image.open(io.BytesIO(raw))
         probe.verify()
         image = Image.open(io.BytesIO(raw))
+        detected_format = (image.format or "").upper()
         image = ImageOps.exif_transpose(image)
         image.load()
     except (UnidentifiedImageError, OSError):
         abort(415, description="uploaded file is not a valid image")
 
-    fmt = (image.format or "").upper()
+    fmt = detected_format
     if fmt not in ALLOWED_IMAGE_FORMATS:
         abort(415, description="unsupported image format")
 
