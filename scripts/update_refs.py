@@ -1,4 +1,5 @@
 import re
+import json
 
 # The user's original 12 references
 user_refs = [
@@ -58,9 +59,9 @@ tsx_array = "const references = [\n"
 for i, r in enumerate(all_refs):
     tsx_array += "  {\n"
     tsx_array += f'    id: {r["id"]},\n'
-    tsx_array += f'    text: "{r["text"].replace('"', '\\"')}"'
+    tsx_array += f"    text: {json.dumps(r['text'], ensure_ascii=False)}"
     if "link" in r:
-        tsx_array += f',\n    link: "{r["link"]}"\n'
+        tsx_array += f",\n    link: {json.dumps(r['link'], ensure_ascii=False)}\n"
     else:
         tsx_array += "\n"
     tsx_array += "  }"
