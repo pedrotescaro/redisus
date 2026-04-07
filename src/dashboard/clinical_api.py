@@ -13,14 +13,26 @@ from loguru import logger
 from packages.clinical_domain.validation import (
     AIChatPayload,
     AnalyzeEvaluationPayload,
+    CreateCarePlanPayload,
     CreateEvaluationPayload,
+    CreateFollowUpPayload,
     GenerateReportPayload,
     assert_allowed_form_fields,
     normalize_image_role,
     validate_and_sanitize_image_upload,
     validate_json_request,
 )
+from packages.clinical_domain.workflow import (
+    DEFAULT_MODEL_VERSION,
+    build_alert_payloads,
+    build_case_timeline,
+    build_care_plan_payload,
+    build_follow_up_payload,
+    normalize_ai_output,
+)
 from packages.shared.security import (
+    ensure_case_access,
+    ensure_clinical_write_access,
     current_user_required,
     enforce_rate_limit,
     enforce_request_auth,
@@ -185,11 +197,11 @@ class ClinicalAPI:
 
         @bp.route("/evaluations", methods=["POST"])
         def create_evaluation():
-            user = current_user_required()
+            user = ensure_clinical_write_access(action="create evaluations")
             payload = validate_json_request(CreateEvaluationPayload).model_dump()
             patient = ensure_patient_access(self.db, payload["patient_id"], user=user)
 
-            case_id = payload.get("case_id")
+            case_id = payload.get("lesion_id") or payload.get("case_id")
             if case_id:
                 existing_case = self.db.get_wound_case(case_id)
                 if not existing_case:
@@ -223,9 +235,9 @@ class ClinicalAPI:
 
         @bp.route("/evaluations/<evaluation_id>/images", methods=["POST"])
         def upload_evaluation_image(evaluation_id: str):
-            user = current_user_required()
+            user = ensure_clinical_write_access(action="upload clinical images")
             enforce_rate_limit("upload", 30)
-            ensure_evaluation_access(self.db, evaluation_id, user=user)
+            evaluation = ensure_evaluation_access(self.db, evaluation_id, user=user)
 
             image = request.files.get("image")
             if not image:
@@ -250,6 +262,10 @@ class ClinicalAPI:
                         "width": validated_image.width,
                         "height": validated_image.height,
                         "size_bytes": len(validated_image.content),
+                        "patient_id": evaluation["patient_id"],
+                        "case_id": evaluation.get("case_id"),
+                        "review_status": "nao_revisada",
+                        "captured_at": datetime.now().isoformat(),
                     },
                 },
             )
@@ -259,7 +275,7 @@ class ClinicalAPI:
 
         @bp.route("/evaluations/<evaluation_id>/analyze", methods=["POST"])
         def analyze_evaluation(evaluation_id: str):
-            user = current_user_required()
+            user = ensure_clinical_write_access(action="run AI inference")
             ensure_evaluation_access(self.db, evaluation_id, user=user)
             enforce_rate_limit("analyze", 20)
             body = validate_json_request(AnalyzeEvaluationPayload).model_dump()
@@ -297,6 +313,135 @@ class ClinicalAPI:
             evaluations = self.db.list_patient_evaluations(patient_id, case_id=case_id)
             return jsonify(evaluations), 200
 
+        @bp.route("/patients/<patient_id>/lesions", methods=["GET"])
+        def list_patient_lesions(patient_id: str):
+            user = current_user_required()
+            ensure_patient_access(self.db, patient_id, user=user)
+            lesions = self.db.list_wound_cases(patient_id)
+            enriched: list[dict[str, Any]] = []
+            for lesion in lesions:
+                active_plan = self.db.get_active_care_plan_for_case(lesion["id"])
+                evaluations = self.db.list_patient_evaluations(patient_id, case_id=lesion["id"])
+                latest = evaluations[0] if evaluations else None
+                latest_result = (
+                    self.db.get_latest_ai_result_for_evaluation(latest["id"])
+                    if latest and latest.get("id")
+                    else None
+                )
+                enriched.append(
+                    {
+                        **lesion,
+                        "latest_evaluation": latest,
+                        "latest_inference_result": latest_result,
+                        "active_care_plan": active_plan,
+                        "open_alert_count": len(self.db.list_case_alerts(lesion["id"], active_only=True)),
+                    }
+                )
+            return jsonify(enriched), 200
+
+        @bp.route("/lesions/<case_id>/timeline", methods=["GET"])
+        def lesion_timeline(case_id: str):
+            user = current_user_required()
+            wound_case = ensure_case_access(self.db, case_id, user=user)
+            raw_timeline = self.db.get_case_timeline(wound_case["id"])
+            if not raw_timeline:
+                return jsonify({"error": "lesion_timeline_not_found"}), 404
+            timeline = build_case_timeline(
+                patient=raw_timeline["patient"],
+                lesion=raw_timeline["lesion"],
+                evaluations=raw_timeline["evaluations"],
+                care_plans=raw_timeline["care_plans"],
+                follow_ups=raw_timeline["follow_ups"],
+                alerts=raw_timeline["alerts"],
+            )
+            return jsonify(timeline), 200
+
+        @bp.route("/patients/<patient_id>/timeline", methods=["GET"])
+        def patient_timeline(patient_id: str):
+            user = current_user_required()
+            ensure_patient_access(self.db, patient_id, user=user)
+            case_id = request.args.get("lesionId") or request.args.get("caseId")
+            if not case_id:
+                cases = self.db.list_wound_cases(patient_id)
+                if not cases:
+                    return jsonify({"patient_id": patient_id, "lesions": [], "timelines": []}), 200
+                timelines = []
+                for wound_case in cases:
+                    raw_timeline = self.db.get_case_timeline(wound_case["id"])
+                    if raw_timeline:
+                        timelines.append(
+                            build_case_timeline(
+                                patient=raw_timeline["patient"],
+                                lesion=raw_timeline["lesion"],
+                                evaluations=raw_timeline["evaluations"],
+                                care_plans=raw_timeline["care_plans"],
+                                follow_ups=raw_timeline["follow_ups"],
+                                alerts=raw_timeline["alerts"],
+                            )
+                        )
+                return jsonify({"patient_id": patient_id, "lesions": cases, "timelines": timelines}), 200
+            return lesion_timeline(case_id)
+
+        @bp.route("/care-plans", methods=["POST"])
+        def create_care_plan():
+            user = ensure_clinical_write_access(action="create care plans")
+            payload = validate_json_request(CreateCarePlanPayload).model_dump()
+            ensure_patient_access(self.db, payload["patient_id"], user=user)
+            wound_case = ensure_case_access(self.db, payload["lesion_id"], user=user)
+            if str(wound_case["patient_id"]) != str(payload["patient_id"]):
+                return jsonify({"error": "lesion_id_nao_pertence_ao_paciente"}), 400
+            record = self.db.create_care_plan(
+                {
+                    "patient_id": payload["patient_id"],
+                    "case_id": payload["lesion_id"],
+                    "title": payload["title"],
+                    "status": payload["status"],
+                    "risk_level": payload["risk_level"],
+                    "goals": payload.get("goals", []),
+                    "frequency": payload.get("frequency"),
+                    "tasks": payload.get("tasks", []),
+                    "alerts": payload.get("alerts", []),
+                    "review_due_date": payload.get("review_due_date"),
+                    "created_by": user_display_name(user),
+                    "metadata": {"notes": payload.get("notes")},
+                }
+            )
+            if not record:
+                return jsonify({"error": "care_plan_creation_failed"}), 500
+            return jsonify(record), 201
+
+        @bp.route("/lesions/<case_id>/care-plans", methods=["GET"])
+        def list_lesion_care_plans(case_id: str):
+            current_user_required()
+            ensure_case_access(self.db, case_id)
+            return jsonify(self.db.list_case_care_plans(case_id)), 200
+
+        @bp.route("/follow-ups", methods=["POST"])
+        def create_follow_up():
+            user = ensure_clinical_write_access(action="create follow-ups")
+            payload = validate_json_request(CreateFollowUpPayload).model_dump()
+            ensure_patient_access(self.db, payload["patient_id"], user=user)
+            wound_case = ensure_case_access(self.db, payload["lesion_id"], user=user)
+            if str(wound_case["patient_id"]) != str(payload["patient_id"]):
+                return jsonify({"error": "lesion_id_nao_pertence_ao_paciente"}), 400
+            record = self.db.create_follow_up(
+                {
+                    "patient_id": payload["patient_id"],
+                    "case_id": payload["lesion_id"],
+                    "care_plan_id": payload.get("care_plan_id"),
+                    "evaluation_id": payload.get("evaluation_id"),
+                    "scheduled_for": payload["scheduled_for"],
+                    "status": payload["status"],
+                    "reason": payload.get("reason"),
+                    "assigned_role": payload.get("assigned_role"),
+                    "created_by": user_display_name(user),
+                    "notes": payload.get("notes"),
+                }
+            )
+            if not record:
+                return jsonify({"error": "follow_up_creation_failed"}), 500
+            return jsonify(record), 201
+
         @bp.route("/comparisons", methods=["GET"])
         def compare_evaluations():
             current_user_required()
@@ -312,13 +457,13 @@ class ClinicalAPI:
 
         @bp.route("/reports/generate", methods=["POST"])
         def generate_report():
-            user = current_user_required()
+            user = ensure_clinical_write_access(action="generate reports")
             enforce_rate_limit("report", 10)
             started = time.time()
             payload = validate_json_request(GenerateReportPayload).model_dump()
             patient = ensure_patient_access(self.db, payload["patient_id"], user=user)
             patient_id = patient.id
-            case_id = payload.get("case_id")
+            case_id = payload.get("lesion_id") or payload.get("case_id")
             if case_id:
                 wound_case = self.db.get_wound_case(case_id)
                 if not wound_case:
@@ -409,6 +554,13 @@ class ClinicalAPI:
         start = time.time()
         self.metrics["jobs_total"] += 1
         try:
+            evaluation = self.db.get_wound_evaluation(evaluation_id)
+            if not evaluation:
+                raise ValueError("evaluation not found for AI pipeline")
+            case_id = evaluation.get("case_id")
+            if not case_id:
+                raise ValueError("evaluation is missing lesion/case association")
+
             self.db.update_ai_run(run_id, {"status": "running_stage1"})
             stage1_start = time.time()
             time.sleep(0.8)
@@ -417,35 +569,76 @@ class ClinicalAPI:
 
             self.db.update_ai_run(run_id, {"status": "running_stage2", "stage1_latency_ms": stage1_latency})
             stage2_start = time.time()
-
-            # Fallback clínico consistente para ausência de modelo em runtime.
-            output = {
+            raw_output = {
                 "etiology": "ulcera_venosa",
                 "confidence": 0.74,
                 "tissue_percentages": {"granulation": 62, "slough": 30, "necrosis": 8},
                 "wound_area_cm2": 9.8,
-                "diagnosis_summary": "Leito com granulação predominante e redução de necrose.",
+                "diagnosis_summary": "Leito com granulacao predominante e reducao de necrose.",
                 "recommendations": [
                     "Manter cobertura absorvente.",
-                    "Controle de exsudato e proteção perilesional.",
-                    "Reavaliação clínica em 7 dias.",
+                    "Controle de exsudato e protecao perilesional.",
+                    "Reavaliacao clinica em 7 dias.",
                 ],
                 "fallback_used": bool(force_fallback or True),
             }
             time.sleep(0.8)
             stage2_latency = int((time.time() - stage2_start) * 1000)
             self.metrics["stage2_latency_ms_sum"] += stage2_latency
-            self.db.save_ai_result(run_id, output)
+
+            result_payload = normalize_ai_output(
+                raw_output,
+                patient_id=str(evaluation["patient_id"]),
+                lesion_id=str(case_id),
+                evaluation=evaluation,
+                fallback_used=bool(raw_output["fallback_used"]),
+                model_version=os.getenv("REDISUS_MODEL_VERSION", DEFAULT_MODEL_VERSION),
+            )
+            saved_result = self.db.save_ai_result(run_id, result_payload)
+            if not saved_result:
+                raise ValueError("failed to persist AI result")
+
+            care_plan = self.db.create_care_plan(
+                build_care_plan_payload(
+                    patient_id=str(evaluation["patient_id"]),
+                    lesion_id=str(case_id),
+                    evaluation_id=evaluation_id,
+                    result_id=str(saved_result["id"]),
+                    inference_result=result_payload,
+                    created_by="ai-pipeline",
+                )
+            )
+            if care_plan:
+                follow_up = self.db.create_follow_up(
+                    build_follow_up_payload(
+                        patient_id=str(evaluation["patient_id"]),
+                        lesion_id=str(case_id),
+                        evaluation_id=evaluation_id,
+                        care_plan_id=str(care_plan["id"]),
+                        inference_result=result_payload,
+                        created_by="ai-pipeline",
+                    )
+                )
+                if follow_up:
+                    for alert_payload in build_alert_payloads(
+                        patient_id=str(evaluation["patient_id"]),
+                        lesion_id=str(case_id),
+                        care_plan_id=str(care_plan["id"]),
+                        follow_up_id=str(follow_up["id"]),
+                        inference_result=result_payload,
+                    ):
+                        self.db.create_clinical_alert(alert_payload)
+
             self.db.update_ai_run(
                 run_id,
                 {
                     "status": "completed",
-                    "use_fallback": int(output["fallback_used"]),
+                    "use_fallback": int(bool(result_payload["inference"].get("fallback_used"))),
                     "stage2_latency_ms": stage2_latency,
                 },
             )
             total = int((time.time() - start) * 1000)
-            logger.info(f"[jobId={run_id} evaluationId={evaluation_id}] IA concluída em {total}ms")
+            logger.info(f"[jobId={run_id} evaluationId={evaluation_id}] IA concluida em {total}ms")
         except Exception as e:
             logger.exception(f"[jobId={run_id} evaluationId={evaluation_id}] erro no pipeline IA: {e}")
             self.metrics["jobs_failed"] += 1

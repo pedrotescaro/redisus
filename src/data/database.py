@@ -264,6 +264,78 @@ class Database:
                     FOREIGN KEY (evaluation_id) REFERENCES wound_evaluations(id)
                 )
             """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS care_plans (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    case_id TEXT NOT NULL,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    title TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    risk_level TEXT,
+                    goals TEXT,
+                    frequency TEXT,
+                    tasks TEXT,
+                    alerts TEXT,
+                    source_evaluation_id TEXT,
+                    source_result_id TEXT,
+                    review_due_date TEXT,
+                    created_by TEXT,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    metadata TEXT,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id),
+                    FOREIGN KEY (case_id) REFERENCES wound_cases(id),
+                    FOREIGN KEY (source_evaluation_id) REFERENCES wound_evaluations(id)
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS follow_ups (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    case_id TEXT NOT NULL,
+                    care_plan_id TEXT,
+                    evaluation_id TEXT,
+                    scheduled_for TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    reason TEXT,
+                    assigned_role TEXT,
+                    created_by TEXT,
+                    notes TEXT,
+                    created_at TEXT,
+                    completed_at TEXT,
+                    metadata TEXT,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id),
+                    FOREIGN KEY (case_id) REFERENCES wound_cases(id),
+                    FOREIGN KEY (care_plan_id) REFERENCES care_plans(id),
+                    FOREIGN KEY (evaluation_id) REFERENCES wound_evaluations(id)
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS clinical_alerts (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    case_id TEXT NOT NULL,
+                    care_plan_id TEXT,
+                    follow_up_id TEXT,
+                    alert_type TEXT,
+                    severity TEXT,
+                    status TEXT,
+                    title TEXT,
+                    message TEXT,
+                    due_at TEXT,
+                    created_at TEXT,
+                    resolved_at TEXT,
+                    metadata TEXT,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id),
+                    FOREIGN KEY (case_id) REFERENCES wound_cases(id),
+                    FOREIGN KEY (care_plan_id) REFERENCES care_plans(id),
+                    FOREIGN KEY (follow_up_id) REFERENCES follow_ups(id)
+                )
+            """)
             
             # Índices
             cursor.execute("""
@@ -301,6 +373,18 @@ class Database:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_structured_reports_patient
                 ON structured_reports(patient_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_care_plans_case_status
+                ON care_plans(case_id, status)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_follow_ups_case_status
+                ON follow_ups(case_id, status)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clinical_alerts_case_status
+                ON clinical_alerts(case_id, status)
             """)
             
             conn.commit()
@@ -364,6 +448,35 @@ class Database:
         except Exception as e:
             logger.error(f"Erro ao buscar caso clÃ­nico: {e}")
             return None
+
+    def list_wound_cases(self, patient_id: str) -> List[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM wound_cases
+                    WHERE patient_id = ?
+                    ORDER BY opened_at DESC, id DESC
+                    """,
+                    (patient_id,),
+                ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "patient_id": row["patient_id"],
+                        "title": row["title"],
+                        "wound_type": row["wound_type"],
+                        "location": row["location"],
+                        "status": row["status"],
+                        "opened_at": row["opened_at"],
+                        "closed_at": row["closed_at"],
+                        "metadata": json.loads(row["metadata"] or "{}"),
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            logger.error(f"Erro ao listar casos clÃ­nicos: {e}")
+            return []
 
     def create_wound_evaluation(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         evaluation_id = str(uuid.uuid4())
@@ -456,17 +569,33 @@ class Database:
     def add_wound_image(self, evaluation_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         image_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
-        record = {
-            "id": image_id,
-            "evaluation_id": evaluation_id,
-            "image_role": payload.get("image_role", "clinical"),
-            "image_path": payload["image_path"],
-            "content_type": payload.get("content_type", "image/jpeg"),
-            "metadata": payload.get("metadata", {}),
-            "created_at": now,
-        }
         try:
             with self._get_connection() as conn:
+                image_count_row = conn.execute(
+                    "SELECT COUNT(*) AS total FROM wound_images WHERE evaluation_id = ?",
+                    (evaluation_id,),
+                ).fetchone()
+                next_version = int((image_count_row["total"] if image_count_row else 0) or 0) + 1
+                metadata = dict(payload.get("metadata", {}))
+                metadata.setdefault("version", next_version)
+                metadata.setdefault("review_status", payload.get("review_status", "nao_revisada"))
+                metadata.setdefault("captured_at", payload.get("captured_at", now))
+                metadata.setdefault("patient_id", payload.get("patient_id"))
+                metadata.setdefault("case_id", payload.get("case_id"))
+                record = {
+                    "id": image_id,
+                    "evaluation_id": evaluation_id,
+                    "image_role": payload.get("image_role", "clinical"),
+                    "image_path": payload["image_path"],
+                    "content_type": payload.get("content_type", "image/jpeg"),
+                    "metadata": metadata,
+                    "created_at": now,
+                    "version": next_version,
+                    "review_status": metadata.get("review_status"),
+                    "captured_at": metadata.get("captured_at"),
+                    "patient_id": metadata.get("patient_id"),
+                    "case_id": metadata.get("case_id"),
+                }
                 conn.execute(
                     """
                     INSERT INTO wound_images
@@ -493,18 +622,54 @@ class Database:
                 ).fetchall()
                 return [
                     {
-                        "id": row["id"],
-                        "evaluation_id": row["evaluation_id"],
-                        "image_role": row["image_role"],
-                        "image_path": row["image_path"],
-                        "content_type": row["content_type"],
-                        "metadata": json.loads(row["metadata"] or "{}"),
-                        "created_at": row["created_at"],
+                        **{
+                            "id": row["id"],
+                            "evaluation_id": row["evaluation_id"],
+                            "image_role": row["image_role"],
+                            "image_path": row["image_path"],
+                            "content_type": row["content_type"],
+                            "metadata": json.loads(row["metadata"] or "{}"),
+                            "created_at": row["created_at"],
+                        },
+                        "version": int(json.loads(row["metadata"] or "{}").get("version", 1) or 1),
+                        "review_status": json.loads(row["metadata"] or "{}").get("review_status", "nao_revisada"),
+                        "captured_at": json.loads(row["metadata"] or "{}").get("captured_at"),
+                        "patient_id": json.loads(row["metadata"] or "{}").get("patient_id"),
+                        "case_id": json.loads(row["metadata"] or "{}").get("case_id"),
                     }
                     for row in rows
                 ]
         except Exception as e:
             logger.error(f"Erro ao listar imagens: {e}")
+            return []
+
+    def list_ai_runs_for_evaluation(self, evaluation_id: str) -> List[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM ai_inference_runs
+                    WHERE evaluation_id = ?
+                    ORDER BY created_at DESC, id DESC
+                    """,
+                    (evaluation_id,),
+                ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "evaluation_id": row["evaluation_id"],
+                        "status": row["status"],
+                        "use_fallback": bool(row["use_fallback"]),
+                        "stage1_latency_ms": row["stage1_latency_ms"],
+                        "stage2_latency_ms": row["stage2_latency_ms"],
+                        "failure_reason": row["failure_reason"],
+                        "created_at": row["created_at"],
+                        "updated_at": row["updated_at"],
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            logger.error(f"Erro ao listar jobs de IA: {e}")
             return []
 
     def create_ai_run(self, evaluation_id: str, use_fallback: bool = False) -> Optional[Dict[str, Any]]:
@@ -587,6 +752,8 @@ class Database:
         result_id = str(uuid.uuid4())
         created_at = datetime.now().isoformat()
         try:
+            inference = payload.get("inference", {}) if isinstance(payload.get("inference"), dict) else {}
+            interpretation = payload.get("interpretation", {}) if isinstance(payload.get("interpretation"), dict) else {}
             with self._get_connection() as conn:
                 conn.execute(
                     """
@@ -596,9 +763,14 @@ class Database:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        result_id, run_id, payload.get("etiology"), payload.get("confidence"),
-                        json.dumps(payload.get("tissue_percentages", {})), payload.get("wound_area_cm2"),
-                        payload.get("diagnosis_summary"), json.dumps(payload.get("recommendations", [])),
+                        result_id,
+                        run_id,
+                        inference.get("etiology") or payload.get("etiology"),
+                        inference.get("confidence") or payload.get("confidence"),
+                        json.dumps(inference.get("tissue_percentages") or payload.get("tissue_percentages", {})),
+                        inference.get("wound_area_cm2") or payload.get("wound_area_cm2"),
+                        interpretation.get("summary") or payload.get("diagnosis_summary"),
+                        json.dumps(interpretation.get("recommendations") or payload.get("recommendations", [])),
                         json.dumps(payload), created_at,
                     ),
                 )
@@ -622,20 +794,55 @@ class Database:
                 ).fetchone()
                 if not row:
                     return None
+                payload = json.loads(row["payload"] or "{}")
+                inference = payload.get("inference", {}) if isinstance(payload.get("inference"), dict) else {}
+                interpretation = payload.get("interpretation", {}) if isinstance(payload.get("interpretation"), dict) else {}
                 return {
                     "id": row["id"],
                     "run_id": row["run_id"],
-                    "etiology": row["etiology"],
-                    "confidence": row["confidence"],
-                    "tissue_percentages": json.loads(row["tissue_percentages"] or "{}"),
-                    "wound_area_cm2": row["wound_area_cm2"],
-                    "diagnosis_summary": row["diagnosis_summary"],
-                    "recommendations": json.loads(row["recommendations"] or "[]"),
-                    "payload": json.loads(row["payload"] or "{}"),
+                    "etiology": row["etiology"] or inference.get("etiology"),
+                    "confidence": row["confidence"] if row["confidence"] is not None else inference.get("confidence"),
+                    "tissue_percentages": json.loads(row["tissue_percentages"] or "{}") or inference.get("tissue_percentages", {}),
+                    "wound_area_cm2": row["wound_area_cm2"] if row["wound_area_cm2"] is not None else inference.get("wound_area_cm2"),
+                    "diagnosis_summary": row["diagnosis_summary"] or interpretation.get("summary"),
+                    "recommendations": json.loads(row["recommendations"] or "[]") or interpretation.get("recommendations", []),
+                    "contract_version": payload.get("contract_version"),
+                    "model_version": payload.get("model_version"),
+                    "patient_id": payload.get("patient_id"),
+                    "case_id": payload.get("case_id"),
+                    "evaluation_id": payload.get("evaluation_id"),
+                    "fallback_used": inference.get("fallback_used", False),
+                    "risk_level": interpretation.get("risk_level"),
+                    "priority": interpretation.get("priority"),
+                    "follow_up_days": interpretation.get("follow_up_days"),
+                    "inference": inference,
+                    "interpretation": interpretation,
+                    "payload": payload,
                     "created_at": row["created_at"],
                 }
         except Exception as e:
             logger.error(f"Erro ao buscar resultado de IA: {e}")
+            return None
+
+    def get_latest_ai_result_for_evaluation(self, evaluation_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute(
+                    """
+                    SELECT r.run_id
+                    FROM ai_results r
+                    INNER JOIN ai_inference_runs runs ON runs.id = r.run_id
+                    WHERE runs.evaluation_id = ?
+                    ORDER BY r.created_at DESC, r.id DESC
+                    LIMIT 1
+                    """,
+                    (evaluation_id,),
+                ).fetchone()
+                if not row:
+                    return None
+                return self.get_ai_result_by_run(row["run_id"])
+        except Exception as e:
+            logger.error(f"Erro ao buscar resultado mais recente da avaliaÃ§Ã£o: {e}")
             return None
 
     def create_structured_report(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -682,6 +889,336 @@ class Database:
         except Exception as e:
             logger.error(f"Erro ao buscar relatório: {e}")
             return None
+
+    def create_care_plan(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        plan_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        try:
+            with self._get_connection() as conn:
+                version_row = conn.execute(
+                    "SELECT COALESCE(MAX(version), 0) AS max_version FROM care_plans WHERE case_id = ?",
+                    (payload["case_id"],),
+                ).fetchone()
+                version = int((version_row["max_version"] if version_row else 0) or 0) + 1
+                if payload.get("status", "active") == "active":
+                    conn.execute(
+                        """
+                        UPDATE care_plans
+                        SET status = 'superseded', updated_at = ?
+                        WHERE case_id = ? AND status = 'active'
+                        """,
+                        (now, payload["case_id"]),
+                    )
+
+                record = {
+                    "id": plan_id,
+                    "patient_id": payload["patient_id"],
+                    "case_id": payload["case_id"],
+                    "version": version,
+                    "title": payload.get("title", "Care plan"),
+                    "status": payload.get("status", "draft"),
+                    "risk_level": payload.get("risk_level", "moderado"),
+                    "goals": payload.get("goals", []),
+                    "frequency": payload.get("frequency"),
+                    "tasks": payload.get("tasks", []),
+                    "alerts": payload.get("alerts", []),
+                    "source_evaluation_id": payload.get("source_evaluation_id"),
+                    "source_result_id": payload.get("source_result_id"),
+                    "review_due_date": payload.get("review_due_date"),
+                    "created_by": payload.get("created_by"),
+                    "created_at": now,
+                    "updated_at": now,
+                    "metadata": payload.get("metadata", {}),
+                }
+                conn.execute(
+                    """
+                    INSERT INTO care_plans
+                    (id, patient_id, case_id, version, title, status, risk_level, goals, frequency, tasks, alerts,
+                     source_evaluation_id, source_result_id, review_due_date, created_by, created_at, updated_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record["id"],
+                        record["patient_id"],
+                        record["case_id"],
+                        record["version"],
+                        record["title"],
+                        record["status"],
+                        record["risk_level"],
+                        json.dumps(record["goals"]),
+                        record["frequency"],
+                        json.dumps(record["tasks"]),
+                        json.dumps(record["alerts"]),
+                        record["source_evaluation_id"],
+                        record["source_result_id"],
+                        record["review_due_date"],
+                        record["created_by"],
+                        record["created_at"],
+                        record["updated_at"],
+                        json.dumps(record["metadata"]),
+                    ),
+                )
+                conn.commit()
+                return record
+        except Exception as e:
+            logger.error(f"Erro ao criar plano de cuidado: {e}")
+            return None
+
+    def list_case_care_plans(self, case_id: str) -> List[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM care_plans
+                    WHERE case_id = ?
+                    ORDER BY version DESC, created_at DESC
+                    """,
+                    (case_id,),
+                ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "patient_id": row["patient_id"],
+                        "case_id": row["case_id"],
+                        "version": row["version"],
+                        "title": row["title"],
+                        "status": row["status"],
+                        "risk_level": row["risk_level"],
+                        "goals": json.loads(row["goals"] or "[]"),
+                        "frequency": row["frequency"],
+                        "tasks": json.loads(row["tasks"] or "[]"),
+                        "alerts": json.loads(row["alerts"] or "[]"),
+                        "source_evaluation_id": row["source_evaluation_id"],
+                        "source_result_id": row["source_result_id"],
+                        "review_due_date": row["review_due_date"],
+                        "created_by": row["created_by"],
+                        "created_at": row["created_at"],
+                        "updated_at": row["updated_at"],
+                        "metadata": json.loads(row["metadata"] or "{}"),
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            logger.error(f"Erro ao listar planos de cuidado: {e}")
+            return []
+
+    def get_active_care_plan_for_case(self, case_id: str) -> Optional[Dict[str, Any]]:
+        plans = self.list_case_care_plans(case_id)
+        for plan in plans:
+            if plan["status"] == "active":
+                return plan
+        return plans[0] if plans else None
+
+    def create_follow_up(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        follow_up_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        record = {
+            "id": follow_up_id,
+            "patient_id": payload["patient_id"],
+            "case_id": payload["case_id"],
+            "care_plan_id": payload.get("care_plan_id"),
+            "evaluation_id": payload.get("evaluation_id"),
+            "scheduled_for": payload["scheduled_for"],
+            "status": payload.get("status", "scheduled"),
+            "reason": payload.get("reason"),
+            "assigned_role": payload.get("assigned_role"),
+            "created_by": payload.get("created_by"),
+            "notes": payload.get("notes"),
+            "created_at": now,
+            "completed_at": payload.get("completed_at"),
+            "metadata": payload.get("metadata", {}),
+        }
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO follow_ups
+                    (id, patient_id, case_id, care_plan_id, evaluation_id, scheduled_for, status, reason, assigned_role,
+                     created_by, notes, created_at, completed_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record["id"],
+                        record["patient_id"],
+                        record["case_id"],
+                        record["care_plan_id"],
+                        record["evaluation_id"],
+                        record["scheduled_for"],
+                        record["status"],
+                        record["reason"],
+                        record["assigned_role"],
+                        record["created_by"],
+                        record["notes"],
+                        record["created_at"],
+                        record["completed_at"],
+                        json.dumps(record["metadata"]),
+                    ),
+                )
+                conn.commit()
+            return record
+        except Exception as e:
+            logger.error(f"Erro ao criar follow-up clÃ­nico: {e}")
+            return None
+
+    def list_case_follow_ups(self, case_id: str) -> List[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM follow_ups
+                    WHERE case_id = ?
+                    ORDER BY scheduled_for ASC, created_at ASC
+                    """,
+                    (case_id,),
+                ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "patient_id": row["patient_id"],
+                        "case_id": row["case_id"],
+                        "care_plan_id": row["care_plan_id"],
+                        "evaluation_id": row["evaluation_id"],
+                        "scheduled_for": row["scheduled_for"],
+                        "status": row["status"],
+                        "reason": row["reason"],
+                        "assigned_role": row["assigned_role"],
+                        "created_by": row["created_by"],
+                        "notes": row["notes"],
+                        "created_at": row["created_at"],
+                        "completed_at": row["completed_at"],
+                        "metadata": json.loads(row["metadata"] or "{}"),
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            logger.error(f"Erro ao listar follow-ups: {e}")
+            return []
+
+    def create_clinical_alert(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        alert_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        record = {
+            "id": alert_id,
+            "patient_id": payload["patient_id"],
+            "case_id": payload["case_id"],
+            "care_plan_id": payload.get("care_plan_id"),
+            "follow_up_id": payload.get("follow_up_id"),
+            "alert_type": payload.get("alert_type", "clinical"),
+            "severity": payload.get("severity", "moderado"),
+            "status": payload.get("status", "open"),
+            "title": payload.get("title", "Clinical alert"),
+            "message": payload.get("message", ""),
+            "due_at": payload.get("due_at"),
+            "created_at": now,
+            "resolved_at": payload.get("resolved_at"),
+            "metadata": payload.get("metadata", {}),
+        }
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO clinical_alerts
+                    (id, patient_id, case_id, care_plan_id, follow_up_id, alert_type, severity, status,
+                     title, message, due_at, created_at, resolved_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record["id"],
+                        record["patient_id"],
+                        record["case_id"],
+                        record["care_plan_id"],
+                        record["follow_up_id"],
+                        record["alert_type"],
+                        record["severity"],
+                        record["status"],
+                        record["title"],
+                        record["message"],
+                        record["due_at"],
+                        record["created_at"],
+                        record["resolved_at"],
+                        json.dumps(record["metadata"]),
+                    ),
+                )
+                conn.commit()
+            return record
+        except Exception as e:
+            logger.error(f"Erro ao criar alerta clÃ­nico: {e}")
+            return None
+
+    def list_case_alerts(self, case_id: str, active_only: bool = False) -> List[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                if active_only:
+                    rows = conn.execute(
+                        """
+                        SELECT * FROM clinical_alerts
+                        WHERE case_id = ? AND status = 'open'
+                        ORDER BY created_at DESC, id DESC
+                        """,
+                        (case_id,),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """
+                        SELECT * FROM clinical_alerts
+                        WHERE case_id = ?
+                        ORDER BY created_at DESC, id DESC
+                        """,
+                        (case_id,),
+                    ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "patient_id": row["patient_id"],
+                        "case_id": row["case_id"],
+                        "care_plan_id": row["care_plan_id"],
+                        "follow_up_id": row["follow_up_id"],
+                        "alert_type": row["alert_type"],
+                        "severity": row["severity"],
+                        "status": row["status"],
+                        "title": row["title"],
+                        "message": row["message"],
+                        "due_at": row["due_at"],
+                        "created_at": row["created_at"],
+                        "resolved_at": row["resolved_at"],
+                        "metadata": json.loads(row["metadata"] or "{}"),
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            logger.error(f"Erro ao listar alertas clÃ­nicos: {e}")
+            return []
+
+    def get_case_timeline(self, case_id: str) -> Optional[Dict[str, Any]]:
+        case = self.get_wound_case(case_id)
+        if not case:
+            return None
+        patient = self.get_patient(case["patient_id"])
+        if not patient:
+            return None
+
+        evaluations = list(reversed(self.list_patient_evaluations(case["patient_id"], case_id=case_id)))
+        enriched_evaluations: List[Dict[str, Any]] = []
+        for evaluation in evaluations:
+            images = self.list_evaluation_images(evaluation["id"])
+            ai_result = self.get_latest_ai_result_for_evaluation(evaluation["id"])
+            enriched_evaluations.append(
+                {
+                    **evaluation,
+                    "lesion_id": case_id,
+                    "images": images,
+                    "inference_result": ai_result,
+                }
+            )
+
+        return {
+            "patient": patient,
+            "lesion": case,
+            "evaluations": enriched_evaluations,
+            "care_plans": list(reversed(self.list_case_care_plans(case_id))),
+            "follow_ups": self.list_case_follow_ups(case_id),
+            "alerts": self.list_case_alerts(case_id),
+        }
 
     def _row_to_evaluation(self, row: sqlite3.Row) -> Dict[str, Any]:
         return {

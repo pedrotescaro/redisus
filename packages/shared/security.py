@@ -20,6 +20,9 @@ CLINICAL_ROLES = {
     "doctor",
     "estomaterapeuta",
 }
+RESEARCH_ROLES = {"researcher"}
+PATIENT_SCOPED_ROLES = CLINICAL_ROLES | RESEARCH_ROLES
+CLINICAL_WRITE_ROLES = CLINICAL_ROLES
 
 _RATE_LIMIT_STATE: dict[tuple[str, str], list[float]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
@@ -150,6 +153,18 @@ def is_clinical_user(user: Mapping[str, Any] | None = None) -> bool:
     return bool(user_roles(user or current_user()) & CLINICAL_ROLES)
 
 
+def has_patient_scope_access(user: Mapping[str, Any] | None = None) -> bool:
+    if auth_disabled():
+        return True
+    return bool(user_roles(user or current_user()) & PATIENT_SCOPED_ROLES)
+
+
+def can_write_clinical_data(user: Mapping[str, Any] | None = None) -> bool:
+    if auth_disabled():
+        return True
+    return bool(user_roles(user or current_user()) & CLINICAL_WRITE_ROLES)
+
+
 def _extract_metadata(obj: Any) -> dict[str, Any]:
     if obj is None:
         return {}
@@ -213,7 +228,7 @@ def can_access_patient_record(user: Mapping[str, Any] | None, patient: Any) -> b
         *(_normalize_list(metadata.get("unit_ids"))),
         *(_normalize_list(metadata.get("allowed_unit_ids"))),
     }
-    if metadata_units and user_units(user) & metadata_units and is_clinical_user(user):
+    if metadata_units and user_units(user) & metadata_units and has_patient_scope_access(user):
         return True
 
     return allow_legacy_unscoped_patient_access() and not metadata
@@ -230,6 +245,17 @@ def ensure_admin_access(user: Mapping[str, Any] | None = None) -> dict[str, Any]
     user = user or current_user_required()
     if not is_admin(user):
         abort(403, description="admin access required")
+    return dict(user)
+
+
+def ensure_clinical_write_access(
+    user: Mapping[str, Any] | None = None,
+    *,
+    action: str = "write clinical data",
+) -> dict[str, Any]:
+    user = user or current_user_required()
+    if not can_write_clinical_data(user):
+        abort(403, description=f"{action} requires nurse, doctor, or admin role")
     return dict(user)
 
 
@@ -268,6 +294,15 @@ def ensure_report_access(database: Any, report_id: str, user: Mapping[str, Any] 
         abort(404, description="report not found")
     ensure_patient_access(database, str(report["patient_id"]), user=user)
     return report
+
+
+def ensure_case_access(database: Any, case_id: str, user: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    user = user or current_user_required()
+    wound_case = database.get_wound_case(case_id)
+    if not wound_case:
+        abort(404, description="lesion not found")
+    ensure_patient_access(database, str(wound_case["patient_id"]), user=user)
+    return wound_case
 
 
 def enforce_request_auth(auth_verifier: Any | None = None) -> dict[str, Any] | None:
@@ -351,4 +386,3 @@ def enforce_rate_limit(bucket: str, default_limit: int, subject: str | None = No
             abort(429, description=f"rate limit exceeded for {bucket}")
         timestamps.append(now)
         _RATE_LIMIT_STATE[state_key] = timestamps
-

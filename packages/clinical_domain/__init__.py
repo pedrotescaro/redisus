@@ -1,12 +1,28 @@
 from __future__ import annotations
 
 from .database import AnalysisRecord, Database, PatientRecord
+from .models import (
+    AlertRecord,
+    AssessmentRecord,
+    CarePlanRecord,
+    ClinicalImageRecord,
+    InferenceResultRecord,
+    LesionRecord,
+    FollowUpRecord,
+)
 
 __all__ = [
+    "AlertRecord",
     "AnalysisRecord",
+    "AssessmentRecord",
+    "CarePlanRecord",
+    "ClinicalImageRecord",
     "ClinicalAPI",
     "ClinicalDashboard",
     "Database",
+    "FollowUpRecord",
+    "InferenceResultRecord",
+    "LesionRecord",
     "PatientRecord",
 ]
 

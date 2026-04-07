@@ -39,6 +39,7 @@ def _validate_identifier(value: str | None, field_name: str) -> str | None:
 class CreateEvaluationPayload(StrictPayloadModel):
     patient_id: str = Field(min_length=1, max_length=80)
     case_id: str | None = Field(default=None, max_length=80)
+    lesion_id: str | None = Field(default=None, max_length=80)
     evaluation_date: str | None = Field(default=None, max_length=32)
     wound_type: str | None = Field(default=None, max_length=80)
     wound_location: str | None = Field(default=None, max_length=120)
@@ -52,10 +53,16 @@ class CreateEvaluationPayload(StrictPayloadModel):
     tissue_composition: dict[str, float] = Field(default_factory=dict)
     timers_payload: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("patient_id", "case_id")
+    @field_validator("patient_id", "case_id", "lesion_id")
     @classmethod
     def validate_ids(cls, value: str | None, info):  # type: ignore[override]
         return _validate_identifier(value, info.field_name)
+
+    @model_validator(mode="after")
+    def validate_case_alias(self):
+        if self.case_id and self.lesion_id and self.case_id != self.lesion_id:
+            raise ValueError("case_id and lesion_id must reference the same lesion")
+        return self
 
     @field_validator("tissue_composition")
     @classmethod
@@ -87,9 +94,52 @@ class AnalyzeEvaluationPayload(StrictPayloadModel):
 class GenerateReportPayload(StrictPayloadModel):
     patient_id: str = Field(min_length=1, max_length=80)
     case_id: str | None = Field(default=None, max_length=80)
+    lesion_id: str | None = Field(default=None, max_length=80)
     report_type: Literal["evolution", "summary", "followup", "discharge"] = "evolution"
 
-    @field_validator("patient_id", "case_id")
+    @field_validator("patient_id", "case_id", "lesion_id")
+    @classmethod
+    def validate_ids(cls, value: str | None, info):  # type: ignore[override]
+        return _validate_identifier(value, info.field_name)
+
+    @model_validator(mode="after")
+    def validate_case_alias(self):
+        if self.case_id and self.lesion_id and self.case_id != self.lesion_id:
+            raise ValueError("case_id and lesion_id must reference the same lesion")
+        return self
+
+
+class CreateCarePlanPayload(StrictPayloadModel):
+    patient_id: str = Field(min_length=1, max_length=80)
+    lesion_id: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=200)
+    status: Literal["draft", "active", "completed", "cancelled"] = "active"
+    risk_level: Literal["baixo", "moderado", "alto", "critico"] = "moderado"
+    goals: list[str] = Field(default_factory=list, max_length=20)
+    frequency: str | None = Field(default=None, max_length=80)
+    tasks: list[dict[str, Any]] = Field(default_factory=list, max_length=30)
+    alerts: list[dict[str, Any]] = Field(default_factory=list, max_length=20)
+    review_due_date: str | None = Field(default=None, max_length=32)
+    notes: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("patient_id", "lesion_id")
+    @classmethod
+    def validate_ids(cls, value: str | None, info):  # type: ignore[override]
+        return _validate_identifier(value, info.field_name)
+
+
+class CreateFollowUpPayload(StrictPayloadModel):
+    patient_id: str = Field(min_length=1, max_length=80)
+    lesion_id: str = Field(min_length=1, max_length=80)
+    care_plan_id: str | None = Field(default=None, max_length=80)
+    evaluation_id: str | None = Field(default=None, max_length=80)
+    scheduled_for: str = Field(min_length=1, max_length=32)
+    status: Literal["scheduled", "completed", "cancelled", "missed"] = "scheduled"
+    reason: str | None = Field(default=None, max_length=120)
+    assigned_role: Literal["nurse", "doctor", "admin", "researcher"] | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("patient_id", "lesion_id", "care_plan_id", "evaluation_id")
     @classmethod
     def validate_ids(cls, value: str | None, info):  # type: ignore[override]
         return _validate_identifier(value, info.field_name)

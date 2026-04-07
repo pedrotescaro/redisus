@@ -1,4 +1,5 @@
 import io
+import time
 
 from PIL import Image
 
@@ -193,3 +194,95 @@ def test_report_generation_ignores_professional_from_client(tmp_path, monkeypatc
 
     assert report_response.status_code == 400
     assert "Extra inputs are not permitted" in report_response.get_json()["detail"]
+
+
+def test_researcher_is_read_only_for_clinical_writes(tmp_path, monkeypatch):
+    monkeypatch.setenv("REDISUS_DB_PATH", str(tmp_path / "security.db"))
+    monkeypatch.setenv("CLINICAL_API_REQUIRE_AUTH", "1")
+
+    from apps.api.app import create_app
+
+    app = create_app()
+    app.config["TESTING"] = True
+    app.config["REDISUS_AUTH_VERIFIER"] = lambda token: _build_user("user-1", role="researcher")
+    db = app.extensions["redisus_db"]
+    db.save_patient(PatientRecord(id="p001", name="Paciente 1", metadata={"owner_uid": "user-1"}))
+
+    with app.test_client() as client:
+        list_response = client.get("/api/patients", headers=_build_headers())
+        create_response = client.post(
+            "/api/v1/evaluations",
+            headers={**_build_headers(), "Content-Type": "application/json"},
+            json={
+                "patient_id": "p001",
+                "evaluation_date": "2026-04-07",
+                "wound_area_cm2": 8.0,
+            },
+        )
+
+    assert list_response.status_code == 200
+    assert create_response.status_code == 403
+    assert "requires nurse, doctor, or admin role" in create_response.get_json()["detail"]
+
+
+def test_researcher_can_read_timeline_when_scoped(tmp_path, monkeypatch):
+    monkeypatch.setenv("REDISUS_DB_PATH", str(tmp_path / "security.db"))
+    monkeypatch.setenv("CLINICAL_API_REQUIRE_AUTH", "1")
+
+    from apps.api.app import create_app
+
+    def verifier(token: str):
+        if token == "nurse-token":
+            return _build_user("user-1", role="nurse")
+        return _build_user("user-1", role="researcher")
+
+    app = create_app()
+    app.config["TESTING"] = True
+    app.config["REDISUS_AUTH_VERIFIER"] = verifier
+    db = app.extensions["redisus_db"]
+    db.save_patient(PatientRecord(id="p001", name="Paciente 1", metadata={"owner_uid": "user-1"}))
+
+    with app.test_client() as client:
+        create_response = client.post(
+            "/api/v1/evaluations",
+            headers={**_build_headers("nurse-token"), "Content-Type": "application/json"},
+            json={
+                "patient_id": "p001",
+                "evaluation_date": "2026-04-07",
+                "wound_area_cm2": 8.0,
+                "pain_score": 5,
+            },
+        )
+        assert create_response.status_code == 201
+        evaluation = create_response.get_json()
+        upload_response = client.post(
+            f"/api/v1/evaluations/{evaluation['id']}/images",
+            headers=_build_headers("nurse-token"),
+            data={"imageRole": "clinical", "image": (io.BytesIO(_png_bytes()), "ferida.png")},
+            content_type="multipart/form-data",
+        )
+        assert upload_response.status_code == 201
+        analyze_response = client.post(
+            f"/api/v1/evaluations/{evaluation['id']}/analyze",
+            headers={**_build_headers("nurse-token"), "Content-Type": "application/json"},
+            json={},
+        )
+        assert analyze_response.status_code == 202
+        job_id = analyze_response.get_json()["jobId"]
+
+        for _ in range(15):
+            job_payload = client.get(f"/api/v1/analysis-jobs/{job_id}", headers=_build_headers("nurse-token")).get_json()
+            if job_payload["job"]["status"] == "completed":
+                break
+            time.sleep(0.2)
+        else:
+            raise AssertionError("Care plan was not created in time")
+
+        timeline_response = client.get(
+            f"/api/v1/lesions/{evaluation['case_id']}/timeline",
+            headers=_build_headers("researcher-token"),
+        )
+
+    assert timeline_response.status_code == 200
+    timeline = timeline_response.get_json()
+    assert timeline["lesion"]["id"] == evaluation["case_id"]
