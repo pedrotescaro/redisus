@@ -1,83 +1,231 @@
 # HEAL+ / REDISUS
 
-Plataforma de apoio ao diagnóstico de feridas por imagem, organizada para pesquisa aplicada, demonstração técnica e evolução incremental para produção.
+Plataforma de apoio ao diagnóstico e acompanhamento longitudinal de feridas, com backend clínico em Python, frontend web em Next.js e pipeline de IA para imagem médica.
 
-## Status Atual
+[![CI Python](https://github.com/pedrotescaro/redisus/actions/workflows/ci-python.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/ci-python.yml)
+[![CI Web](https://github.com/pedrotescaro/redisus/actions/workflows/ci-web.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/ci-web.yml)
+[![CodeQL](https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml)
+[![Secret Scan](https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml)
+[![License](https://img.shields.io/github/license/pedrotescaro/redisus)](LICENSE)
 
-- `apps/api/` é o backend oficial do projeto.
-- `packages/` concentra a camada canônica de wrappers para domínio e inferência.
-- `src/` continua hospedando o núcleo clínico e de inferência durante a transição.
-- `web/redisus-frontend/` contém a interface Next.js do fluxo clínico.
-- `backend/` agora funciona como shim de compatibilidade para o backend oficial.
-- `models/`, `dataset/` e `runs/` guardam artefatos experimentais de ML ainda em consolidação.
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=0A0A0A)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore%20%7C%20Storage-FFCA28?logo=firebase&logoColor=black)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)
+![FHIR](https://img.shields.io/badge/HL7%20FHIR-R4-orange)
+![SQLite](https://img.shields.io/badge/SQLite-Local%20DB-003B57?logo=sqlite&logoColor=white)
 
-O repositório foi reorganizado para priorizar quatro frentes:
+## Visão Geral
 
-1. `PT2`: requisitos, arquitetura real e contrato de dados.
-2. `PT3`: protocolo de coleta, rastreabilidade e curadoria do dataset.
-3. `PT4`: baseline honesto, catálogo de modelos e model cards.
-4. `PT5`: jornada diagnóstica demonstrável e documentação de produto.
+O HEAL+ / REDISUS organiza um fluxo clínico ponta a ponta para acompanhamento de pacientes com feridas:
+
+`paciente -> lesão -> imagem -> IA -> avaliação -> evolução -> plano -> acompanhamento`
+
+Hoje o repositório já entrega:
+
+- cadastro e avaliação clínica;
+- upload e validação real de imagens;
+- inferência com contrato padronizado de saída;
+- timeline clínica por lesão;
+- geração de `care plan`, `follow-up` e alertas;
+- RBAC backend-first com postura zero trust;
+- dashboard com fila clínica decisória;
+- base para interoperabilidade clínica e exportação FHIR.
 
 ## Problema
 
-A avaliação clínica de feridas crônicas ainda depende fortemente de inspeção visual subjetiva, documentação heterogênea e baixa padronização de captura. Isso dificulta rastreabilidade, comparação longitudinal e treinamento de modelos robustos.
+A avaliação de feridas crônicas ainda depende muito de inspeção visual subjetiva, documentação heterogênea e baixa padronização de captura. Isso dificulta:
 
-## Solução
+- rastreabilidade longitudinal;
+- comparação objetiva da evolução;
+- priorização clínica;
+- treinamento e validação de modelos robustos;
+- interoperabilidade com fluxos assistenciais reais.
 
-O HEAL+ / REDISUS organiza um fluxo de:
+## O Que Este Repositório É Hoje
 
-`captura/upload -> avaliação clínica -> inferência -> relatório -> histórico`
+Este repositório é uma base técnica séria para produto clínico e pesquisa aplicada, mas ainda não deve ser apresentado como sistema clínico pronto para produção assistencial.
 
-com foco em:
+O estado atual é:
 
-- análise de imagem de feridas;
-- classificação etiológica e composição tecidual;
-- geração de relatórios estruturados;
-- preparação para interoperabilidade clínica.
+- backend oficial consolidado em [`apps/api/`](apps/api/);
+- domínio clínico e serviços centrais ainda concentrados em [`src/`](src/);
+- wrappers estáveis em [`packages/`](packages/);
+- frontend web em [`web/redisus-frontend/`](web/redisus-frontend/);
+- ML e artefatos experimentais ainda em consolidação em [`ml/`](ml/), [`models/`](models/), [`dataset/`](dataset/) e [`runs/`](runs/).
 
-## Estrutura Recomendada
+## Fluxo Clínico Principal
+
+O fluxo principal que guia o produto hoje é:
+
+1. registrar o paciente;
+2. criar a lesão;
+3. associar imagem clínica;
+4. rodar análise de IA;
+5. registrar avaliação clínica;
+6. consolidar evolução na timeline;
+7. gerar ou atualizar plano de cuidado;
+8. agendar acompanhamento e alertar prioridades.
+
+Essa é a trilha mais importante do projeto neste momento. Novas features devem ficar subordinadas a esse fluxo.
+
+## Funcionalidades Atuais
+
+### Backend Clínico
+
+- API oficial Flask com factory em [`apps/api/app.py`](apps/api/app.py)
+- validação de payloads no backend
+- upload validado por conteúdo real
+- modelo de domínio com `Patient`, `Lesion`, `ClinicalImage`, `Assessment`, `InferenceResult`, `CarePlan`, `FollowUp` e `Alert`
+- persistência local em SQLite
+- histórico de inferência e resultado padronizado
+- exportação e contratos clínicos estruturados
+
+### IA e Análise de Imagem
+
+- pipeline de inferência clínica em Python
+- saída padronizada com `contract_version`, `model_version` e `confidence`
+- fallback para cenários sem modelo principal disponível
+- suporte a experimentação com detecção, segmentação e classificação
+
+### Gestão Clínica
+
+- timeline clínica por lesão
+- comparação temporal de evolução
+- geração automática de `care plan`
+- criação de `follow-up`
+- alertas clínicos persistidos
+- dashboard com fila decisória baseada em risco, piora, atraso e alertas
+
+### Segurança e Governança
+
+- backend não confia no frontend
+- RBAC aplicado no backend
+- perfis clínicos e pesquisador com restrições de escrita
+- `.env.example` como contrato
+- `firestore.rules` e `storage.rules`
+- secret scanning, CodeQL, Dependabot e CI no GitHub Actions
+
+## Tecnologias Usadas
+
+### Backend e API
+
+- Python
+- Flask
+- Flask-CORS
+- Pydantic
+- Loguru
+- SQLite
+- Requests
+- Python-Dotenv
+
+### IA, Visão Computacional e ML
+
+- PyTorch
+- TorchVision
+- OpenCV
+- NumPy
+- Ultralytics YOLO
+- segmentation-models-pytorch
+- ONNX Runtime
+- TensorFlow / tf2onnx
+- Transformers
+- OpenCLIP
+- MediaPipe
+- Pillow
+
+### Frontend
+
+- Next.js 14
+- React 18
+- TypeScript
+- Tailwind CSS
+- Firebase
+- Lucide React
+- jsPDF
+
+### Interoperabilidade e Documentação Clínica
+
+- HL7 FHIR R4 via `fhir.resources`
+- contratos clínicos documentados
+- dicionário de dados
+- dataset card
+- documentação de arquitetura e roadmap
+
+### CI/CD e Qualidade
+
+- GitHub Actions
+- CodeQL
+- Gitleaks
+- Dependabot
+- Pytest
+- smoke tests de API e segurança
+
+## Arquitetura Real do Repositório
 
 ```text
-apps/                     entrypoints canônicos
-packages/                 wrappers estáveis para domínio e inferência
-backend/                  compatibilidade legada do backend
-src/                      domínio clínico, análise e serviços centrais
-web/redisus-frontend/     frontend Next.js
-docs/                     arquitetura, dados, produto, pesquisa e compliance
-artifacts/                legados e logs históricos organizados
-ml/                       benchmark, registro e documentação de modelos
-scripts/                  utilitários e rotinas de treinamento
-tests/                    testes Python
+apps/
+  api/                   backend oficial
+  web/                   referência canônica em transição
+  desktop/               camada desktop legada
+
+packages/
+  clinical_domain/       wrappers e contratos do domínio clínico
+  ml_inference/          wrappers de inferência
+  shared/                utilitários compartilhados
+
+src/
+  data/                  banco e persistência
+  dashboard/             API clínica e dashboard
+  diagnosis/             lógica diagnóstica
+  processing/            processamento de imagem
+  treatment/             apoio à conduta e cuidado
+
+web/redisus-frontend/    frontend web em Next.js
+docs/                    arquitetura, dados, produto, pesquisa e compliance
+ml/                      benchmarks, model cards e relatórios
+dataset/                 acervo e documentação de dados
+tests/                   testes Python
+artifacts/               legados, saídas e logs históricos
 ```
 
-## Documentos Principais
+## Documentação Principal
 
 - Arquitetura atual: [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md)
-- Matriz de requisitos e entregas: [docs/requirements/requirements-matrix.md](docs/requirements/requirements-matrix.md)
+- Matriz de requisitos: [docs/requirements/requirements-matrix.md](docs/requirements/requirements-matrix.md)
 - Dicionário de dados: [docs/data/data-dictionary.md](docs/data/data-dictionary.md)
 - Protocolo de coleta: [docs/data/collection-protocol.md](docs/data/collection-protocol.md)
 - Dataset card: [docs/data/dataset-card.md](docs/data/dataset-card.md)
+- Jornada do usuário: [docs/product/user-journey.md](docs/product/user-journey.md)
+- Demo script: [docs/product/demo-script.md](docs/product/demo-script.md)
 - Baseline de modelos: [ml/benchmarks/baseline_report.md](ml/benchmarks/baseline_report.md)
 - Model card principal: [ml/model_cards/wound_classifier_v3.md](ml/model_cards/wound_classifier_v3.md)
-- Jornada do usuário: [docs/product/user-journey.md](docs/product/user-journey.md)
-- Roteiro de demo: [docs/product/demo-script.md](docs/product/demo-script.md)
 - Segurança: [SECURITY.md](SECURITY.md)
 - Roadmap: [ROADMAP.md](ROADMAP.md)
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
 
-## Execução Local
+## Como Rodar Localmente
 
-### 1. Backend clínico e domínio Python
+### 1. Backend oficial
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+copy .env.example .env
 python -m apps.api.app
 ```
 
-Observação: o repositório ainda mistura dependências pesadas de inferência, experimentação e backend. A próxima etapa recomendada é separar ambientes `dev`, `train` e `prod`.
+Backend oficial:
 
-### 2. Frontend
+- app factory: [`apps/api/app.py`](apps/api/app.py)
+- healthcheck: `GET /api/v1/health`
+
+### 2. Frontend web
 
 ```powershell
 cd web\redisus-frontend
@@ -88,26 +236,63 @@ npm run dev
 
 ### 3. Variáveis de ambiente
 
-Use o arquivo [`.env.example`](.env.example) como contrato central e mantenha arquivos reais fora do Git.
+Use [`.env.example`](.env.example) como contrato central. Não versione segredos reais.
 
-## Verdade Atual do Projeto
+## Testes e Verificação
 
-- Existe valor técnico real em `src/`, `tests/` e na experiência web.
-- O pipeline de ML ainda está em modo experimental e precisa de benchmark consolidado.
-- O repositório ainda não deve ser apresentado como sistema pronto para produção clínica.
-- O foco atual é consolidar o módulo de diagnóstico e a evidência técnica de entrega.
+### Python
+
+```powershell
+python -m pytest tests/test_clinical_api_contracts.py tests/test_api_security.py tests/test_clinical_dashboard.py -q
+```
+
+### Frontend
+
+```powershell
+cd web\redisus-frontend
+npm run lint
+npm run build
+```
+
+## Segurança
+
+Itens já presentes no repositório:
+
+- validação de autenticação e autorização no backend;
+- RBAC com restrição de escrita clínica;
+- validação de upload por conteúdo real;
+- secret scan em CI;
+- CodeQL;
+- regras Firebase locais;
+- arquivos de ambiente de exemplo.
+
+Antes de produção real, ainda é necessário:
+
+- aplicar `firestore.rules` no ambiente Firebase real;
+- aplicar `storage.rules` no ambiente Firebase real;
+- revisar permissões reais de acesso;
+- ativar branch protection;
+- fechar o processo de release.
+
+## Importante
+
+- O projeto já roda e demonstra valor técnico real.
+- O fluxo clínico principal está sendo fechado com prioridade máxima.
+- A base ainda não representa produto clínico homologado.
+- A camada de ML continua parcialmente experimental e precisa de benchmark consolidado.
 
 ## Legados Preservados
 
 - README anterior: [docs/research/legacy-readme.md](docs/research/legacy-readme.md)
 - Arquitetura anterior: [docs/architecture/platform-architecture-legacy.md](docs/architecture/platform-architecture-legacy.md)
 - Guia de treino legado: [docs/research/training-guide.md](docs/research/training-guide.md)
-- Backups e logs antigos: [artifacts/README.md](artifacts/README.md)
+- Artefatos antigos: [artifacts/README.md](artifacts/README.md)
 
 ## Próximos Passos
 
-- fechar um backend oficial para o fluxo clínico;
-- consolidar o dataset com manifests e QA;
-- publicar benchmark reproduzível;
-- validar a jornada de demonstração de ponta a ponta;
-- preparar CI/CD e hardening de segurança.
+- fechar o fluxo principal clínico ponta a ponta com UX consistente;
+- tornar a fila clínica acionável no dashboard;
+- consolidar dataset, manifests e QA de coleta;
+- fortalecer segurança de produção;
+- evoluir interoperabilidade FHIR e integração SUS;
+- transformar a base atual em acompanhamento longitudinal real de paciente.
