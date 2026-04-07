@@ -2,12 +2,34 @@ import json
 import os
 import threading
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from flask import Blueprint, jsonify, request, send_file
 from loguru import logger
+
+from packages.clinical_domain.validation import (
+    AIChatPayload,
+    AnalyzeEvaluationPayload,
+    CreateEvaluationPayload,
+    GenerateReportPayload,
+    assert_allowed_form_fields,
+    normalize_image_role,
+    validate_and_sanitize_image_upload,
+    validate_json_request,
+)
+from packages.shared.security import (
+    current_user_required,
+    enforce_rate_limit,
+    enforce_request_auth,
+    ensure_evaluation_access,
+    ensure_job_access,
+    ensure_patient_access,
+    ensure_report_access,
+    user_display_name,
+)
 
 
 def _safe_float(value: Any) -> Optional[float]:
@@ -48,8 +70,7 @@ class ClinicalAPI:
         self.report_dir = Path("output/reports")
         self.report_dir.mkdir(parents=True, exist_ok=True)
         self.service_status_provider = service_status_provider
-        default_require_auth = "1" if os.getenv("FLASK_ENV", "").lower() == "production" else "0"
-        self.require_auth = os.getenv("CLINICAL_API_REQUIRE_AUTH", default_require_auth) != "0"
+        self.require_auth = os.getenv("CLINICAL_API_REQUIRE_AUTH", "1") != "0"
         self.allowed_origin = os.getenv("CLINICAL_API_ALLOWED_ORIGIN", "http://localhost:3000")
         self.firebase_auth = self._init_firebase_auth()
         if self.require_auth and not self.firebase_auth:
@@ -105,26 +126,17 @@ class ClinicalAPI:
                 return None
             if request.path.endswith("/health"):
                 return None
-            if not self.require_auth:
-                return None
-            if not self.firebase_auth:
-                return jsonify({"error": "auth_backend_not_configured"}), 503
-            auth_header = request.headers.get("Authorization", "")
-            if not auth_header.startswith("Bearer "):
-                return jsonify({"error": "missing_bearer_token"}), 401
-            token = auth_header.replace("Bearer ", "", 1).strip()
-            try:
-                request.firebase_user = self.firebase_auth.verify_id_token(token)
-            except Exception:
-                return jsonify({"error": "invalid_firebase_token"}), 401
+            enforce_request_auth()
             return None
 
         @bp.after_request
         def add_cors_headers(response):
             response.headers["Access-Control-Allow-Origin"] = self.allowed_origin
             response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
             response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Content-Type-Options"] = "nosniff"
             return response
 
     def _register_routes(self):
@@ -173,43 +185,72 @@ class ClinicalAPI:
 
         @bp.route("/evaluations", methods=["POST"])
         def create_evaluation():
-            payload = request.get_json(silent=True) or {}
-            if not payload.get("patient_id"):
-                return jsonify({"error": "patient_id é obrigatório"}), 400
+            user = current_user_required()
+            payload = validate_json_request(CreateEvaluationPayload).model_dump()
+            patient = ensure_patient_access(self.db, payload["patient_id"], user=user)
 
             case_id = payload.get("case_id")
-            if not case_id:
-                case = self.db.create_wound_case(payload["patient_id"], payload)
+            if case_id:
+                existing_case = self.db.get_wound_case(case_id)
+                if not existing_case:
+                    return jsonify({"error": "caso_clinico_nao_encontrado"}), 404
+                if str(existing_case["patient_id"]) != str(patient.id):
+                    return jsonify({"error": "case_id_nao_pertence_ao_paciente"}), 400
+            else:
+                case = self.db.create_wound_case(
+                    patient.id,
+                    {
+                        "title": payload.get("wound_type"),
+                        "wound_type": payload.get("wound_type"),
+                        "location": payload.get("wound_location"),
+                        "metadata": {"created_by": user_display_name(user)},
+                    },
+                )
                 case_id = case["id"] if case else None
 
-            record = self.db.create_wound_evaluation({**payload, "case_id": case_id})
+            record = self.db.create_wound_evaluation(
+                {
+                    **payload,
+                    "patient_id": patient.id,
+                    "case_id": case_id,
+                    "professional_name": user_display_name(user),
+                    "metadata": {"created_by": user_display_name(user)},
+                }
+            )
             if not record:
-                return jsonify({"error": "não foi possível criar avaliação"}), 500
+                return jsonify({"error": "evaluation_creation_failed"}), 500
             return jsonify(record), 201
 
         @bp.route("/evaluations/<evaluation_id>/images", methods=["POST"])
         def upload_evaluation_image(evaluation_id: str):
-            evaluation = self.db.get_wound_evaluation(evaluation_id)
-            if not evaluation:
-                return jsonify({"error": "avaliação não encontrada"}), 404
+            user = current_user_required()
+            enforce_rate_limit("upload", 30)
+            ensure_evaluation_access(self.db, evaluation_id, user=user)
 
             image = request.files.get("image")
             if not image:
                 return jsonify({"error": "arquivo 'image' é obrigatório"}), 400
 
-            role = request.form.get("imageRole", "clinical")
-            extension = Path(image.filename or "image.jpg").suffix or ".jpg"
-            image_name = f"{evaluation_id}_{int(time.time() * 1000)}{extension}"
+            assert_allowed_form_fields(request.form, allowed={"imageRole"})
+            role = normalize_image_role(request.form.get("imageRole", "clinical"))
+            validated_image = validate_and_sanitize_image_upload(image)
+            image_name = f"{evaluation_id}_{int(time.time() * 1000)}{validated_image.extension}"
             image_path = self.upload_dir / image_name
-            image.save(image_path)
+            image_path.write_bytes(validated_image.content)
 
             saved = self.db.add_wound_image(
                 evaluation_id,
                 {
                     "image_role": role,
                     "image_path": str(image_path),
-                    "content_type": image.mimetype or "image/jpeg",
-                    "metadata": {"original_name": image.filename},
+                    "content_type": validated_image.mime_type,
+                    "metadata": {
+                        "original_name": validated_image.original_name,
+                        "uploaded_by": user_display_name(user),
+                        "width": validated_image.width,
+                        "height": validated_image.height,
+                        "size_bytes": len(validated_image.content),
+                    },
                 },
             )
             if not saved:
@@ -218,11 +259,10 @@ class ClinicalAPI:
 
         @bp.route("/evaluations/<evaluation_id>/analyze", methods=["POST"])
         def analyze_evaluation(evaluation_id: str):
-            evaluation = self.db.get_wound_evaluation(evaluation_id)
-            if not evaluation:
-                return jsonify({"error": "avaliação não encontrada"}), 404
-
-            body = request.get_json(silent=True) or {}
+            user = current_user_required()
+            ensure_evaluation_access(self.db, evaluation_id, user=user)
+            enforce_rate_limit("analyze", 20)
+            body = validate_json_request(AnalyzeEvaluationPayload).model_dump()
             force_fallback = bool(body.get("forceFallback", False))
             run = self.db.create_ai_run(evaluation_id, use_fallback=force_fallback)
             if not run:
@@ -238,39 +278,55 @@ class ClinicalAPI:
 
         @bp.route("/analysis-jobs/<job_id>", methods=["GET"])
         def get_job(job_id: str):
-            run = self.db.get_ai_run(job_id)
-            if not run:
-                return jsonify({"error": "job não encontrado"}), 404
+            current_user_required()
+            run = ensure_job_access(self.db, job_id)
             result = self.db.get_ai_result_by_run(job_id)
             return jsonify({"job": run, "result": result}), 200
 
         @bp.route("/patients/<patient_id>/evaluations", methods=["GET"])
         def list_patient_evaluations(patient_id: str):
+            user = current_user_required()
+            ensure_patient_access(self.db, patient_id, user=user)
             case_id = request.args.get("caseId")
+            if case_id:
+                wound_case = self.db.get_wound_case(case_id)
+                if not wound_case:
+                    return jsonify({"error": "caso clínico não encontrado"}), 404
+                if str(wound_case["patient_id"]) != str(patient_id):
+                    return jsonify({"error": "case_id não pertence ao paciente informado"}), 400
             evaluations = self.db.list_patient_evaluations(patient_id, case_id=case_id)
             return jsonify(evaluations), 200
 
         @bp.route("/comparisons", methods=["GET"])
         def compare_evaluations():
+            current_user_required()
             left_id = request.args.get("left")
             right_id = request.args.get("right")
             if not left_id or not right_id:
                 return jsonify({"error": "left e right são obrigatórios"}), 400
-            left = self.db.get_wound_evaluation(left_id)
-            right = self.db.get_wound_evaluation(right_id)
-            if not left or not right:
-                return jsonify({"error": "avaliações inválidas"}), 404
+            left = ensure_evaluation_access(self.db, left_id)
+            right = ensure_evaluation_access(self.db, right_id)
+            if str(left["patient_id"]) != str(right["patient_id"]):
+                return jsonify({"error": "comparação entre pacientes diferentes não é permitida"}), 400
             return jsonify({"left": left, "right": right, "deltas": _calc_deltas(left, right)}), 200
 
         @bp.route("/reports/generate", methods=["POST"])
         def generate_report():
+            user = current_user_required()
+            enforce_rate_limit("report", 10)
             started = time.time()
-            payload = request.get_json(silent=True) or {}
-            patient_id = payload.get("patient_id")
-            if not patient_id:
-                return jsonify({"error": "patient_id é obrigatório"}), 400
+            payload = validate_json_request(GenerateReportPayload).model_dump()
+            patient = ensure_patient_access(self.db, payload["patient_id"], user=user)
+            patient_id = patient.id
+            case_id = payload.get("case_id")
+            if case_id:
+                wound_case = self.db.get_wound_case(case_id)
+                if not wound_case:
+                    return jsonify({"error": "caso clínico não encontrado"}), 404
+                if str(wound_case["patient_id"]) != str(patient_id):
+                    return jsonify({"error": "case_id não pertence ao paciente informado"}), 400
 
-            evals = self.db.list_patient_evaluations(patient_id, case_id=payload.get("case_id"))
+            evals = self.db.list_patient_evaluations(patient_id, case_id=case_id)
             if not evals:
                 return jsonify({"error": "nenhuma avaliação para gerar relatório"}), 400
             latest = evals[0]
@@ -279,14 +335,14 @@ class ClinicalAPI:
                 "patient_id": patient_id,
                 "generated_at": datetime.now().isoformat(),
                 "type": payload.get("report_type", "evolution"),
-                "professional": payload.get("professional"),
+                "professional": user_display_name(user),
                 "baseline": baseline,
                 "latest": latest,
                 "deltas": _calc_deltas(baseline, latest),
                 "recommendation": self._build_recommendation(latest),
             }
 
-            report_name = f"report_{patient_id}_{int(time.time())}"
+            report_name = f"report_{uuid.uuid4().hex}"
             json_path = self.report_dir / f"{report_name}.json"
             pdf_path = self.report_dir / f"{report_name}.pdf"
             docx_path = self.report_dir / f"{report_name}.docx"
@@ -304,13 +360,13 @@ class ClinicalAPI:
             saved = self.db.create_structured_report(
                 {
                     "patient_id": patient_id,
-                    "case_id": payload.get("case_id"),
+                    "case_id": case_id,
                     "evaluation_id": latest.get("id"),
                     "report_type": payload.get("report_type", "evolution"),
                     "report_json": report_json,
                     "pdf_path": str(pdf_path),
                     "docx_path": str(docx_path),
-                    "generated_by": payload.get("professional"),
+                    "generated_by": user_display_name(user),
                 }
             )
             if not saved:
@@ -323,10 +379,11 @@ class ClinicalAPI:
 
         @bp.route("/reports/<report_id>/download", methods=["GET"])
         def download_report(report_id: str):
+            current_user_required()
             fmt = (request.args.get("format") or "json").lower()
-            report = self.db.get_structured_report(report_id)
-            if not report:
-                return jsonify({"error": "relatório não encontrado"}), 404
+            if fmt not in {"json", "pdf", "docx"}:
+                return jsonify({"error": "formato indisponível"}), 400
+            report = ensure_report_access(self.db, report_id)
 
             if fmt == "json":
                 path = self.report_dir / f"report_{report_id}.json"

@@ -2,6 +2,7 @@ import io
 import time
 
 import pytest
+from PIL import Image
 
 from src.dashboard.clinical_dashboard import ClinicalDashboard
 from src.data.database import Database, PatientRecord
@@ -16,6 +17,13 @@ def client(tmp_path, monkeypatch):
     app.config["TESTING"] = True
     with app.test_client() as c:
         yield c
+
+
+def _png_bytes(color: tuple[int, int, int] = (180, 20, 20)) -> bytes:
+    buffer = io.BytesIO()
+    image = Image.new("RGB", (32, 32), color=color)
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def test_health_contract(client):
@@ -47,7 +55,7 @@ def test_evaluation_image_analyze_job_contract(client):
 
     upload_resp = client.post(
         f"/api/v1/evaluations/{evaluation_id}/images",
-        data={"imageRole": "frontal", "image": (io.BytesIO(b"fake-image"), "wound.jpg")},
+        data={"imageRole": "frontal", "image": (io.BytesIO(_png_bytes()), "wound.png")},
         content_type="multipart/form-data",
     )
     assert upload_resp.status_code == 201

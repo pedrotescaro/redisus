@@ -28,4 +28,4 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          python -m pytest tests/test_clinical_api_contracts.py tests/test_fhir_client.py tests/test_risk_stratification.py tests/test_official_api_factory.py -q
+          python -m pytest tests/test_clinical_api_contracts.py tests/test_fhir_client.py tests/test_risk_stratification.py tests/test_official_api_factory.py tests/test_api_security.py -q

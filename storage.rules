@@ -1,0 +1,10 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Imagens clínicas e artefatos devem ser servidos pelo backend com URLs controladas.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

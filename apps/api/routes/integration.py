@@ -11,13 +11,30 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
+from PIL import Image
 
+from packages.clinical_domain.validation import (
+    AIChatPayload,
+    assert_allowed_form_fields,
+    validate_and_sanitize_image_upload,
+    validate_json_request,
+)
 from packages.shared.runtime import load_project_env
+from packages.shared.security import (
+    current_user,
+    current_user_required,
+    enforce_rate_limit,
+    ensure_patient_access,
+    filter_patients_for_user,
+    is_admin,
+    user_display_name,
+    user_uid,
+)
 
 load_project_env()
 
-from backend.firebase_admin_setup import get_firestore_db, get_storage_bucket, is_firebase_ready, verify_id_token  # noqa: E402
+from backend.firebase_admin_setup import get_firestore_db, get_storage_bucket, is_firebase_ready  # noqa: E402
 
 integration_api = Blueprint("integration_api", __name__, url_prefix="/api/v1")
 
@@ -76,14 +93,7 @@ def get_integration_service_status() -> Dict[str, Any]:
 
 
 def get_current_user() -> Optional[Dict[str, Any]]:
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return None
-    token = auth_header[7:]
-    try:
-        return verify_id_token(token)
-    except Exception:
-        return None
+    return current_user()
 
 
 def _rule_based_response(message: str) -> str:
@@ -117,22 +127,21 @@ def _rule_based_response(message: str) -> str:
 
 @integration_api.route("/analyze", methods=["POST"])
 def analyze_image():
+    user = current_user_required()
+    enforce_rate_limit("analyze", 20)
     if "image" not in request.files:
         return jsonify({"error": "missing_image", "detail": "Campo 'image' obrigatorio"}), 400
 
     image_file = request.files["image"]
-    patient_id = request.form.get("patient_id", "")
+    assert_allowed_form_fields(request.form, allowed={"patient_id"})
+    patient_id = (request.form.get("patient_id") or "").strip()
 
     try:
         import cv2
         import numpy as np
 
-        img_bytes = image_file.read()
-        nparr = np.frombuffer(img_bytes, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        if image is None:
-            return jsonify({"error": "invalid_image", "detail": "Nao foi possivel decodificar a imagem"}), 400
+        validated_image = validate_and_sanitize_image_upload(image_file)
+        image = cv2.cvtColor(np.array(Image.open(io.BytesIO(validated_image.content)).convert("RGB")), cv2.COLOR_RGB2BGR)
 
         analyzer = _get_wound_analyzer()
         if analyzer is None:
@@ -184,21 +193,30 @@ def analyze_image():
                 result[field] = value
 
         analysis_id = str(uuid.uuid4())
+        owner_uid = user_uid(user)
+        linked_patient_id = None
+        if patient_id:
+            database = current_app.extensions.get("redisus_db")
+            if database is None:
+                return jsonify({"error": "patient_validation_unavailable"}), 503
+            patient = ensure_patient_access(database, patient_id, user=user)
+            linked_patient_id = patient.id
+
         try:
             db = get_firestore_db()
             doc_data = {
                 **result,
                 "id": analysis_id,
-                "patient_id": patient_id,
+                "patient_id": linked_patient_id,
+                "owner_uid": owner_uid,
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "image_filename": image_file.filename or "unknown",
+                "image_filename": validated_image.original_name or "unknown",
             }
             db.collection("analyses").document(analysis_id).set(doc_data)
             try:
                 bucket = get_storage_bucket()
-                blob = bucket.blob(f"analyses/{analysis_id}/{image_file.filename or 'image.jpg'}")
-                blob.upload_from_string(img_bytes, content_type=image_file.content_type or "image/jpeg")
-                result["image_url"] = blob.public_url
+                blob = bucket.blob(f"analyses/{analysis_id}/image{validated_image.extension}")
+                blob.upload_from_string(validated_image.content, content_type=validated_image.mime_type)
             except Exception:
                 pass
         except Exception:
@@ -214,15 +232,15 @@ def analyze_image():
 
 @integration_api.route("/image-labels", methods=["POST"])
 def image_labels():
+    current_user_required()
+    enforce_rate_limit("label", 20)
     if "image" not in request.files:
         return jsonify({"error": "missing_image", "detail": "Campo 'image' obrigatorio"}), 400
 
     image_file = request.files["image"]
     try:
-        import PIL.Image
-
-        img_bytes = image_file.read()
-        img = PIL.Image.open(io.BytesIO(img_bytes))
+        validated_image = validate_and_sanitize_image_upload(image_file)
+        img = Image.open(io.BytesIO(validated_image.content))
         model = _init_gemini()
         if model is None:
             return jsonify(
@@ -258,24 +276,32 @@ def image_labels():
 
 @integration_api.route("/ai-chat", methods=["POST"])
 def ai_chat():
-    data = request.get_json(silent=True)
-    if not data or not data.get("message"):
-        return jsonify({"error": "missing_message", "detail": "Campo 'message' obrigatorio"}), 400
+    user = current_user_required()
+    enforce_rate_limit("chat", 60)
+    data = validate_json_request(AIChatPayload).model_dump()
 
     user_message = data["message"]
     conversation_id = data.get("conversation_id") or str(uuid.uuid4())
-    context = data.get("context", {})
+    context = data.get("context", {}) or {}
+    owner_uid = user_uid(user)
+    patient_id = context.get("patient_id")
+    if patient_id:
+        database = current_app.extensions.get("redisus_db")
+        if database is None:
+            return jsonify({"error": "patient_validation_unavailable"}), 503
+        ensure_patient_access(database, patient_id, user=user)
 
     try:
         firestore_context = ""
         history_docs = []
         try:
             db = get_firestore_db()
-            if context.get("patient_id"):
-                patient_doc = db.collection("patients").document(context["patient_id"]).get()
-                if patient_doc.exists:
-                    patient_data = patient_doc.to_dict()
-                    firestore_context += f"\n\nDados do paciente:\n{json.dumps(patient_data, ensure_ascii=False, default=str)}"
+            conv_ref = db.collection("ai_conversations").document(conversation_id)
+            existing = conv_ref.get()
+            if existing.exists:
+                existing_data = existing.to_dict() or {}
+                if not is_admin(user) and existing_data.get("owner_uid") != owner_uid:
+                    return jsonify({"error": "conversation_access_denied"}), 403
 
             history_ref = (
                 db.collection("ai_conversations").document(conversation_id).collection("messages").order_by("timestamp").limit(20)
@@ -309,16 +335,30 @@ def ai_chat():
             conv_ref.set(
                 {
                     "id": conversation_id,
+                    "owner_uid": owner_uid,
                     "updated_at": timestamp,
                     "last_message": user_message[:100],
                     "message_count": len(history_docs) + 2,
+                    "updated_by": user_display_name(user),
                 },
                 merge=True,
             )
             messages_ref = conv_ref.collection("messages")
-            messages_ref.add({"role": "user", "content": user_message, "timestamp": timestamp})
             messages_ref.add(
-                {"role": "assistant", "content": ai_response, "timestamp": datetime.now(timezone.utc).isoformat()}
+                {
+                    "role": "user",
+                    "content": user_message,
+                    "timestamp": timestamp,
+                    "owner_uid": owner_uid,
+                }
+            )
+            messages_ref.add(
+                {
+                    "role": "assistant",
+                    "content": ai_response,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "owner_uid": owner_uid,
+                }
             )
         except Exception:
             pass
@@ -338,9 +378,13 @@ def ai_chat():
 
 @integration_api.route("/ai-chat/history", methods=["GET"])
 def chat_history():
+    user = current_user_required()
     try:
         db = get_firestore_db()
-        convs = db.collection("ai_conversations").order_by("updated_at", direction="DESCENDING").limit(50).stream()
+        query = db.collection("ai_conversations")
+        if not is_admin(user):
+            query = query.where("owner_uid", "==", user_uid(user))
+        convs = query.order_by("updated_at", direction="DESCENDING").limit(50).stream()
         result = []
         for doc in convs:
             data = doc.to_dict()
@@ -359,10 +403,18 @@ def chat_history():
 
 @integration_api.route("/ai-chat/history/<conversation_id>", methods=["GET"])
 def chat_messages(conversation_id: str):
+    user = current_user_required()
     try:
         db = get_firestore_db()
+        conv_ref = db.collection("ai_conversations").document(conversation_id)
+        conv_doc = conv_ref.get()
+        if not conv_doc.exists:
+            return jsonify({"messages": [], "error": "conversation_not_found"}), 404
+        conv_data = conv_doc.to_dict() or {}
+        if not is_admin(user) and conv_data.get("owner_uid") != user_uid(user):
+            return jsonify({"messages": [], "error": "conversation_access_denied"}), 403
         messages = (
-            db.collection("ai_conversations").document(conversation_id).collection("messages").order_by("timestamp").stream()
+            conv_ref.collection("messages").order_by("timestamp").stream()
         )
         result = []
         for doc in messages:
@@ -382,9 +434,16 @@ def chat_messages(conversation_id: str):
 
 @integration_api.route("/ai-chat/history/<conversation_id>", methods=["DELETE"])
 def delete_conversation(conversation_id: str):
+    user = current_user_required()
     try:
         db = get_firestore_db()
         conv_ref = db.collection("ai_conversations").document(conversation_id)
+        conv_doc = conv_ref.get()
+        if not conv_doc.exists:
+            return jsonify({"error": "conversation_not_found"}), 404
+        conv_data = conv_doc.to_dict() or {}
+        if not is_admin(user) and conv_data.get("owner_uid") != user_uid(user):
+            return jsonify({"error": "conversation_access_denied"}), 403
         messages = conv_ref.collection("messages").stream()
         for msg in messages:
             msg.reference.delete()
@@ -397,13 +456,13 @@ def delete_conversation(conversation_id: str):
 @integration_api.route("/patients", methods=["GET"])
 def list_patients():
     try:
-        db = get_firestore_db()
-        patients = db.collection("patients").order_by("name").stream()
-        result = []
-        for doc in patients:
-            data = doc.to_dict()
-            data["id"] = doc.id
-            result.append(data)
+        user = current_user_required()
+        database = current_app.extensions.get("redisus_db")
+        if database is None:
+            return jsonify({"patients": [], "error": "database_unavailable"}), 503
+        patients = database.list_patients()
+        scoped = filter_patients_for_user(patients, user=user)
+        result = [patient.to_dict() if hasattr(patient, "to_dict") else patient for patient in scoped]
         return jsonify({"patients": result})
     except Exception as exc:
         return jsonify({"patients": [], "error": str(exc)})

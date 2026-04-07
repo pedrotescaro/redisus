@@ -18,6 +18,7 @@ async function proxy(request: NextRequest, pathParts: string[]) {
   headers.delete("host");
   headers.delete("connection");
   headers.delete("content-length");
+  headers.delete("x-middleware-subrequest");
 
   const init: RequestInit = {
     method: request.method,

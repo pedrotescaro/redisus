@@ -16,6 +16,13 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
+from packages.shared.security import (
+    current_user_required,
+    enforce_request_auth,
+    ensure_admin_access,
+    ensure_patient_access,
+    filter_patients_for_user,
+)
 from src.dashboard.clinical_api import ClinicalAPI
 
 
@@ -52,7 +59,27 @@ class ClinicalDashboard:
 
         if self.db:
             clinical_api = ClinicalAPI(self.db)
+            app.extensions["redisus_auth_verifier"] = clinical_api.firebase_auth
             app.register_blueprint(clinical_api.blueprint)
+
+        @app.before_request
+        def enforce_dashboard_auth():
+            if request.method == "OPTIONS":
+                return None
+            if not request.path.startswith("/api/"):
+                return None
+            if request.path == "/api/v1/health":
+                return None
+            enforce_request_auth()
+            return None
+
+        @app.after_request
+        def apply_dashboard_security_headers(response):
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            if request.path.startswith("/api/"):
+                response.headers["Cache-Control"] = "no-store"
+            return response
 
         # ---- Rotas HTML ----
         @app.route("/")
@@ -75,37 +102,44 @@ class ClinicalDashboard:
         @app.route("/api/dashboard/summary")
         def api_summary():
             """Resumo geral do dashboard"""
+            ensure_admin_access()
             return jsonify(self._get_dashboard_summary())
 
         @app.route("/api/patients")
         def api_patients():
             """Lista pacientes com indicadores"""
-            return jsonify(self._get_patients_list())
+            user = current_user_required()
+            return jsonify(filter_patients_for_user(self._get_patients_list(), user=user))
 
         @app.route("/api/patients/<patient_id>")
         def api_patient_detail(patient_id):
             """Detalhe de um paciente"""
+            ensure_patient_access(self.db, patient_id)
             return jsonify(self._get_patient_detail(patient_id))
 
         @app.route("/api/patients/<patient_id>/risk")
         def api_patient_risk(patient_id):
             """Score de risco de um paciente"""
+            ensure_patient_access(self.db, patient_id)
             return jsonify(self._get_patient_risk(patient_id))
 
         @app.route("/api/indicators")
         def api_indicators():
             """Indicadores populacionais"""
+            ensure_admin_access()
             region = request.args.get("region", "")
             return jsonify(self._get_population_indicators(region))
 
         @app.route("/api/alerts")
         def api_alerts():
             """Alertas ativos"""
+            ensure_admin_access()
             return jsonify(self._get_active_alerts())
 
         @app.route("/api/surveillance/heatmap")
         def api_heatmap():
             """Dados de mapa de calor"""
+            ensure_admin_access()
             condition = request.args.get("condition")
             days = int(request.args.get("days", 30))
             return jsonify(self._get_heatmap_data(condition, days))
@@ -113,17 +147,20 @@ class ClinicalDashboard:
         @app.route("/api/surveillance/clusters")
         def api_clusters():
             """Clusters detectados"""
+            ensure_admin_access()
             return jsonify(self._get_clusters())
 
         @app.route("/api/reports/production")
         def api_production():
             """Relatório de produção"""
+            ensure_admin_access()
             period = request.args.get("period", "month")
             return jsonify(self._get_production_report(period))
 
         @app.route("/api/export/fhir/<patient_id>")
         def api_export_fhir(patient_id):
             """Exporta dados FHIR de um paciente"""
+            ensure_patient_access(self.db, patient_id)
             return jsonify(self._export_fhir(patient_id))
 
         self.app = app

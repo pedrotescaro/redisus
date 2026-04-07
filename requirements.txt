@@ -74,6 +74,7 @@ fhir.resources>=7.0.0  # HL7 FHIR R4 models (opcional)
 # Eixo 5: Dashboard Web Clínico
 # ============================================================
 flask>=3.0.0
+flask-cors>=4.0.1
 
 # ============================================================
 # Opcional: TensorFlow Lite para mobile

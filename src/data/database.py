@@ -310,7 +310,7 @@ class Database:
     # === MODELO CLÍNICO E JOBS ===
 
     def create_wound_case(self, patient_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        case_id = payload.get("id") or str(uuid.uuid4())
+        case_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
         case = {
             "id": case_id,
@@ -344,8 +344,29 @@ class Database:
             logger.error(f"Erro ao criar caso clínico: {e}")
             return None
 
+    def get_wound_case(self, case_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute("SELECT * FROM wound_cases WHERE id = ?", (case_id,)).fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": row["id"],
+                    "patient_id": row["patient_id"],
+                    "title": row["title"],
+                    "wound_type": row["wound_type"],
+                    "location": row["location"],
+                    "status": row["status"],
+                    "opened_at": row["opened_at"],
+                    "closed_at": row["closed_at"],
+                    "metadata": json.loads(row["metadata"] or "{}"),
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar caso clÃ­nico: {e}")
+            return None
+
     def create_wound_evaluation(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        evaluation_id = payload.get("id") or str(uuid.uuid4())
+        evaluation_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
         record = {
             "id": evaluation_id,
@@ -433,7 +454,7 @@ class Database:
             return []
 
     def add_wound_image(self, evaluation_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        image_id = payload.get("id") or str(uuid.uuid4())
+        image_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
         record = {
             "id": image_id,
@@ -618,7 +639,7 @@ class Database:
             return None
 
     def create_structured_report(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        report_id = payload.get("id") or str(uuid.uuid4())
+        report_id = str(uuid.uuid4())
         created_at = datetime.now().isoformat()
         try:
             with self._get_connection() as conn:

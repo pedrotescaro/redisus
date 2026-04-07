@@ -4,7 +4,11 @@
 
 Este repositório trata de software para apoio ao diagnóstico e pode lidar com dados clínicos, imagens sensíveis e integrações com serviços externos. Segurança e privacidade não são opcionais.
 
-## Regras Imediatas
+## Regra crítica
+
+O backend nunca deve confiar no frontend.
+
+## Regras imediatas
 
 - nunca versionar credenciais, chaves de API ou service accounts;
 - nunca subir imagens de pacientes reais para o Git;
@@ -12,7 +16,15 @@ Este repositório trata de software para apoio ao diagnóstico e pode lidar com 
 - manter arquivos `.env`, `.env.local` e equivalentes apenas no ambiente local;
 - preferir IDs sintéticos e datasets públicos ou explicitamente autorizados.
 
-## Reporte de Vulnerabilidades
+## Documentos operacionais
+
+- `docs/security/threat-model.md`
+- `docs/security/secure-backend-guidelines.md`
+- `docs/security/validation-rules.md`
+- `docs/security/data-classification.md`
+- `docs/security/incident-response.md`
+
+## Reporte de vulnerabilidades
 
 Se você identificar uma vulnerabilidade:
 
@@ -20,7 +32,7 @@ Se você identificar uma vulnerabilidade:
 2. envie a descrição, o impacto e os passos de reprodução ao mantenedor do projeto;
 3. aguarde alinhamento antes de divulgar publicamente.
 
-## Áreas Sensíveis
+## Áreas sensíveis
 
 - integrações com Firebase e autenticação;
 - armazenamento de imagens e relatórios;
@@ -28,7 +40,7 @@ Se você identificar uma vulnerabilidade:
 - rastreabilidade de eventos clínicos;
 - dados pessoais e sensíveis regulados pela LGPD.
 
-## Hardening Prioritário
+## Hardening prioritário
 
 - remover segredos do workspace versionável;
 - centralizar o contrato de ambiente em exemplos seguros;

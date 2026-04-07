@@ -3,10 +3,11 @@
 import { gemini20Flash, googleAI } from "@genkit-ai/googleai";
 import { genkit } from "genkit";
 
-// Usa a chave que ja esta no .env.local
-const apiKey =
-  process.env.GOOGLE_GENAI_API_KEY ||
-  process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+const apiKey = process.env.GOOGLE_GENAI_API_KEY;
+
+if (!apiKey) {
+  throw new Error("GOOGLE_GENAI_API_KEY ausente para server actions do Genkit.");
+}
 
 const ai = genkit({
   plugins: [googleAI({ apiKey })],
