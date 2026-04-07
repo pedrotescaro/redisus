@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 import cv2
 from loguru import logger
 
+from packages.clinical_domain.workflow import DEFAULT_MODEL_VERSION
+
 from .resnet_wound_classifier import TwoStageWoundClassifier
 
 _BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -245,6 +247,6 @@ class ClinicalMLService:
         fallback_output = self._fallback_output(evaluation)
         return {
             "raw_output": fallback_output,
-            "model_version": descriptor.version or descriptor.id,
+            "model_version": DEFAULT_MODEL_VERSION,
             "model_descriptor": descriptor.to_dict(),
         }
