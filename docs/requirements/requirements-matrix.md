@@ -21,7 +21,7 @@ Com base no relatório trimestral do REDI-SUS, o foco prioritário deste reposit
 | T4 | PT4 | Protótipos iniciais de IA e relatório de arquiteturas | Parcial | `ml/benchmarks/baseline_report.md`, `ml/model_cards/` | formalizar baseline e gaps de reprodutibilidade |
 | T5 | PT3 | Base consolidada multicentro | Não iniciado | `data/manifests/` | depende de governança e consolidação externa |
 | T5 | PT5 | Interface diagnóstica e jornadas validadas | Parcial | `web/redisus-frontend/`, `docs/product/user-journey.md` | fechar golden path e evidência de uso |
-| T5 | PT7 | Gateway FHIR operacional | Exploratória | `src/interoperability/` | deixar para depois do contrato clínico estável |
+| T5 | PT7 | Gateway FHIR operacional | Exploratória | `src/interoperability/` | deixar para depois do backend oficial e contrato clínico estáveis |
 | T6 | PT4 | Biblioteca federada de modelos | Não iniciado | `ml/registry/models.yaml` | depende de benchmark confiável e governança de publicação |
 | T6 | PT5 | Protótipo funcional e usabilidade | Inicial | `docs/product/demo-script.md` | adicionar testes e coleta de feedback |
 | T6 | PT6 | Início dos pilotos multicêntricos | Não iniciado | `docs/product/` e `docs/compliance/` | só após consolidação do core |

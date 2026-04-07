@@ -4,7 +4,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from flask import Blueprint, jsonify, request, send_file
 from loguru import logger
@@ -40,13 +40,14 @@ def _calc_deltas(left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class ClinicalAPI:
-    def __init__(self, database):
+    def __init__(self, database, service_status_provider: Optional[Callable[[], Dict[str, Any]]] = None):
         self.db = database
         self.blueprint = Blueprint("clinical_api", __name__, url_prefix="/api/v1")
         self.upload_dir = Path("output/uploads")
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.report_dir = Path("output/reports")
         self.report_dir.mkdir(parents=True, exist_ok=True)
+        self.service_status_provider = service_status_provider
         default_require_auth = "1" if os.getenv("FLASK_ENV", "").lower() == "production" else "0"
         self.require_auth = os.getenv("CLINICAL_API_REQUIRE_AUTH", default_require_auth) != "0"
         self.allowed_origin = os.getenv("CLINICAL_API_ALLOWED_ORIGIN", "http://localhost:3000")
@@ -137,12 +138,20 @@ class ClinicalAPI:
             fail_rate = 0
             if self.metrics["jobs_total"] > 0:
                 fail_rate = self.metrics["jobs_failed"] / self.metrics["jobs_total"]
+            components = {}
+            if self.service_status_provider:
+                try:
+                    components = self.service_status_provider() or {}
+                except Exception as exc:
+                    logger.warning(f"health service status provider falhou: {exc}")
+                    components = {"official_api": "degraded"}
             return jsonify(
                 {
                     "status": "ok",
                     "timestamp": datetime.now().isoformat(),
                     "auth_required": self.require_auth,
                     "firebase_ready": bool(self.firebase_auth),
+                    "components": components,
                     "metrics": {
                         "jobs_total": self.metrics["jobs_total"],
                         "jobs_failed": self.metrics["jobs_failed"],

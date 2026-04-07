@@ -4,9 +4,11 @@ Plataforma de apoio ao diagnóstico de feridas por imagem, organizada para pesqu
 
 ## Status Atual
 
-- `src/` concentra o núcleo clínico e de inferência do projeto.
-- `web/redisus-frontend/` contém a interface Next.js para o fluxo clínico.
-- `backend/` concentra integrações externas específicas com Firebase e IA generativa.
+- `apps/api/` é o backend oficial do projeto.
+- `packages/` concentra a camada canônica de wrappers para domínio e inferência.
+- `src/` continua hospedando o núcleo clínico e de inferência durante a transição.
+- `web/redisus-frontend/` contém a interface Next.js do fluxo clínico.
+- `backend/` agora funciona como shim de compatibilidade para o backend oficial.
 - `models/`, `dataset/` e `runs/` guardam artefatos experimentais de ML ainda em consolidação.
 
 O repositório foi reorganizado para priorizar quatro frentes:
@@ -36,7 +38,9 @@ com foco em:
 ## Estrutura Recomendada
 
 ```text
-backend/                  API e integrações específicas
+apps/                     entrypoints canônicos
+packages/                 wrappers estáveis para domínio e inferência
+backend/                  compatibilidade legada do backend
 src/                      domínio clínico, análise e serviços centrais
 web/redisus-frontend/     frontend Next.js
 docs/                     arquitetura, dados, produto, pesquisa e compliance
@@ -68,6 +72,7 @@ tests/                    testes Python
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+python -m apps.api.app
 ```
 
 Observação: o repositório ainda mistura dependências pesadas de inferência, experimentação e backend. A próxima etapa recomendada é separar ambientes `dev`, `train` e `prod`.

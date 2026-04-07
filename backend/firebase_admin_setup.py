@@ -6,8 +6,18 @@ import os
 import json
 from pathlib import Path
 
-import firebase_admin
-from firebase_admin import credentials, firestore, storage, auth
+try:
+    import firebase_admin
+    from firebase_admin import auth, credentials, firestore, storage
+
+    _FIREBASE_AVAILABLE = True
+except Exception:
+    firebase_admin = None
+    credentials = None
+    firestore = None
+    storage = None
+    auth = None
+    _FIREBASE_AVAILABLE = False
 
 _app = None
 
@@ -16,6 +26,10 @@ def _init_firebase():
     global _app
     if _app is not None:
         return _app
+
+    if not _FIREBASE_AVAILABLE:
+        print("[Firebase Admin] [!] firebase_admin nao instalado - integracoes Firebase indisponiveis.")
+        return None
 
     cred = None
     sa_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
@@ -63,18 +77,28 @@ def _init_firebase():
 
 def get_firestore_db():
     _init_firebase()
+    if not _FIREBASE_AVAILABLE or _app is None:
+        raise RuntimeError("Firebase Admin indisponivel")
     return firestore.client()
 
 
 def get_storage_bucket():
     _init_firebase()
+    if not _FIREBASE_AVAILABLE or _app is None:
+        raise RuntimeError("Firebase Admin indisponivel")
     bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET", "")
     return storage.bucket(bucket_name) if bucket_name else storage.bucket()
 
 
 def verify_id_token(id_token: str) -> dict:
     _init_firebase()
+    if not _FIREBASE_AVAILABLE or _app is None:
+        raise RuntimeError("Firebase Admin indisponivel")
     return auth.verify_id_token(id_token)
+
+
+def is_firebase_ready() -> bool:
+    return bool(_FIREBASE_AVAILABLE and _init_firebase() is not None)
 
 
 _init_firebase()

@@ -25,7 +25,18 @@ Principais módulos:
 - `src/processing/`
 - `src/treatment/`
 
-### 2. Frontend em `web/redisus-frontend/`
+### 2. Backend oficial em `apps/api/`
+
+Esta é a nova composição canônica do backend.
+
+Responsabilidades:
+
+- inicializar a aplicação Flask oficial;
+- registrar a API clínica;
+- registrar endpoints de integração legados;
+- expor um ponto único para saúde, análise, relatórios e rotas de dashboard.
+
+### 3. Frontend em `web/redisus-frontend/`
 
 Aplicação Next.js com foco em:
 
@@ -36,18 +47,11 @@ Aplicação Next.js com foco em:
 - integração com Firebase;
 - proxy para API clínica.
 
-### 3. Backend de integração em `backend/`
+### 4. Backend de compatibilidade em `backend/`
 
-Camada Flask separada com responsabilidades específicas de:
+`backend/app.py` agora aponta para `apps/api/app.py` para manter compatibilidade com comandos antigos.
 
-- Firebase Admin;
-- upload de imagem;
-- integração com Gemini;
-- persistência externa de análises.
-
-Hoje essa camada convive com a API clínica em `src/dashboard/clinical_api.py`. Isso é uma dívida arquitetural explícita.
-
-### 4. Experimentos e treinamento
+### 5. Experimentos e treinamento
 
 - `scripts/` concentra rotinas de preparação e treino.
 - `models/` guarda pesos e metadados versionados.
@@ -56,7 +60,18 @@ Hoje essa camada convive com a API clínica em `src/dashboard/clinical_api.py`. 
 
 ## Leitura Correta da Arquitetura
 
-### Fluxo clínico atualmente mais coerente
+### Fluxo clínico oficial
+
+```text
+Frontend Next.js
+    -> proxy /api/clinical
+        -> apps/api/app.py
+            -> src/dashboard/clinical_api.py
+            -> integração Firebase / Gemini / analyzer legado
+            -> SQLite local em data/redisus.db
+```
+
+### Fluxo clínico anteriormente mais coerente
 
 ```text
 Frontend Next.js
@@ -66,22 +81,15 @@ Frontend Next.js
             -> pipeline de análise e relatórios
 ```
 
-### Fluxo de integração paralelo
-
-```text
-Frontend / clientes externos
-    -> backend/app.py
-        -> Firebase / Storage / Gemini
-        -> heal_analyzer.py
-```
-
 ## Decisão Arquitetural de Curto Prazo
 
 Para organizar o projeto sem quebrar o código existente:
 
-- tratar `src/dashboard/clinical_api.py` como contrato clínico canônico do fluxo principal;
-- tratar `backend/app.py` como adaptador de integração externa;
-- tratar `heal_analyzer.py`, `main.py`, `realtime_app.py` e `heal_platform.py` como entrypoints legados ou experimentais até consolidação.
+- `apps/api` passa a ser o backend oficial;
+- `packages/` passa a ser a camada canônica de importação;
+- `src/dashboard/clinical_api.py` permanece como contrato clínico principal;
+- `backend/app.py` vira shim de compatibilidade;
+- `heal_analyzer.py`, `main.py`, `realtime_app.py` e `heal_platform.py` seguem como entrypoints legados ou experimentais.
 
 ## Dores Reais
 
