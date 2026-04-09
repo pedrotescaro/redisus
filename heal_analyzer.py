@@ -176,6 +176,7 @@ def cv2_put_text_utf8(
 from src.processing.wound_detector_cv import WoundDetectorCV, DetectionMethod
 from src.processing.tissue_analyzer import TissueAnalyzerCV, TissueType, TISSUE_COLORS
 from src.processing.wound_classifier_cv import WoundClassifierCV
+from src.processing.roi_segmentation import ROISegmenter
 
 logger = logging.getLogger(__name__)
 
@@ -256,8 +257,24 @@ class BorderAnalysis:
     description: str
 
 
+
+@dataclass
+class ModelPrediction:
+    class_name: str
+    display_name: str
+    confidence: float
+    top3: List[Dict[str, float]] = field(default_factory=list)
+    probabilities: Dict[str, float] = field(default_factory=dict)
+
+@dataclass
+class AIPredictions:
+    dl: Optional[ModelPrediction] = None
+    resnet: Optional[Dict] = None
+    ensemble: Optional[Dict] = None
+
 @dataclass
 class ClinicalReport:
+
     """Laudo clínico completo."""
     is_valid_wound: bool
     rejection_reason: str = ""
@@ -277,39 +294,55 @@ class ClinicalReport:
     health_score: float = 0.0
     processing_time_ms: float = 0.0
 
-    # Deep Learning prediction (quando disponível)
-    dl_prediction: Optional[Dict] = None
-
-    # Classificação ResNet50 dois estágios (Normal/Ferida + Tipo)
-    resnet_prediction: Optional[Dict] = None
+    # Classificação ResNet50 Grad-CAM (se disponível)
     grad_cam_overlay: Optional[np.ndarray] = None
 
-    # Escalas clínicas (PUSH, BWAT) - calculadas automaticamente
+    # Escalas clínicas (PUSH, BWAT)
     push_score: Optional[Dict] = None
     bwat_score: Optional[Dict] = None
 
-    # Análise de iluminação (quando disponível)
+    # Imagens processadas e análises adicionais
     lighting_analysis: Optional[Dict] = None
     image_corrections: Optional[Dict] = None
-    
-    # Detecção de parte do corpo (quando disponível)
     body_part: Optional[Dict] = None
-
-    # Zonas espaciais da ferida (periferia, core, anel externo)
     wound_zones: Optional[Dict] = None
 
-    # Ensemble Multi-Modelo (camada adicional de IA pré-treinada)
-    ensemble_classification: Optional[Dict] = None
-    ensemble_agreement: Optional[Dict] = None
-    ensemble_infection: Optional[Dict] = None
-    ensemble_severity: Optional[float] = None
-    ensemble_models_loaded: Optional[Dict] = None
+    # Agrupamento de predições de IA
+    ai_predictions: Optional[AIPredictions] = None
 
     # Imagens processadas
     original: Optional[np.ndarray] = None
     detection_overlay: Optional[np.ndarray] = None
     segmentation_map: Optional[np.ndarray] = None
     tissue_overlay: Optional[np.ndarray] = None
+
+    @property
+    def dl_prediction(self):
+        return self.ai_predictions.dl.__dict__ if self.ai_predictions and self.ai_predictions.dl else None
+
+    @property
+    def resnet_prediction(self):
+        return self.ai_predictions.resnet if self.ai_predictions else None
+
+    @property
+    def ensemble_classification(self):
+        return self.ai_predictions.ensemble.get("classification") if self.ai_predictions and self.ai_predictions.ensemble else None
+
+    @property
+    def ensemble_agreement(self):
+        return self.ai_predictions.ensemble.get("agreement") if self.ai_predictions and self.ai_predictions.ensemble else None
+
+    @property
+    def ensemble_infection(self):
+        return self.ai_predictions.ensemble.get("infection") if self.ai_predictions and self.ai_predictions.ensemble else None
+
+    @property
+    def ensemble_severity(self):
+        return self.ai_predictions.ensemble.get("severity") if self.ai_predictions and self.ai_predictions.ensemble else None
+
+    @property
+    def ensemble_models_loaded(self):
+        return self.ai_predictions.ensemble.get("models_loaded") if self.ai_predictions and self.ai_predictions.ensemble else None
 
 
 # Definição clínica dos tecidos
@@ -503,6 +536,7 @@ class ClinicalWoundAnalyzer:
             color_weight=0.25,
         )
         self.tissue_analyzer = TissueAnalyzerCV()
+        self.roi_segmenter = ROISegmenter()
         self.classifier = WoundClassifierCV()
 
         self.image_enhancer = create_medical_enhancer() if HAS_IMAGE_ENHANCER else None
@@ -524,21 +558,31 @@ class ClinicalWoundAnalyzer:
         self._ensemble_available = False
         self._load_ensemble()
 
+    def _safe_load(self, name: str, loader):
+        try:
+            result = loader()
+            if result:
+                logger.info(f"[HEAL+] {name} carregado com sucesso")
+            return result, True
+        except Exception as e:
+            logger.exception(f"[HEAL+] Falha ao carregar {name}: {e}")
+            return None, False
+
     def _load_resnet_classifier(self):
         """Carrega o classificador ResNet50 de dois estágios."""
         if not HAS_RESNET_CLASSIFIER:
-            print("[HEAL+] Módulo ResNet50 não disponível")
+            logger.info("[HEAL+] Módulo ResNet50 não disponível")
             return
         try:
             self._resnet_classifier = create_two_stage_classifier()
             self._resnet_available = self._resnet_classifier.available
             if self._resnet_available:
                 status = self._resnet_classifier.get_status()
-                print(f"[HEAL+] ResNet50 Two-Stage: S1={status['stage1_available']}, S2={status['stage2_available']} ({status['device']})")
+                logger.info(f"[HEAL+] ResNet50 Two-Stage: S1={status['stage1_available']}, S2={status['stage2_available']} ({status['device']})")
             else:
-                print("[HEAL+] ResNet50: Modelos não encontrados (classificação por heurística)")
+                logger.info("[HEAL+] ResNet50: Modelos não encontrados (classificação por heurística)")
         except Exception as e:
-            print(f"[HEAL+] Erro ao carregar ResNet50: {e}")
+            logger.exception(f"[HEAL+] Erro ao carregar ResNet50: {e}")
             self._resnet_available = False
 
     def _load_dl_model(self):
@@ -568,10 +612,10 @@ class ClinicalWoundAnalyzer:
                         continue
                     self._dl_model.eval()
                     self._dl_available = True
-                    print(f"[HEAL+] Modelo DL PyTorch carregado: {mp.name}")
+                    logger.info(f"[HEAL+] Modelo DL PyTorch carregado: {mp.name}")
                     break
                 except Exception as e:
-                    print(f"[HEAL+] Erro DL ({mp.name}): {e}")
+                    logger.exception(f"[HEAL+] Erro DL ({mp.name}): {e}")
 
         for mp in meta_paths:
             if mp.exists():
@@ -579,7 +623,7 @@ class ClinicalWoundAnalyzer:
                     import json
                     with open(mp, encoding='utf-8') as f:
                         self._dl_metadata = json.load(f)
-                    print(f"[HEAL+] Metadados: {mp.name}")
+                    logger.info(f"[HEAL+] Metadados: {mp.name}")
                     break
                 except Exception:
                     pass
@@ -601,9 +645,9 @@ class ClinicalWoundAnalyzer:
             status = self._ensemble.load_all_models()
             self._ensemble_available = True
             loaded = sum(1 for v in status.values() if v)
-            print(f"[HEAL+] Ensemble multi-modelo: {loaded}/3 modelos ({status})")
+            logger.info(f"[HEAL+] Ensemble multi-modelo: {loaded}/3 modelos ({status})")
         except Exception as e:
-            print(f"[HEAL+] Ensemble indisponível: {e}")
+            logger.info(f"[HEAL+] Ensemble indisponível: {e}")
             self._ensemble_available = False
 
     def _predict_ensemble(
@@ -667,10 +711,10 @@ class ClinicalWoundAnalyzer:
                 "severity_scores": result.severity_scores,
             }
         except Exception as e:
-            print(f"[HEAL+] Ensemble prediction error: {e}")
+            logger.info(f"[HEAL+] Ensemble prediction error: {e}")
             return None
 
-    def _predict_dl(self, image: np.ndarray) -> Optional[Dict]:
+    def _predict_dl(self, image: np.ndarray) -> Optional[ModelPrediction]:
         """Predição com modelo DL PyTorch (se disponível)."""
         if not self._dl_available or self._dl_model is None:
             return None
@@ -733,189 +777,179 @@ class ClinicalWoundAnalyzer:
                 dname = display_names.get(name, name.replace("_", " ").title())
                 top3.append({"class": name, "display": dname, "confidence": float(avg_pred[idx])})
 
-            return {
-                "class_name": class_name,
-                "display_name": display_name,
-                "confidence": confidence,
-                "top3": top3,
-                "all_probs": {class_names[i]: float(avg_pred[i]) for i in range(len(class_names)) if i < len(avg_pred)},
-            }
+            probabilities = {class_names[i]: float(avg_pred[i]) for i in range(len(class_names)) if i < len(avg_pred)}
+            return ModelPrediction(
+                class_name=class_name,
+                display_name=display_name,
+                confidence=confidence,
+                top3=top3,
+                probabilities=probabilities,
+            )
         except Exception as e:
-            print(f"[HEAL+] Erro predicao DL: {e}")
+            logger.exception(f"[HEAL+] Erro predicao DL: {e}")
             return None
 
     # -------------------------------------------------------
+    def _prepare_input(self, image: np.ndarray, report: ClinicalReport) -> np.ndarray:
+        h, w = image.shape[:2]
+        if max(h, w) > 1024:
+            scale = 1024 / max(h, w)
+            image = cv2.resize(image, (int(w * scale), int(h * scale)))
+
+        if self.image_enhancer is not None:
+            try:
+                lighting = self.image_enhancer.analyze_lighting(image)
+                report.lighting_analysis = lighting.to_dict()
+                if lighting.corrections_needed:
+                    image, corrections = self.image_enhancer.auto_correct(image, lighting)
+                    report.image_corrections = corrections
+            except Exception as e:
+                logger.exception(f"[HEAL+] Erro análise de iluminação: {e}")
+
+        if self.body_detector is not None:
+            try:
+                body_part = self.body_detector.detect(image)
+                report.body_part = body_part.to_dict()
+            except Exception as e:
+                logger.exception(f"[HEAL+] Erro detecção parte do corpo: {e}")
+
+        return image
+
+    def _detect_wound_region(self, image: np.ndarray):
+        detections = self.detector.detect(image)
+
+        wound_mask = self.roi_segmenter.create_wound_roi_mask(image, detections)
+        wound_mask = self.roi_segmenter.exclude_surgical_background(image, wound_mask)
+
+        background_mask = self.roi_segmenter.create_background_mask_spatial(image, wound_mask)
+        wound_mask_clean = cv2.bitwise_and(wound_mask, cv2.bitwise_not(background_mask))
+
+        if np.sum(wound_mask > 0) > 0:
+            cleaned_ratio = np.sum(wound_mask_clean > 0) / np.sum(wound_mask > 0)
+            if cleaned_ratio > 0.05:
+                wound_mask = wound_mask_clean
+
+        return detections, wound_mask
+
+    def _fill_ai_predictions(self, report: ClinicalReport, image: np.ndarray, detections: list, wound_mask: np.ndarray):
+        ai_preds = AIPredictions()
+        
+        dl_result = self._predict_dl(image)
+        if dl_result:
+            ai_preds.dl = dl_result
+
+        resnet_result = self._predict_resnet(image)
+        if resnet_result:
+            ai_preds.resnet = resnet_result
+            if isinstance(resnet_result, dict) and resnet_result.get('grad_cam_overlay') is not None:
+                report.grad_cam_overlay = resnet_result.pop('grad_cam_overlay')
+
+        dl_probs = None
+        if dl_result and hasattr(dl_result, 'probabilities'):
+            dl_probs = dl_result.probabilities
+            
+        ensemble_result = self._predict_ensemble(
+            image, detections, dl_probs=dl_probs, wound_mask=wound_mask,
+        )
+        if ensemble_result:
+            ai_preds.ensemble = ensemble_result
+            
+        report.ai_predictions = ai_preds
+
     def analyze(self, image: np.ndarray) -> ClinicalReport:
         """Pipeline completo de análise clínica."""
         t0 = time.perf_counter()
         report = ClinicalReport(is_valid_wound=True)
         report.original = image.copy()
 
-        # 1. Validação — é uma ferida?
-        if not self._validate_wound_image(image):
-            report.is_valid_wound = False
-            report.rejection_reason = (
-                "Input Inválido — A imagem fornecida não apresenta características "
-                "compatíveis com ferida cutânea humana."
+        try:
+            image = self._prepare_input(image, report)
+
+            if not self._validate_wound_image(image):
+                report.is_valid_wound = False
+                report.rejection_reason = (
+                    "Input Inválido — A imagem fornecida não apresenta características "
+                    "compatíveis com ferida cutânea humana."
+                )
+                return report
+
+            detections, wound_mask = self._detect_wound_region(image)
+            report.wound_area_px = int(np.sum(wound_mask > 0))
+
+            peripheral_zone, core_zone, outer_ring = self.roi_segmenter.create_zone_masks(wound_mask)
+            report.wound_zones = {
+                "peripheral_area_px": int(np.sum(peripheral_zone > 0)),
+                "core_area_px": int(np.sum(core_zone > 0)),
+                "outer_ring_area_px": int(np.sum(outer_ring > 0)),
+                "border_width_adaptive": True,
+            }
+
+            det_overlay = image.copy()
+            for det in detections:
+                x1, y1, x2, y2 = det.bbox
+                cv2.rectangle(det_overlay, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(det_overlay,
+                            f"Ferida {det.confidence:.0%}",
+                            (x1, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
+            report.detection_overlay = det_overlay
+
+            tissue_pcts, seg_map, tissue_overlay = self._segment_clinical_v3(
+                image, wound_mask, peripheral_zone, core_zone, outer_ring
             )
-            report.processing_time_ms = (time.perf_counter() - t0) * 1000
+            report.segmentation_map = seg_map
+            report.tissue_overlay = tissue_overlay
+
+            for key in ["necrosis", "slough", "granulation", "epithelialization"]:
+                pct = tissue_pcts.get(key, 0.0)
+                info = CLINICAL_TISSUES[key]
+                report.tissues.append(TissueClassification(
+                    name=info["name"], name_en=info["name_en"], percentage=pct,
+                    color_bgr=info["color_bgr"], color_hex=info["color_hex"],
+                    description=info["description"], clinical_action=info["clinical_action"],
+                ))
+
+            dominant = max(report.tissues, key=lambda t: t.percentage)
+            report.primary_tissue = dominant.name
+            report.primary_justification = self._build_justification(dominant, tissue_pcts)
+
+            report.border_analysis = self._analyze_borders(image, wound_mask)
+            report.health_score = self._compute_health_score(tissue_pcts)
+
+            if HAS_CLINICAL_SCALES:
+                try:
+                    border_dict = None
+                    if report.border_analysis:
+                        border_dict = {
+                            "maceration": report.border_analysis.maceration,
+                            "inflammation": report.border_analysis.inflammation,
+                            "regular_borders": report.border_analysis.regular_borders,
+                        }
+                    
+                    push = ScaleCalculator.calculate_push_from_analysis(
+                        tissue_percentages=tissue_pcts, wound_area_px=report.wound_area_px
+                    )
+                    report.push_score = push.to_dict()
+                    
+                    bwat = ScaleCalculator.calculate_bwat_from_analysis(
+                        tissue_percentages=tissue_pcts, wound_area_px=report.wound_area_px,
+                        border_analysis=border_dict
+                    )
+                    report.bwat_score = bwat.to_dict()
+                except Exception as e:
+                    logger.exception(f"[HEAL+] Erro ao calcular escalas clínicas: {e}")
+
+            self._fill_ai_predictions(report, image, detections, wound_mask)
+
             return report
 
-        # 2. Redimensiona se necessário
-        h, w = image.shape[:2]
-        if max(h, w) > 1024:
-            scale = 1024 / max(h, w)
-            image = cv2.resize(image, (int(w * scale), int(h * scale)))
+        except Exception as e:
+            logger.exception(f"[HEAL+] Erro no pipeline principal: {e}")
+            report.is_valid_wound = False
+            report.rejection_reason = "Erro interno durante a análise."
+            return report
 
-        # 2.1 Análise de iluminação e correção automática
-        if self.image_enhancer is not None:
-            try:
-                lighting = self.image_enhancer.analyze_lighting(image)
-                report.lighting_analysis = lighting.to_dict()
-                
-                # Aplica correções se necessário
-                if lighting.corrections_needed:
-                    image, corrections = self.image_enhancer.auto_correct(image, lighting)
-                    report.image_corrections = corrections
-            except Exception as e:
-                print(f"[HEAL+] Erro análise de iluminação: {e}")
-        
-        # 2.2 Detecção de parte do corpo
-        if self.body_detector is not None:
-            try:
-                body_part = self.body_detector.detect(image)
-                report.body_part = body_part.to_dict()
-            except Exception as e:
-                print(f"[HEAL+] Erro detecção parte do corpo: {e}")
-
-        # 3. Detecção de regiões de ferida
-        detections = self.detector.detect(image)
-
-        # 3.1 Cria máscara ROI precisa por contorno (não mais bbox retangular)
-        wound_mask = self._create_wound_roi_mask(image, detections)
-
-        # 3.2 Remove fundo cirúrgico (lençol azul/verde/cinza) da máscara
-        wound_mask = self._exclude_surgical_background(image, wound_mask)
-
-        # 3.3 Classificação espacial de background — separa fundo de câmera
-        # de tecido necrótico usando variância local, crominância e conectividade
-        background_mask = self._create_background_mask_spatial(image, wound_mask)
-        wound_mask_clean = cv2.bitwise_and(wound_mask, cv2.bitwise_not(background_mask))
-        # Se a limpeza removeu quase tudo, ignora (provavelmente não tem fundo)
-        if np.sum(wound_mask_clean > 0) > 0.05 * np.sum(wound_mask > 0):
-            wound_mask = wound_mask_clean
-
-        # 3.4 Separação em zonas espaciais (periferia, core, anel externo)
-        peripheral_zone, core_zone, outer_ring = self._create_zone_masks(wound_mask)
-        report.wound_zones = {
-            "peripheral_area_px": int(np.sum(peripheral_zone > 0)),
-            "core_area_px": int(np.sum(core_zone > 0)),
-            "outer_ring_area_px": int(np.sum(outer_ring > 0)),
-            "border_width_adaptive": True,
-        }
-
-        # Desenha detecções
-        det_overlay = image.copy()
-        for det in detections:
-            x1, y1, x2, y2 = det.bbox
-            cv2.rectangle(det_overlay, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(det_overlay,
-                        f"Ferida {det.confidence:.0%}",
-                        (x1, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
-        report.detection_overlay = det_overlay
-        report.wound_area_px = int(np.sum(wound_mask > 0))
-
-        # 4. Segmentação tecidual clínica v3 (HSV + LAB + zonas + gradiente)
-        tissue_pcts, seg_map, tissue_overlay = self._segment_clinical_v3(
-            image, wound_mask, peripheral_zone, core_zone, outer_ring
-        )
-        report.segmentation_map = seg_map
-        report.tissue_overlay = tissue_overlay
-
-        # 5. Monta lista de tecidos
-        for key in ["necrosis", "slough", "granulation", "epithelialization"]:
-            pct = tissue_pcts.get(key, 0.0)
-            info = CLINICAL_TISSUES[key]
-            report.tissues.append(TissueClassification(
-                name=info["name"],
-                name_en=info["name_en"],
-                percentage=pct,
-                color_bgr=info["color_bgr"],
-                color_hex=info["color_hex"],
-                description=info["description"],
-                clinical_action=info["clinical_action"],
-            ))
-
-        # 6. Classificação principal
-        dominant = max(report.tissues, key=lambda t: t.percentage)
-        report.primary_tissue = dominant.name
-        report.primary_justification = self._build_justification(dominant, tissue_pcts)
-
-        # 7. Análise de bordas
-        report.border_analysis = self._analyze_borders(image, wound_mask)
-
-        # 8. Score de saúde
-        report.health_score = self._compute_health_score(tissue_pcts)
-
-        # 9. Escalas clínicas (PUSH e BWAT)
-        if HAS_CLINICAL_SCALES:
-            try:
-                # PUSH Score
-                border_dict = None
-                if report.border_analysis:
-                    border_dict = {
-                        "maceration": report.border_analysis.maceration,
-                        "inflammation": report.border_analysis.inflammation,
-                        "regular_borders": report.border_analysis.regular_borders,
-                    }
-                
-                push = ScaleCalculator.calculate_push_from_analysis(
-                    tissue_percentages=tissue_pcts,
-                    wound_area_px=report.wound_area_px,
-                )
-                report.push_score = push.to_dict()
-                
-                # BWAT Score (itens auto-preenchíveis)
-                bwat = ScaleCalculator.calculate_bwat_from_analysis(
-                    tissue_percentages=tissue_pcts,
-                    wound_area_px=report.wound_area_px,
-                    border_analysis=border_dict,
-                )
-                report.bwat_score = bwat.to_dict()
-            except Exception as e:
-                print(f"[HEAL+] Erro ao calcular escalas clínicas: {e}")
-
-        # 10. Deep Learning — classificação etiológica (se disponível)
-        dl_result = self._predict_dl(image)
-        if dl_result:
-            report.dl_prediction = dl_result
-
-        # 11. ResNet50 Two-Stage — classificação Normal/Ferida + Tipo
-        resnet_result = self._predict_resnet(image)
-        if resnet_result:
-            report.resnet_prediction = resnet_result
-            # Se Grad-CAM foi gerado, inclui no report
-            if isinstance(resnet_result, dict) and resnet_result.get('grad_cam_overlay') is not None:
-                report.grad_cam_overlay = resnet_result.pop('grad_cam_overlay')
-
-        # 12. Ensemble Multi-Modelo — camada adicional de IA pré-treinada
-        #     Passa probabilidades DL e máscara de segmentação para fusão cruzada
-        dl_probs = None
-        if dl_result and "probabilities" in dl_result:
-            dl_probs = dl_result["probabilities"]
-        ensemble_result = self._predict_ensemble(
-            image, detections, dl_probs=dl_probs, wound_mask=wound_mask,
-        )
-        if ensemble_result:
-            ens = ensemble_result.get("ensemble", {})
-            report.ensemble_classification = ens.get("classification")
-            report.ensemble_agreement = ens.get("agreement")
-            report.ensemble_infection = ensemble_result.get("infection")
-            report.ensemble_severity = ensemble_result.get("severity")
-            report.ensemble_models_loaded = ens.get("models_loaded")
-
-        report.processing_time_ms = (time.perf_counter() - t0) * 1000
-        return report
+        finally:
+            report.processing_time_ms = (time.perf_counter() - t0) * 1000
 
     def _predict_resnet(self, image: np.ndarray) -> Optional[Dict]:
         """Classificação ResNet50 de dois estágios com Grad-CAM."""
@@ -944,65 +978,10 @@ class ClinicalWoundAnalyzer:
 
             return output
         except Exception as e:
-            print(f"[HEAL+] Erro ResNet50: {e}")
+            logger.exception(f"[HEAL+] Erro ResNet50: {e}")
             return None
 
     # -------------------------------------------------------
-    @staticmethod
-    def _exclude_surgical_background(
-        image: np.ndarray, wound_mask: np.ndarray
-    ) -> np.ndarray:
-        """
-        Detecta e exclui fundo cirúrgico (lençol azul, verde, cinza de maca)
-        da máscara de ferida para evitar que o segmentador confunda sombras do
-        campo cirúrgico com necrose ou esfacelo.
-
-        Detecta:
-        - Azul hospitalar:  H 90-130, S > 30, V qualquer
-        - Verde cirúrgico:  H 35-85,  S > 30, V > 30
-        - Cinza de maca:    S < 25,   V 40-170 (acromático)
-        - Branco de gaze:   S < 20,   V > 200
-        """
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-
-        drape_mask = np.zeros(image.shape[:2], dtype=np.uint8)
-
-        # Azul hospitalar (lençol, campo cirúrgico)
-        drape_mask = cv2.bitwise_or(
-            drape_mask,
-            cv2.inRange(hsv, np.array([90, 30, 20]), np.array([130, 255, 255]))
-        )
-        # Verde cirúrgico
-        drape_mask = cv2.bitwise_or(
-            drape_mask,
-            cv2.inRange(hsv, np.array([35, 30, 30]), np.array([85, 255, 255]))
-        )
-        # Cinza acromático (maca, superfície metálica)
-        drape_mask = cv2.bitwise_or(
-            drape_mask,
-            cv2.inRange(hsv, np.array([0, 0, 40]), np.array([180, 25, 170]))
-        )
-
-        # Só exclui se a região de drape cobre uma fração significativa
-        # (evita excluir pixels legítimos em imagens sem campo cirúrgico)
-        drape_ratio = np.sum(drape_mask > 0) / max(drape_mask.size, 1)
-        if drape_ratio < 0.05:
-            # Quase nada detectado — provavelmente não tem campo cirúrgico
-            return wound_mask
-
-        # Dilata levemente para pegar bordas de transição
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-        drape_mask = cv2.dilate(drape_mask, kernel, iterations=1)
-
-        # Remove do wound_mask
-        cleaned = cv2.bitwise_and(wound_mask, cv2.bitwise_not(drape_mask))
-
-        # Garante que ainda resta área útil (não remove tudo)
-        if np.sum(cleaned > 0) < 0.02 * wound_mask.size:
-            # Se removeu quase tudo, ignora a exclusão
-            return wound_mask
-
-        return cleaned
 
     # -------------------------------------------------------
     def _validate_wound_image(self, image: np.ndarray) -> bool:
@@ -1045,32 +1024,7 @@ class ClinicalWoundAnalyzer:
 
         return True
 
-    # -------------------------------------------------------
-    # MÉTODOS DE ROI E ZONAS ESPACIAIS (v3)
-    # -------------------------------------------------------
 
-    def _create_wound_roi_mask(
-        self, image: np.ndarray, detections: list
-    ) -> np.ndarray:
-        """
-        Cria máscara ROI precisa do leito da ferida usando contorno real
-        em vez de bounding boxes retangulares.
-
-        Pipeline:
-        1. Inicializa com bounding boxes das detecções
-        2. Segmenta por cor dentro de cada bbox (exclui pele sã, fundo)
-        3. Extrai contorno externo (perímetro da lesão)
-        4. Preenche contorno para criar máscara binária precisa
-
-        Resultado: máscara onde 255 = leito da ferida, 0 = fora.
-        """
-        h, w = image.shape[:2]
-        wound_mask = np.zeros((h, w), dtype=np.uint8)
-
-        if not detections:
-            # Close-up: assume imagem inteira, mas tenta segmentar
-            wound_mask[:] = 255
-            return wound_mask
 
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -1147,180 +1101,8 @@ class ClinicalWoundAnalyzer:
 
         return wound_mask
 
-    @staticmethod
-    def _create_zone_masks(
-        wound_mask: np.ndarray,
-        border_width_px: int = 15
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Separa a máscara da ferida em zonas espaciais:
 
-        - peripheral_zone: anel de borda interna (transição ferida → pele sã)
-        - core_zone: centro/miolo do leito da ferida
-        - outer_ring: anel externo (para detectar epitelização avançando)
 
-        A largura do buffer é adaptativa: usa min(border_width_px,
-        ~15% do raio equivalente) para não engolir feridas pequenas.
-
-        Args:
-            wound_mask: Máscara binária da ferida (255 = ferida)
-            border_width_px: Largura base do anel de borda em pixels
-
-        Returns:
-            (peripheral_zone, core_zone, outer_ring) — todas uint8, 0/255
-        """
-        h, w = wound_mask.shape[:2]
-
-        # Raio equivalente para adaptar largura do buffer
-        wound_area = np.sum(wound_mask > 0)
-        equiv_radius = np.sqrt(wound_area / np.pi) if wound_area > 0 else 0
-
-        # Buffer adaptativo: máx 15% do raio, mín 3px, máx border_width_px
-        adaptive_width = int(np.clip(equiv_radius * 0.15, 3, border_width_px))
-
-        # Erosão para criar zona central (core)
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE,
-            (2 * adaptive_width + 1, 2 * adaptive_width + 1)
-        )
-        eroded = cv2.erode(wound_mask, kernel, iterations=1)
-
-        # core = interior erodido
-        core_zone = eroded
-
-        # peripheral = wound_mask - core (anel interno da borda)
-        peripheral_zone = cv2.bitwise_and(
-            wound_mask, cv2.bitwise_not(core_zone)
-        )
-
-        # outer_ring = dilatação - wound_mask (anel externo)
-        dilated = cv2.dilate(wound_mask, kernel, iterations=1)
-        outer_ring = cv2.bitwise_and(
-            dilated, cv2.bitwise_not(wound_mask)
-        )
-
-        return peripheral_zone, core_zone, outer_ring
-
-    # -------------------------------------------------------
-    # CLASSIFICAÇÃO ESPACIAL DE BACKGROUND
-    # -------------------------------------------------------
-
-    @staticmethod
-    def _create_background_mask_spatial(
-        image: np.ndarray,
-        wound_mask: np.ndarray,
-    ) -> np.ndarray:
-        """
-        Classifica pixels escuros como 'background' vs 'necrose' usando
-        contexto espacial em vez de apenas valor de pixel.
-
-        Racional clínico:
-          Fundo de câmera fotográfica e necrose de coagulação (escara) são
-          ambos muito escuros (V ≈ 0). Porém, diferem em:
-            1. Variância local — fundo é uniformemente preto (var ≈ 0),
-               enquanto tecido necrótico tem micro-textura (var > 0).
-            2. Crominância — fundo puro é acromático (a*≈128, b*≈128),
-               enquanto necrose geralmente tem tint marrom/vermelho.
-            3. Conectividade — fundo tende a formar regiões grandes e
-               contíguas que tocam as bordas da imagem; necrose forma
-               ilhas menores dentro do perímetro anatômico.
-            4. Posição relativa — fundo de câmera frequentemente toca
-               as bordas da imagem; necrose está centrada no leito.
-
-        Pipeline:
-          1) Identifica pixels muito escuros (V < 20) dentro do wound_mask
-          2) Calcula variância local (5×5) — background: var < threshold
-          3) Calcula desvio cromático (chroma) — background: chroma ≈ 0
-          4) Conectividade: regiões escuras > 30% do wound_mask E tocando
-             borda da imagem → provável background leaking
-          5) Score combinado → máscara de background
-
-        Args:
-            image: Imagem BGR original
-            wound_mask: Máscara binária da ferida (255 = ferida)
-
-        Returns:
-            background_mask: Máscara onde 255 = pixel de background, 0 = tecido
-        """
-        h, w = image.shape[:2]
-        background_mask = np.zeros((h, w), dtype=np.uint8)
-
-        # 1. Pixels muito escuros dentro do wound_mask
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        very_dark = (gray < 20).astype(np.uint8) * 255
-        dark_in_roi = cv2.bitwise_and(very_dark, wound_mask)
-
-        # Se quase não tem pixels escuros no ROI, retorna vazio
-        dark_count = np.sum(dark_in_roi > 0)
-        roi_count = max(np.sum(wound_mask > 0), 1)
-        if dark_count < roi_count * 0.02:
-            return background_mask  # < 2% escuro → não tem background significativo
-
-        # 2. Variância local (5×5) — background tem variância ≈ 0
-        gray_f = gray.astype(np.float32)
-        local_mean = cv2.blur(gray_f, (5, 5))
-        local_sqmean = cv2.blur(gray_f ** 2, (5, 5))
-        local_var = local_sqmean - local_mean ** 2
-        local_var = np.clip(local_var, 0, None)
-
-        # Background: variância muito baixa (superfície uniforme)
-        low_var = (local_var < 8.0).astype(np.uint8) * 255
-
-        # 3. Crominância — background é acromático puro
-        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-        a_ch = lab[:, :, 1].astype(np.float32)
-        b_ch = lab[:, :, 2].astype(np.float32)
-        chroma_deviation = np.sqrt((a_ch - 128.0) ** 2 + (b_ch - 128.0) ** 2)
-
-        # Acromático = desvio cromático < 5 (praticamente neutro)
-        achromatic = (chroma_deviation < 5.0).astype(np.uint8) * 255
-
-        # 4. Candidato a background: escuro + variância baixa + acromático
-        bg_candidate = cv2.bitwise_and(dark_in_roi, low_var)
-        bg_candidate = cv2.bitwise_and(bg_candidate, achromatic)
-
-        # 5. Análise de conectividade — regiões grandes e/ou tocando borda
-        # são mais prováveis de ser background
-        contours, _ = cv2.findContours(
-            bg_candidate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-
-        border_margin = 3  # pixels da borda da imagem
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-
-            # Critério 1: região muito grande (> 15% do wound_mask) → background
-            if area > roi_count * 0.15:
-                cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
-                continue
-
-            # Critério 2: toca borda da imagem → provável background de câmera
-            x, y, cw, ch = cv2.boundingRect(cnt)
-            touches_border = (
-                x <= border_margin or
-                y <= border_margin or
-                (x + cw) >= (w - border_margin) or
-                (y + ch) >= (h - border_margin)
-            )
-            if touches_border and area > 50:
-                cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
-                continue
-
-            # Critério 3: região pequena mas extremamente uniforme
-            # (variância média dentro da região < 2) → background
-            cnt_mask = np.zeros((h, w), dtype=np.uint8)
-            cv2.drawContours(cnt_mask, [cnt], -1, 255, cv2.FILLED)
-            region_var = local_var[cnt_mask > 0]
-            if len(region_var) > 10 and np.mean(region_var) < 2.0:
-                cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
-
-        # 6. Dilata levemente para fechar bordas de transição
-        if np.sum(background_mask > 0) > 0:
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-            background_mask = cv2.dilate(background_mask, kernel, iterations=1)
-            background_mask = cv2.bitwise_and(background_mask, wound_mask)
-
-        return background_mask
 
     def _detect_epithelialization_gradient(
         self,
@@ -1430,14 +1212,14 @@ class ClinicalWoundAnalyzer:
         self, image: np.ndarray, wound_mask: np.ndarray
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
         """Segmenta a ferida segundo taxonomia clínica (v1/v2 — legado)."""
-        peripheral, core, outer = self._create_zone_masks(wound_mask)
+        peripheral, core, outer = self.roi_segmenter.create_zone_masks(wound_mask)
         return self._segment_clinical_v3(image, wound_mask, peripheral, core, outer)
 
     def _segment_clinical_v2(
         self, image: np.ndarray, wound_mask: np.ndarray
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
         """Compat v2: delega para v3 com zonas auto-calculadas."""
-        peripheral, core, outer = self._create_zone_masks(wound_mask)
+        peripheral, core, outer = self.roi_segmenter.create_zone_masks(wound_mask)
         return self._segment_clinical_v3(image, wound_mask, peripheral, core, outer)
 
     @staticmethod
@@ -2364,7 +2146,7 @@ class RealtimeAnalysisThread(QThread):
             if not self._cancelled:
                 self.result_ready.emit(report)
         except Exception as e:
-            print(f"[HEAL+] Erro na análise em tempo real: {e}")
+            logger.exception(f"[HEAL+] Erro na análise em tempo real: {e}")
 
     def cancel(self):
         """Marca a thread como cancelada (não emitirá resultado)."""
@@ -2960,8 +2742,8 @@ class HealAnalyzerApp(QMainWindow):
 
         # Monta status realtime com ResNet50
         rt_resnet_tag = ""
-        if report.resnet_prediction:
-            rn = report.resnet_prediction
+        if report.ai_predictions and report.ai_predictions.resnet:
+            rn = report.ai_predictions.resnet
             final_pt = rn.get("final_class_pt", "")
             if final_pt:
                 rt_resnet_tag = f"  |  {final_pt}"
@@ -3155,8 +2937,8 @@ class HealAnalyzerApp(QMainWindow):
 
         # Monta status final com ResNet50 se disponível
         resnet_tag = ""
-        if report.resnet_prediction:
-            rn = report.resnet_prediction
+        if report.ai_predictions and report.ai_predictions.resnet:
+            rn = report.ai_predictions.resnet
             final_pt = rn.get("final_class_pt", "")
             final_conf = rn.get("final_confidence", 0)
             if final_pt:
@@ -3984,7 +3766,7 @@ class HealAnalyzerApp(QMainWindow):
 
     def closeEvent(self, event):
         """Encerramento seguro: para todas as threads antes de fechar."""
-        print("[HEAL+] Finalizando componentes com segurança...")
+        logger.info("[HEAL+] Finalizando componentes com segurança...")
 
         # Para webcam + análise em tempo real (sempre, mesmo se _webcam_active é False)
         self._stop_webcam()
@@ -4007,7 +3789,7 @@ class HealAnalyzerApp(QMainWindow):
         for _ in range(3):
             QApplication.processEvents()
 
-        print("[HEAL+] Encerramento concluído.")
+        logger.info("[HEAL+] Encerramento concluído.")
         event.accept()
 
 

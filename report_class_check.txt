@@ -1,0 +1,45 @@
+
+
+    """Laudo clínico completo."""
+    is_valid_wound: bool
+    rejection_reason: str = ""
+
+    # Classificação principal
+    primary_tissue: str = ""
+    primary_justification: str = ""
+
+    # Tecidos identificados
+    tissues: List[TissueClassification] = field(default_factory=list)
+
+    # Bordas
+    border_analysis: Optional[BorderAnalysis] = None
+
+    # Métricas
+    wound_area_px: int = 0
+    health_score: float = 0.0
+    processing_time_ms: float = 0.0
+
+    # Classificação ResNet50 Grad-CAM (se disponível)
+    grad_cam_overlay: Optional[np.ndarray] = None
+
+    # Escalas clínicas (PUSH, BWAT)
+    push_score: Optional[Dict] = None
+    bwat_score: Optional[Dict] = None
+
+    # Imagens processadas e análises adicionais
+    lighting_analysis: Optional[Dict] = None
+    image_corrections: Optional[Dict] = None
+    body_part: Optional[Dict] = None
+    wound_zones: Optional[Dict] = None
+
+    # Agrupamento de predições de IA
+    ai_predictions: Optional[AIPredictions] = None
+
+    # Imagens processadas
+    original: Optional[np.ndarray] = None
+    detection_overlay: Optional[np.ndarray] = None
+    segmentation_map: Optional[np.ndarray] = None
+    tissue_overlay: Optional[np.ndarray] = None
+
+
+# Definição clínica dos tecidos
