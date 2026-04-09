@@ -1,4 +1,21 @@
-"""
-HEAL/REDISUS - Módulo de Monitoramento de Sinais Vitais
-Integração com vestíveis e sensores remotos.
-"""
+"""HEAL/REDISUS monitoring helpers."""
+
+from .wound_progression import (
+    HealingEstimate,
+    TissueEvolutionDelta,
+    WoundPhotoSnapshot,
+    WoundProgressionResult,
+    analyze_wound_photo_progression,
+    build_progression_from_reports,
+    build_progression_from_snapshots,
+)
+
+__all__ = [
+    "HealingEstimate",
+    "TissueEvolutionDelta",
+    "WoundPhotoSnapshot",
+    "WoundProgressionResult",
+    "analyze_wound_photo_progression",
+    "build_progression_from_reports",
+    "build_progression_from_snapshots",
+]

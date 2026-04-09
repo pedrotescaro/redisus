@@ -529,8 +529,8 @@ class ClinicalWoundAnalyzer:
                 biomedclip=BiomedCLIPAnalyzer(),
             )
             status = self._ensemble.load_all_models()
-            self._ensemble_available = True
             loaded = sum(1 for v in status.values() if v)
+            self._ensemble_available = loaded > 0
             print(f"[HEAL+] Ensemble multi-modelo: {loaded}/3 modelos ({status})")
         except Exception as e:
             print(f"[HEAL+] Ensemble indisponÃ­vel: {e}")

@@ -43,9 +43,12 @@ exports/
 
 # ===== Models (new untracked detectors) =====
 models/wound_detector/
+models/pressure_injury_stage_classifier/
 
 # ===== Dataset (large image files) =====
 dataset/
+dataset/piid/
+data/external/piid/
 
 # ===== Temporary files =====
 tmpclaude-*

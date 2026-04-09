@@ -89,11 +89,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFileDialog, QScrollArea, QFrame,
-    QProgressBar, QSplitter, QGroupBox, QTextEdit, QSizePolicy,
-    QGraphicsDropShadowEffect, QTabWidget, QComboBox, QSlider,
+    QProgressBar, QSplitter, QGroupBox, QTextEdit,
+    QTabWidget, QComboBox,
 )
-from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer, QMutex
-from PyQt6.QtGui import QImage, QPixmap, QFont, QColor, QPalette, QIcon
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QImage, QPixmap, QFont, QColor, QPalette
 
 # ============================================================
 # HELPER: Texto UTF-8 no OpenCV (via PIL)
@@ -177,6 +177,10 @@ from src.processing.wound_detector_cv import WoundDetectorCV, DetectionMethod
 from src.processing.tissue_analyzer import TissueAnalyzerCV, TissueType, TISSUE_COLORS
 from src.processing.wound_classifier_cv import WoundClassifierCV
 from src.processing.roi_segmentation import ROISegmenter
+from src.monitoring.wound_progression import (
+    WoundProgressionResult,
+    analyze_wound_photo_progression,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +237,7 @@ except ImportError:
 
 
 # ============================================================
-# TAXONOMIA CLÍNICA — Estomaterapia
+# TAXONOMIA CLINICA - Estomaterapia
 # ============================================================
 
 @dataclass
@@ -410,7 +414,7 @@ CLINICAL_TISSUES = {
 }
 
 # ============================================================
-# INTERVALOS CLÍNICOS REFINADOS v2 — Multi-espaço de cor
+# INTERVALOS CLINICOS REFINADOS v2 - Multi-espaco de cor
 # ============================================================
 # HSV: matiz-saturação-valor (boa discriminação de cores puras)
 # LAB: luminosidade-a*-b* (boa separação perceptual, eixo a*=vermelho/verde)
@@ -1205,7 +1209,7 @@ class ClinicalWoundAnalyzer:
         return epithelial_mask
 
     # -------------------------------------------------------
-    # SEGMENTAÇÃO TECIDUAL
+    # SEGMENTACAO TECIDUAL
     # -------------------------------------------------------
 
     def _segment_clinical(
@@ -1308,7 +1312,7 @@ class ClinicalWoundAnalyzer:
         4. Conversão HSV + LAB
         5. Segmentação por cor restrita estritamente à wound_mask (ROI)
         6. Fusão ponderada HSV (60%) + LAB (40%)
-        7. CRIAÇÃO DE MÁSCARA DE PELE SAUDÁVEL para excluir da necrose
+        7. CRIACAO DE MASCARA DE PELE SAUDAVEL para excluir da necrose
         8. Restrição espacial por zonas
         9. Detecção de epitelização por gradiente de borda (Scharr)
         10. Verificação de textura para necrose (necrose real tem textura diferente de pele)
@@ -1441,7 +1445,7 @@ class ClinicalWoundAnalyzer:
 
         # ── 5b. Restrição espacial por zonas ─────────────────────────
         # Necrose: viés espacial moderado. Em peles escuras, requer
-        # confirmação por textura, mas NÃO restringimos excessivamente.
+        # confirmacao por textura, mas NAO restringimos excessivamente.
         necro_spatial = np.zeros((h, w), dtype=np.float32)
         necro_spatial[core_zone > 0] = 1.0
         if is_dark_skin:
@@ -1453,7 +1457,7 @@ class ClinicalWoundAnalyzer:
             necro_spatial[peripheral_zone > 0] = 0.6
 
         # Boost por luminância CONDICIONAL: somente pixels escuros
-        # que NÃO são pele saudável do paciente (anti-bias)
+        # que NAO sao pele saudavel do paciente (anti-bias)
         gray_roi = cv2.cvtColor(
             cv2.bitwise_and(denoised_norm, denoised_norm, mask=wound_mask),
             cv2.COLOR_BGR2GRAY
@@ -1527,7 +1531,7 @@ class ClinicalWoundAnalyzer:
         # Combina luminância + textura para reforçar necrose, mas EXCLUI
         # pixels que correspondem ao tom de pele do paciente.
 
-        # 8a. Pixels escuros dentro da ROI que NÃO são pele saudável
+        # 8a. Pixels escuros dentro da ROI que NAO sao pele saudavel
         dark_px = (gray < 55).astype(np.uint8) * 255
         dark_px = cv2.bitwise_and(dark_px, _not_drape)
         dark_px = cv2.bitwise_and(dark_px, cv2.bitwise_not(skin_exclude_mask))
@@ -1781,7 +1785,7 @@ class AnalysisThread(QThread):
     def __init__(self, image_path: str, parent=None):
         super().__init__(parent)  # Parent garante cleanup adequado
         self.image_path = image_path
-        # NÃO conecte finished.connect(deleteLater) - causa crash
+        # NAO conecte finished.connect(deleteLater) - causa crash
         # Lifecycle é gerenciado manualmente
 
     def run(self):
@@ -1799,362 +1803,33 @@ class AnalysisThread(QThread):
         self.result_ready.emit(report)
 
 
-# ============================================================
-# THREAD DE WEBCAM (captura em tempo real)
-# ============================================================
+class ProgressionAnalysisThread(QThread):
+    """Thread para comparar duas ou mais fotos sem travar a UI."""
 
-class FaceExclusionFilter:
-    """
-    Filtro de exclusão de rostos usando Haar Cascade do OpenCV.
-
-    Impede que o detector de feridas marque rostos humanos como ferida.
-    Também rejeita regiões com pele uniformemente saudável (sem textura de lesão).
-    """
-
-    def __init__(self):
-        # Haar cascade para detecção de rostos (incluso no OpenCV)
-        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        self._face_cascade = cv2.CascadeClassifier(cascade_path)
-        profile_path = cv2.data.haarcascades + "haarcascade_profileface.xml"
-        self._profile_cascade = cv2.CascadeClassifier(profile_path)
-        self._face_rects: List[Tuple[int, int, int, int]] = []
-        self._face_update_interval = 5  # Atualiza faces a cada N frames
-        self._frame_counter = 0
-
-    def update_faces(self, gray_frame: np.ndarray):
-        """Detecta rostos no frame (chamado periodicamente)."""
-        self._frame_counter += 1
-        if self._frame_counter % self._face_update_interval != 0:
-            return
-
-        # Reduz resolução para velocidade
-        h, w = gray_frame.shape[:2]
-        scale = min(320 / max(h, w), 1.0)
-        small = cv2.resize(gray_frame, (int(w * scale), int(h * scale)))
-
-        faces = self._face_cascade.detectMultiScale(
-            small, scaleFactor=1.15, minNeighbors=4, minSize=(40, 40)
-        )
-        profiles = self._profile_cascade.detectMultiScale(
-            small, scaleFactor=1.15, minNeighbors=4, minSize=(40, 40)
-        )
-
-        all_faces = []
-        for (fx, fy, fw, fh) in list(faces) + list(profiles):
-            # Escala de volta + margem de 30%
-            margin = 0.3
-            fx1 = int((fx - fw * margin) / scale)
-            fy1 = int((fy - fh * margin) / scale)
-            fx2 = int((fx + fw + fw * margin) / scale)
-            fy2 = int((fy + fh + fh * margin) / scale)
-            all_faces.append((max(0, fx1), max(0, fy1), min(w, fx2), min(h, fy2)))
-
-        self._face_rects = all_faces
-
-    def overlaps_face(self, bbox: Tuple[int, int, int, int]) -> bool:
-        """Verifica se uma bounding box intersecta algum rosto."""
-        x1, y1, x2, y2 = bbox
-        for fx1, fy1, fx2, fy2 in self._face_rects:
-            # IoU parcial: se >30% de overlap, é rosto
-            ix1 = max(x1, fx1)
-            iy1 = max(y1, fy1)
-            ix2 = min(x2, fx2)
-            iy2 = min(y2, fy2)
-            inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
-            det_area = max((x2 - x1) * (y2 - y1), 1)
-            if inter / det_area > 0.25:
-                return True
-        return False
-
-    def get_face_rects(self) -> List[Tuple[int, int, int, int]]:
-        return self._face_rects
-
-    @staticmethod
-    def is_uniform_skin(roi_bgr: np.ndarray) -> bool:
-        """
-        Verifica se a ROI é pele uniforme saudável (sem textura de lesão).
-        Pele saudável tem: baixa variância de cor, tom uniforme.
-        AGRESSIVO: prefere rejeitar do que aceitar falsos positivos.
-        """
-        if roi_bgr is None or roi_bgr.size < 100:
-            return True
-
-        hsv = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
-        h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
-
-        # Pele uniforme: saturação e valor com pouca variação
-        s_std = np.std(s)
-        v_std = np.std(v)
-        h_std = np.std(h)
-
-        # Variância de textura (Laplaciano)
-        gray = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2GRAY)
-        lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-
-        # AGRESSIVO: Pele saudável uniforme (thresholds aumentados)
-        if s_std < 25 and v_std < 30 and lap_var < 400:
-            return True
-
-        # Cor muito uniforme (pouca variação de hue)
-        if h_std < 15 and s_std < 30 and lap_var < 500:
-            return True
-
-        # Tom de pele fortemente dominante, pouca textura
-        skin_lower = np.array([0, 15, 60])  # Ampliado para capturar mais tons de pele
-        skin_upper = np.array([30, 170, 255])
-        skin_mask = cv2.inRange(hsv, skin_lower, skin_upper)
-        skin_ratio = np.sum(skin_mask > 0) / max(skin_mask.size, 1)
-
-        # Se >70% é pele e textura baixa, provavelmente é pele saudável
-        if skin_ratio > 0.70 and lap_var < 500:
-            return True
-
-        # Gradiente da imagem - feridas têm bordas mais marcadas
-        sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-        sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-        gradient_mag = np.sqrt(sobelx**2 + sobely**2).mean()
-
-        # Pele saudável tem gradiente baixo (superfície lisa)
-        if gradient_mag < 15 and skin_ratio > 0.5:
-            return True
-
-        return False
-
-
-class WebcamThread(QThread):
-    """
-    Thread para captura de vídeo + detecção rápida em cada frame.
-
-    Estratégia anti-falso-positivo:
-    1. Detector com TEXTURE_PRIORITY (peso 50% textura, 25% cor)
-    2. Confiança mínima 0.45
-    3. Área mínima 1200px
-    4. Filtro de falsos positivos DESLIGADO (fast-path)
-    5. Exclusão automática de rostos (Haar Cascade)
-    6. Rejeição de pele uniforme saudável
-    7. Detecção a cada 2 frames para responsividade
-    """
-    frame_ready = pyqtSignal(np.ndarray, np.ndarray)  # (annotated_frame, raw_frame)
-    error = pyqtSignal(str)
-
-    def __init__(self, camera_id: int = 0, parent=None):
-        super().__init__(parent)  # Parent garante cleanup adequado
-        self.camera_id = camera_id
-        self._running = False
-        self._mutex = QMutex()
-        # NÃO conecte finished.connect(deleteLater) - causa crash
-        # Lifecycle é gerenciado manualmente
-
-    def run(self):
-        cap = cv2.VideoCapture(self.camera_id)
-        if not cap.isOpened():
-            self.error.emit(f"Não foi possível abrir a câmera {self.camera_id}")
-            return
-
-        # Configurações da câmera
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-        # Detector RÁPIDO para overlay (sem FP filter pesado;
-        # WebcamThread já tem filtros próprios: rosto, pele, aspect ratio)
-        # Detector RÁPIDO para overlay - mais conservador para evitar falsos positivos
-        detector = WoundDetectorCV(
-            method=DetectionMethod.TEXTURE_PRIORITY,
-            min_area=2000,              # Aumentado: áreas pequenas são mais propensas a FP
-            confidence_threshold=0.55,   # Aumentado: exige mais certeza
-            enable_false_positive_filter=False,  # Desligado no fast-path
-            texture_weight=0.6,          # Aumentado: textura é mais confiável
-            color_weight=0.2,            # Reduzido: cor de pele causa FP
-        )
-
-        # Filtro de rostos
-        face_filter = FaceExclusionFilter()
-
-        fps_timer = time.perf_counter()
-        fps_count = 0
-        fps_display = 0.0
-        n_faces = 0
-
-        # Controle de throtlling: detecta a cada N frames
-        frame_counter = 0
-        detect_every_n = 2          # Roda detecção a cada 2 frames
-        cached_detections = []       # Reutiliza detecções entre frames
-        cached_n_det = 0
-        cached_annotations = []      # (x1,y1,x2,y2,label,conf)
-
-        self._running = True
-        while self._running:
-            ret, frame = cap.read()
-            if not ret:
-                time.sleep(0.01)
-                continue
-
-            h, w = frame.shape[:2]
-            frame_counter += 1
-
-            # Atualiza detecção de rostos (já tem throttle interno de 5 frames)
-            gray_full = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            face_filter.update_faces(gray_full)
-            n_faces = len(face_filter.get_face_rects())
-
-            # Só roda detecção a cada N frames; reusa resultado nos intermediários
-            if frame_counter % detect_every_n == 0:
-                # Redimensiona para processamento rápido
-                proc_frame = frame
-                if max(h, w) > 768:
-                    scale = 768 / max(h, w)
-                    proc_frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
-
-                cached_annotations = []
-                cached_n_det = 0
-                try:
-                    detections = detector.detect(proc_frame)
-                    scale_x = w / proc_frame.shape[1]
-                    scale_y = h / proc_frame.shape[0]
-
-                    for det in detections:
-                        x1, y1, x2, y2 = det.bbox
-                        x1 = int(x1 * scale_x)
-                        y1 = int(y1 * scale_y)
-                        x2 = int(x2 * scale_x)
-                        y2 = int(y2 * scale_y)
-                        conf = det.confidence
-
-                        # FILTRO 1: Rejeita se sobrepõe rosto
-                        if face_filter.overlaps_face((x1, y1, x2, y2)):
-                            continue
-
-                        # FILTRO 2: Rejeita pele uniforme saudável
-                        roi = frame[max(0, y1):min(h, y2), max(0, x1):min(w, x2)]
-                        if FaceExclusionFilter.is_uniform_skin(roi):
-                            continue
-
-                        # FILTRO 3: Aspect ratio
-                        det_w = x2 - x1
-                        det_h = y2 - y1
-                        aspect = max(det_w, det_h) / max(min(det_w, det_h), 1)
-                        if aspect > 5.0:
-                            continue
-
-                        wound_type = det.wound_type or "wound"
-                        type_labels = {
-                            "granulating_wound": "Granulação",
-                            "necrotic_wound": "Necrose",
-                            "infected_wound": "Infectada",
-                            "pressure_injury": "Pressão",
-                            "surgical_wound": "Cirúrgica",
-                            "wound": "Ferida",
-                        }
-                        label_txt = type_labels.get(wound_type, "Ferida")
-                        cached_annotations.append((x1, y1, x2, y2, f"{label_txt} {conf:.0%}", conf))
-                        cached_n_det += 1
-
-                except Exception:
-                    cached_annotations = []
-                    cached_n_det = 0
-
-            # Desenha anotações (cached) sobre o frame atual
-            annotated = frame.copy()
-            for (x1, y1, x2, y2, label, conf) in cached_annotations:
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                # Usa PIL para texto com acentos
-                annotated = cv2_put_text_utf8(
-                    annotated, label, (x1 + 3, max(y1 - 20, 5)),
-                    font_size=16, color=(0, 0, 0), bg_color=(0, 255, 0)
-                )
-
-            # Desenha rostos excluídos (azul tracejado)
-            for (fx1, fy1, fx2, fy2) in face_filter.get_face_rects():
-                cv2.rectangle(annotated, (fx1, fy1), (fx2, fy2), (255, 150, 50), 1)
-                annotated = cv2_put_text_utf8(
-                    annotated, "Rosto (ignorado)", (fx1, max(fy1 - 18, 5)),
-                    font_size=12, color=(255, 150, 50)
-                )
-
-            # FPS
-            fps_count += 1
-            elapsed = time.perf_counter() - fps_timer
-            if elapsed >= 1.0:
-                fps_display = fps_count / elapsed
-                fps_count = 0
-                fps_timer = time.perf_counter()
-
-            # HUD overlay
-            n_det = cached_n_det
-            hud_h = 90 if n_faces > 0 else 72
-            cv2.rectangle(annotated, (8, 8), (290, hud_h), (0, 0, 0), -1)
-            cv2.rectangle(annotated, (8, 8), (290, hud_h), (0, 255, 0), 1)
-            annotated = cv2_put_text_utf8(
-                annotated, f"HEAL+ LIVE  |  {fps_display:.0f} FPS",
-                (14, 12), font_size=16, color=(0, 255, 0)
-            )
-
-            det_color = (0, 255, 0) if n_det > 0 else (100, 100, 100)
-            status_txt = f"Feridas: {n_det}" if n_det > 0 else "Nenhuma ferida"
-            annotated = cv2_put_text_utf8(
-                annotated, status_txt,
-                (14, 38), font_size=14, color=det_color
-            )
-
-            if n_faces > 0:
-                annotated = cv2_put_text_utf8(
-                    annotated, f"Rostos ignorados: {n_faces}",
-                    (14, 62), font_size=12, color=(255, 150, 50)
-                )
-
-            # Indicador de "escaneando"
-            scan_x = int((time.perf_counter() * 150) % w)
-            cv2.line(annotated, (scan_x, 0), (scan_x, h), (0, 255, 0), 1)
-
-            self.frame_ready.emit(annotated, frame)
-
-        cap.release()
-
-    def stop(self):
-        """Para a thread de forma segura. Retorna True se parou com sucesso."""
-        self._mutex.lock()
-        self._running = False
-        self._mutex.unlock()
-        # Espera até 5 segundos para a thread terminar
-        if not self.wait(5000):
-            # Se não terminou, tenta terminar forçadamente
-            self.terminate()
-            self.wait(1000)
-            return False
-        return True
-
-
-class RealtimeAnalysisThread(QThread):
-    """Thread para análise clínica completa de um frame (roda em background)."""
-    # IMPORTANT: Do NOT name this 'finished' — it shadows QThread.finished
     result_ready = pyqtSignal(object)
+    progress = pyqtSignal(str)
 
-    def __init__(self, frame: np.ndarray, analyzer: ClinicalWoundAnalyzer, parent=None):
-        super().__init__(parent)  # Parent garante cleanup adequado
-        self.frame = frame.copy()
-        self.analyzer = analyzer
-        self._cancelled = False
-        # NÃO conecte finished.connect(deleteLater) - causa crash
-        # Lifecycle é gerenciado manualmente
+    def __init__(self, image_paths: List[str], days_between_photos: float, parent=None):
+        super().__init__(parent)
+        self.image_paths = list(image_paths)
+        self.days_between_photos = days_between_photos
 
     def run(self):
         try:
-            if self._cancelled:
-                return
-            report = self.analyzer.analyze(self.frame)
-            if not self._cancelled:
-                self.result_ready.emit(report)
-        except Exception as e:
-            logger.exception(f"[HEAL+] Erro na análise em tempo real: {e}")
-
-    def cancel(self):
-        """Marca a thread como cancelada (não emitirá resultado)."""
-        self._cancelled = True
+            result = analyze_wound_photo_progression(
+                self.image_paths,
+                analyzer_factory=ClinicalWoundAnalyzer,
+                days_between_photos=self.days_between_photos,
+                progress_callback=self.progress.emit,
+            )
+            self.result_ready.emit(result)
+        except Exception as exc:
+            logger.exception("[HEAL+] Erro na analise de evolucao por fotos: %s", exc)
+            self.result_ready.emit({"error": str(exc)})
 
 
 # ============================================================
-# APLICAÇÃO DESKTOP PyQt6
+# APLICACAO DESKTOP PyQt6
 # ============================================================
 
 def np_to_qpixmap(img: np.ndarray, max_w: int = 500) -> QPixmap:
@@ -2179,15 +1854,9 @@ class HealAnalyzerApp(QMainWindow):
         self.setMinimumSize(1200, 800)
         self._current_report: Optional[ClinicalReport] = None
         self._thread: Optional[AnalysisThread] = None
+        self._progression_thread: Optional[ProgressionAnalysisThread] = None
+        self._progression_paths: List[str] = []
 
-        # Webcam
-        self._webcam_thread: Optional[WebcamThread] = None
-        self._realtime_thread: Optional[RealtimeAnalysisThread] = None
-        self._last_frame: Optional[np.ndarray] = None
-        self._webcam_active = False
-        self._analysis_interval_ms = 1000  # Análise completa a cada 1s
-        self._last_analysis_time = 0.0
-        self._rt_analyzer: Optional[ClinicalWoundAnalyzer] = None  # Instância reutilizável
 
         self._setup_ui()
 
@@ -2291,10 +1960,10 @@ class HealAnalyzerApp(QMainWindow):
         self._setup_image_tab()
         self.tab_widget.addTab(self.tab_image, "Arquivo de Imagem")
 
-        # === TAB 2: TEMPO REAL (WEBCAM) ===
-        self.tab_webcam = QWidget()
-        self._setup_webcam_tab()
-        self.tab_widget.addTab(self.tab_webcam, "Tempo Real (Webcam)")
+        # === TAB 2: EVOLUCAO POR FOTOS ===
+        self.tab_progression = QWidget()
+        self._setup_progression_tab()
+        self.tab_widget.addTab(self.tab_progression, "Evolucao por Fotos")
 
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
         main_layout.addWidget(self.tab_widget, stretch=1)
@@ -2440,40 +2109,54 @@ class HealAnalyzerApp(QMainWindow):
         layout.addWidget(splitter, stretch=1)
 
     # -------------------------------------------------------
-    def _setup_webcam_tab(self):
-        """Configura aba de análise em tempo real (webcam)."""
-        layout = QVBoxLayout(self.tab_webcam)
+    def _setup_progression_tab(self):
+        """Configura aba de comparacao longitudinal por fotos."""
+        layout = QVBoxLayout(self.tab_progression)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        # Toolbar da aba
         toolbar = QHBoxLayout()
 
-        # Botão iniciar/parar webcam
-        self.btn_webcam = QPushButton("Iniciar Detecção em Tempo Real")
-        self.btn_webcam.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        self.btn_webcam.setMinimumHeight(40)
-        self.btn_webcam.setMinimumWidth(260)
-        self.btn_webcam.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_webcam.setStyleSheet("""
+        self.btn_progression_select = QPushButton("Selecionar 2+ Fotos")
+        self.btn_progression_select.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.btn_progression_select.setMinimumHeight(40)
+        self.btn_progression_select.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_progression_select.setStyleSheet("""
+            QPushButton {
+                background: #0ea5e9;
+                color: white; border: none; border-radius: 6px;
+                padding: 0 22px; font-size: 13px;
+            }
+            QPushButton:hover { background: #38bdf8; }
+            QPushButton:pressed { background: #0284c7; }
+        """)
+        self.btn_progression_select.clicked.connect(self._on_select_progression_images)
+        toolbar.addWidget(self.btn_progression_select)
+
+        self.btn_progression_run = QPushButton("Comparar Evolucao")
+        self.btn_progression_run.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.btn_progression_run.setMinimumHeight(40)
+        self.btn_progression_run.setEnabled(False)
+        self.btn_progression_run.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_progression_run.setStyleSheet("""
             QPushButton {
                 background: #16a34a;
                 color: white; border: none; border-radius: 6px;
-                padding: 0 24px; font-size: 13px;
+                padding: 0 22px; font-size: 13px;
             }
-            QPushButton:hover { background: #22c55e; }
-            QPushButton:pressed { background: #15803d; }
+            QPushButton:hover:enabled { background: #22c55e; }
+            QPushButton:pressed:enabled { background: #15803d; }
+            QPushButton:disabled { background: #334155; color: #64748b; }
         """)
-        self.btn_webcam.clicked.connect(self._toggle_webcam)
-        toolbar.addWidget(self.btn_webcam)
+        self.btn_progression_run.clicked.connect(self._on_run_progression_analysis)
+        toolbar.addWidget(self.btn_progression_run)
 
-        # Seletor de câmera
-        toolbar.addSpacing(10)
-        toolbar.addWidget(self._styled_label("Câmera:", "#94a3b8", 10))
-        self.combo_camera = QComboBox()
-        self.combo_camera.addItems(["0 (Padrão)", "1", "2", "3"])
-        self.combo_camera.setMinimumWidth(100)
-        self.combo_camera.setStyleSheet("""
+        toolbar.addSpacing(12)
+        toolbar.addWidget(self._styled_label("Intervalo medio:", "#94a3b8", 10))
+        self.combo_progression_interval = QComboBox()
+        self.combo_progression_interval.addItems(["7 dias", "3 dias", "14 dias", "30 dias"])
+        self.combo_progression_interval.setMinimumWidth(110)
+        self.combo_progression_interval.setStyleSheet("""
             QComboBox {
                 background: #334155; color: #e2e8f0; border: 1px solid #475569;
                 border-radius: 6px; padding: 6px 12px;
@@ -2481,426 +2164,341 @@ class HealAnalyzerApp(QMainWindow):
             QComboBox::drop-down { border: none; }
             QComboBox QAbstractItemView { background: #1e293b; color: #e2e8f0; }
         """)
-        toolbar.addWidget(self.combo_camera)
+        toolbar.addWidget(self.combo_progression_interval)
 
-        # Indicador de status
-        toolbar.addSpacing(20)
-        self.lbl_rt_status = QLabel("Parado")
-        self.lbl_rt_status.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        self.lbl_rt_status.setStyleSheet("color: #64748b;")
-        toolbar.addWidget(self.lbl_rt_status)
-
+        self.lbl_progression_status = QLabel("Selecione fotos cronologicas da mesma ferida")
+        self.lbl_progression_status.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self.lbl_progression_status.setStyleSheet("color: #64748b;")
+        toolbar.addWidget(self.lbl_progression_status)
         toolbar.addStretch()
         layout.addLayout(toolbar)
 
-        # Splitter principal
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setHandleWidth(2)
 
-        # LEFT: Feed da webcam
         left = QWidget()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
 
-        self.lbl_webcam_feed = QLabel("Clique em \"Iniciar Detecção\" para análise em tempo real")
-        self.lbl_webcam_feed.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_webcam_feed.setMinimumSize(640, 480)
-        self.lbl_webcam_feed.setFont(QFont("Segoe UI", 13))
-        self.lbl_webcam_feed.setStyleSheet("""
-            QLabel {
+        self.txt_progression_files = QTextEdit()
+        self.txt_progression_files.setReadOnly(True)
+        self.txt_progression_files.setMinimumHeight(120)
+        self.txt_progression_files.setText(
+            "Nenhuma foto selecionada.\n\n"
+            "Use fotos da mesma ferida em ordem cronologica para comparar area, tecidos e score."
+        )
+        self.txt_progression_files.setStyleSheet("""
+            QTextEdit {
                 background: #0f172a;
+                color: #94a3b8;
                 border: 1px solid #334155;
                 border-radius: 8px;
-                color: #64748b;
+                padding: 10px;
             }
         """)
-        left_layout.addWidget(self.lbl_webcam_feed, stretch=3)
+        left_layout.addWidget(self.txt_progression_files)
 
-        # Imagens de análise em tempo real
-        rt_grid = QHBoxLayout()
-        self.lbl_rt_segmentation = self._make_image_panel("Segmentação Tecidual")
-        self.lbl_rt_overlay = self._make_image_panel("Overlay Clínico")
-        rt_grid.addWidget(self.lbl_rt_segmentation)
-        rt_grid.addWidget(self.lbl_rt_overlay)
-        left_layout.addLayout(rt_grid, stretch=1)
+        comparison_grid = QHBoxLayout()
+        self.lbl_progression_first = self._make_image_panel("Primeira Foto")
+        self.lbl_progression_last = self._make_image_panel("Foto Mais Recente")
+        comparison_grid.addWidget(self.lbl_progression_first)
+        comparison_grid.addWidget(self.lbl_progression_last)
+        left_layout.addLayout(comparison_grid, stretch=1)
+
+        note = QLabel(
+            "Estimativa aproximada: depende de mesma distancia, angulo, luz e escala. "
+            "Use como apoio para triagem/evolucao, nao como alta automatica."
+        )
+        note.setWordWrap(True)
+        note.setFont(QFont("Segoe UI", 9))
+        note.setStyleSheet("color: #64748b; padding: 6px;")
+        left_layout.addWidget(note)
 
         splitter.addWidget(left)
 
-        # RIGHT: Laudo em tempo real
         right_scroll = QScrollArea()
         right_scroll.setWidgetResizable(True)
         right_scroll.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background: #0f172a;
-            }
-            QScrollBar:vertical {
-                background: #0f172a;
-                width: 8px;
-                margin: 4px 2px;
-            }
-            QScrollBar::handle:vertical {
-                background: #475569;
-                border-radius: 4px;
-                min-height: 30px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #64748b;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
+            QScrollArea { border: none; background: #0f172a; }
+            QScrollBar:vertical { background: #0f172a; width: 8px; margin: 4px 2px; }
+            QScrollBar::handle:vertical { background: #475569; border-radius: 4px; min-height: 30px; }
+            QScrollBar::handle:vertical:hover { background: #64748b; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
         """)
-        self.rt_right_panel = QWidget()
-        self.rt_right_panel.setStyleSheet("background: #0f172a;")
-        self.rt_right_layout = QVBoxLayout(self.rt_right_panel)
-        self.rt_right_layout.setContentsMargins(10, 8, 10, 10)
-        self.rt_right_layout.setSpacing(10)
-        self.rt_right_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.progression_right_panel = QWidget()
+        self.progression_right_panel.setStyleSheet("background: #0f172a;")
+        self.progression_right_layout = QVBoxLayout(self.progression_right_panel)
+        self.progression_right_layout.setContentsMargins(10, 8, 10, 10)
+        self.progression_right_layout.setSpacing(10)
+        self.progression_right_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # Placeholder
-        self.rt_placeholder = QLabel(
-            "Detecção e classificação de feridas em tempo real.\n\n"
-            "Ao iniciar:\n"
-            "  • Detecção de feridas a cada frame (bounding boxes)\n"
-            "  • Classificação tecidual automática contínua\n"
-            "  • Laudo clínico atualizado em tempo real\n\n"
-            "Basta apontar a câmera para a ferida."
+        self.progression_placeholder = QLabel(
+            "Compare duas ou mais fotos para ver:\n\n"
+            "  - mudanca de area em pixels\n"
+            "  - evolucao de granulacao, epitelizacao, esfacelo e necrose\n"
+            "  - score de saude da ferida\n"
+            "  - estimativa de fechamento se houver reducao consistente\n\n"
+            "A ordem das fotos selecionadas sera usada como linha do tempo."
         )
-        self.rt_placeholder.setFont(QFont("Segoe UI", 11))
-        self.rt_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.rt_placeholder.setStyleSheet("""
+        self.progression_placeholder.setFont(QFont("Segoe UI", 11))
+        self.progression_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progression_placeholder.setStyleSheet("""
             color: #64748b;
             padding: 40px;
             background: #0f172a;
         """)
-        self.rt_placeholder.setWordWrap(True)
-        self.rt_right_layout.addWidget(self.rt_placeholder)
+        self.progression_placeholder.setWordWrap(True)
+        self.progression_right_layout.addWidget(self.progression_placeholder)
 
-        right_scroll.setWidget(self.rt_right_panel)
+        right_scroll.setWidget(self.progression_right_panel)
         splitter.addWidget(right_scroll)
-
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
         layout.addWidget(splitter, stretch=1)
 
     # -------------------------------------------------------
-    def _on_tab_changed(self, index: int):
         """Callback quando troca de aba."""
         if index == 0:
-            # Aba de imagem - para webcam se estiver ativa
-            if self._webcam_active:
-                self._stop_webcam()
             self.lbl_status.setText("Modo: Arquivo de Imagem")
         else:
-            # Aba de tempo real
-            self.lbl_status.setText("Modo: Tempo Real (Webcam)")
+            self.lbl_status.setText("Modo: Evolucao por Fotos")
 
     # -------------------------------------------------------
-    # WEBCAM METHODS
+    # PROGRESSION METHODS
     # -------------------------------------------------------
-    def _toggle_webcam(self):
-        """Liga/desliga a webcam."""
-        if self._webcam_active:
-            self._stop_webcam()
-        else:
-            self._start_webcam()
+    def _progression_interval_days(self) -> float:
+        text = self.combo_progression_interval.currentText().split()[0]
+        try:
+            return float(text)
+        except ValueError:
+            return 7.0
 
-    def _start_webcam(self):
-        """Inicia detecção em tempo real."""
-        camera_id = self.combo_camera.currentIndex()
-
-        # Cria analyzer reutilizável (uma vez)
-        if self._rt_analyzer is None:
-            self.lbl_status.setText("Carregando motor de análise...")
-            self.lbl_status.setStyleSheet("color: #fbbf24;")
-            QApplication.processEvents()
-            self._rt_analyzer = ClinicalWoundAnalyzer()
-
-        self._webcam_thread = WebcamThread(camera_id, parent=self)
-        # QueuedConnection garante que signals são processados na main thread
-        self._webcam_thread.frame_ready.connect(self._on_frame_ready, Qt.ConnectionType.QueuedConnection)
-        self._webcam_thread.error.connect(self._on_webcam_error, Qt.ConnectionType.QueuedConnection)
-        self._webcam_thread.start()
-
-        self._webcam_active = True
-        self.btn_webcam.setText("Parar Detecção")
-        self.btn_webcam.setStyleSheet("""
-            QPushButton {
-                background: #dc2626;
-                color: white; border: none; border-radius: 6px;
-                padding: 0 24px; font-size: 13px;
-            }
-            QPushButton:hover { background: #ef4444; }
-            QPushButton:pressed { background: #b91c1c; }
-        """)
-        self.combo_camera.setEnabled(False)
-        self.lbl_rt_status.setText("Escaneando")
-        self.lbl_rt_status.setStyleSheet("color: #22c55e;")
-        self.lbl_status.setText("Detecção em tempo real ativa — aponte a câmera para a ferida")
-        self.lbl_status.setStyleSheet("color: #22c55e;")
-
-    def _stop_webcam(self):
-        """Para detecção em tempo real com shutdown seguro."""
-        self._webcam_active = False
-
-        # 1. DESCONECTA SIGNALS PRIMEIRO (impede novos callbacks durante cleanup)
-        if self._webcam_thread is not None:
-            try:
-                self._webcam_thread.frame_ready.disconnect(self._on_frame_ready)
-                self._webcam_thread.error.disconnect(self._on_webcam_error)
-            except (TypeError, RuntimeError):
-                pass  # Já desconectados ou objeto inválido
-
-        # 2. Para a thread da webcam
-        if self._webcam_thread is not None:
-            self._webcam_thread.stop()  # seta _running=False + wait
-            # NÃO define como None imediatamente; deleteLater cuidará disso
-            wt = self._webcam_thread
-            self._webcam_thread = None
-            # Processa eventos pendentes para permitir deleteLater
-            QApplication.processEvents()
-
-        # 3. Para a thread de análise clínica (se estiver rodando)
-        if self._realtime_thread is not None:
-            try:
-                self._realtime_thread.result_ready.disconnect(self._on_realtime_analysis_done)
-            except (TypeError, RuntimeError):
-                pass
-            self._realtime_thread.cancel()
-            if self._realtime_thread.isRunning():
-                if not self._realtime_thread.wait(5000):
-                    self._realtime_thread.terminate()
-                    self._realtime_thread.wait(1000)
-            self._realtime_thread = None
-        self.btn_webcam.setText("Iniciar Detecção em Tempo Real")
-        self.btn_webcam.setStyleSheet("""
-            QPushButton {
-                background: #16a34a;
-                color: white; border: none; border-radius: 6px;
-                padding: 0 24px; font-size: 13px;
-            }
-            QPushButton:hover { background: #22c55e; }
-            QPushButton:pressed { background: #15803d; }
-        """)
-        self.combo_camera.setEnabled(True)
-        self.lbl_webcam_feed.setText("Clique em \"Iniciar Detecção\" para análise em tempo real")
-        self.lbl_webcam_feed.setPixmap(QPixmap())
-        self.lbl_rt_status.setText("Parado")
-        self.lbl_rt_status.setStyleSheet("color: #64748b;")
-        self.lbl_status.setText("Detecção parada")
-        self.lbl_status.setStyleSheet("color: #94a3b8;")
-
-    def _on_frame_ready(self, annotated_frame: np.ndarray, raw_frame: np.ndarray):
-        """Callback quando um frame com detecção está pronto."""
-        # Guard: ignora se webcam já foi parada (signal pode ter chegado após stop)
-        if not self._webcam_active or self._webcam_thread is None:
-            return
-
-        self._last_frame = raw_frame
-
-        # Exibe frame anotado (já tem bounding boxes do detector)
-        pixmap = np_to_qpixmap(annotated_frame, max_w=900)
-        self.lbl_webcam_feed.setPixmap(pixmap)
-
-        # Dispara análise clínica completa automaticamente a cada intervalo
-        # Verifica que não há thread de análise ativa E que analyzer foi inicializado
-        if self._webcam_active and self._realtime_thread is None and self._rt_analyzer is not None:
-            current_time = time.time() * 1000
-            if current_time - self._last_analysis_time > self._analysis_interval_ms:
-                self._last_analysis_time = current_time
-                thread = RealtimeAnalysisThread(raw_frame, self._rt_analyzer, parent=self)
-                thread.result_ready.connect(self._on_realtime_analysis_done, Qt.ConnectionType.QueuedConnection)
-                self._realtime_thread = thread  # referência forte antes de start()
-                thread.start()
-
-    def _on_webcam_error(self, error: str):
-        """Callback de erro da webcam."""
-        self.lbl_status.setText(f"Erro: {error}")
-        self.lbl_status.setStyleSheet("color: #ef4444;")
-        self.lbl_rt_status.setText("Erro")
-        self.lbl_rt_status.setStyleSheet("color: #ef4444;")
-        self._stop_webcam()
-
-    def _on_realtime_analysis_done(self, report: ClinicalReport):
-        """Callback quando análise clínica completa termina."""
-        # Guard: ignora se webcam foi parada durante a análise
-        if not self._webcam_active:
-            self._realtime_thread = None
-            return
-
-        # Permite que a próxima análise seja agendada.
-        # deleteLater (connected no __init__) cuida da limpeza segura do QThread.
-        self._realtime_thread = None
-
-        if not report.is_valid_wound:
-            # Não mostra erro, apenas continua escaneando
-            self.lbl_rt_status.setText("Escaneando (sem ferida)")
-            self.lbl_rt_status.setStyleSheet("color: #f59e0b;")
-            return
-
-        # Monta status realtime com ResNet50
-        rt_resnet_tag = ""
-        if report.ai_predictions and report.ai_predictions.resnet:
-            rn = report.ai_predictions.resnet
-            final_pt = rn.get("final_class_pt", "")
-            if final_pt:
-                rt_resnet_tag = f"  |  {final_pt}"
-
-        self.lbl_rt_status.setText("Ferida detectada")
-        self.lbl_rt_status.setStyleSheet("color: #22c55e;")
-        self.lbl_status.setText(
-            f"Ferida: {report.primary_tissue}  |  Score: {report.health_score:.0f}/100{rt_resnet_tag}  |  {report.processing_time_ms:.0f}ms"
+    def _on_select_progression_images(self):
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Selecionar Fotos da Evolucao da Ferida",
+            str(Path(__file__).parent / "dataset"),
+            "Imagens (*.jpg *.jpeg *.png *.bmp *.tif *.tiff);;Todos (*)",
         )
-        self.lbl_status.setStyleSheet("color: #22c55e;")
+        if not paths:
+            return
 
-        # Atualiza imagens de análise
-        if report.segmentation_map is not None:
-            self.lbl_rt_segmentation.setPixmap(np_to_qpixmap(report.segmentation_map, 350))
-        if report.tissue_overlay is not None:
-            self.lbl_rt_overlay.setPixmap(np_to_qpixmap(report.tissue_overlay, 350))
+        self._progression_paths = list(paths)
+        lines = [
+            f"{index}. {Path(path).name}"
+            for index, path in enumerate(self._progression_paths, start=1)
+        ]
+        self.txt_progression_files.setText("\n".join(lines))
+        self.btn_progression_run.setEnabled(len(self._progression_paths) >= 2)
+        self.lbl_progression_status.setText(f"{len(self._progression_paths)} foto(s) selecionada(s)")
+        self.lbl_progression_status.setStyleSheet("color: #38bdf8;")
+        self.lbl_status.setText("Fotos carregadas para comparacao longitudinal")
+        self.lbl_status.setStyleSheet("color: #38bdf8;")
+        self._display_progression_preview()
 
-        # Atualiza laudo
-        self._show_realtime_results(report)
+    def _display_progression_preview(self):
+        if not self._progression_paths:
+            return
+        first = cv2.imread(self._progression_paths[0])
+        last = cv2.imread(self._progression_paths[-1])
+        if first is not None:
+            self.lbl_progression_first.setPixmap(np_to_qpixmap(first, 520))
+        if last is not None:
+            self.lbl_progression_last.setPixmap(np_to_qpixmap(last, 520))
 
-    def _show_realtime_results(self, r: ClinicalReport):
-        """Exibe resultados da análise em tempo real."""
-        self._clear_rt_right_panel()
+    def _on_run_progression_analysis(self):
+        if len(self._progression_paths) < 2:
+            self.lbl_progression_status.setText("Selecione pelo menos duas fotos")
+            self.lbl_progression_status.setStyleSheet("color: #fbbf24;")
+            return
+        if self._progression_thread is not None and self._progression_thread.isRunning():
+            return
 
-        # Classificação principal
-        box_main = self._make_group("CLASSIFICAÇÃO")
-        lbl_primary = QLabel(r.primary_tissue)
-        lbl_primary.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        lbl_primary.setStyleSheet("color: #38bdf8; padding: 2px 0;")
-        box_main.layout().addWidget(lbl_primary)
+        self._set_progression_busy(True)
+        self._progression_thread = ProgressionAnalysisThread(
+            self._progression_paths,
+            self._progression_interval_days(),
+            parent=self,
+        )
+        self._progression_thread.progress.connect(self._on_progress, Qt.ConnectionType.QueuedConnection)
+        self._progression_thread.result_ready.connect(self._on_progression_done, Qt.ConnectionType.QueuedConnection)
+        self._progression_thread.start()
 
-        # Score
-        score_color = "#22c55e" if r.health_score >= 60 else ("#fbbf24" if r.health_score >= 30 else "#ef4444")
-        score_row = QWidget()
-        sl = QHBoxLayout(score_row)
-        sl.setContentsMargins(0, 2, 0, 0)
-        sl.addWidget(self._styled_label("Score:", "#94a3b8", 10))
-        sl.addWidget(self._styled_label(f"{r.health_score:.0f}/100", score_color, 12, bold=True))
-        sl.addStretch()
-        box_main.layout().addWidget(score_row)
+    def _set_progression_busy(self, busy: bool):
+        self.progress.setVisible(busy)
+        self.btn_progression_select.setEnabled(not busy)
+        self.btn_progression_run.setEnabled((not busy) and len(self._progression_paths) >= 2)
+        self.combo_progression_interval.setEnabled(not busy)
+        if busy:
+            self.lbl_progression_status.setText("Analisando evolucao...")
+            self.lbl_progression_status.setStyleSheet("color: #fbbf24;")
 
-        self.rt_right_layout.addWidget(box_main)
+    def _on_progression_done(self, payload):
+        self._set_progression_busy(False)
+        self._progression_thread = None
 
-        # Composição tecidual
-        box_tissue = self._make_group("TECIDOS")
-        for t in sorted(r.tissues, key=lambda x: -x.percentage):
-            if t.percentage > 1:
+        if isinstance(payload, dict) and payload.get("error"):
+            self.lbl_status.setText(f"Erro na evolucao: {payload['error']}")
+            self.lbl_status.setStyleSheet("color: #ef4444;")
+            self.lbl_progression_status.setText("Erro")
+            self.lbl_progression_status.setStyleSheet("color: #ef4444;")
+            return
+
+        result: WoundProgressionResult = payload
+        self.lbl_status.setText(
+            f"Evolucao concluida | {result.valid_photo_count} foto(s) validas | {result.closure_estimate.trajectory}"
+        )
+        status_color = "#22c55e" if result.closure_estimate.trajectory == "improving" else (
+            "#ef4444" if result.closure_estimate.trajectory == "worsening" else "#fbbf24"
+        )
+        self.lbl_status.setStyleSheet(f"color: {status_color};")
+        self.lbl_progression_status.setText(result.closure_estimate.trajectory)
+        self.lbl_progression_status.setStyleSheet(f"color: {status_color};")
+        self._show_progression_results(result)
+
+    def _show_progression_results(self, result: WoundProgressionResult):
+        self._clear_progression_panel()
+
+        estimate = result.closure_estimate
+        trajectory_names = {
+            "improving": "Melhora",
+            "worsening": "Piora",
+            "stable": "Estavel/sem reducao robusta",
+            "insufficient_data": "Dados insuficientes",
+        }
+        trajectory_color = "#22c55e" if estimate.trajectory == "improving" else (
+            "#ef4444" if estimate.trajectory == "worsening" else "#fbbf24"
+        )
+
+        box_main = self._make_group("EVOLUCAO GERAL")
+        lbl_trajectory = QLabel(trajectory_names.get(estimate.trajectory, estimate.trajectory))
+        lbl_trajectory.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        lbl_trajectory.setStyleSheet(f"color: {trajectory_color}; padding: 2px 0;")
+        box_main.layout().addWidget(lbl_trajectory)
+        lbl_summary = QLabel(result.summary)
+        lbl_summary.setWordWrap(True)
+        lbl_summary.setFont(QFont("Segoe UI", 10))
+        lbl_summary.setStyleSheet("color: #cbd5e1;")
+        box_main.layout().addWidget(lbl_summary)
+        self.progression_right_layout.addWidget(box_main)
+
+        box_metrics = self._make_group("METRICAS DE COMPARACAO")
+        metric_items = [
+            ("Fotos validas", f"{result.valid_photo_count}"),
+            ("Fotos rejeitadas", f"{result.invalid_photo_count}"),
+            ("Mudanca de area", self._format_optional_pct(result.area_change_pct)),
+            ("Delta score", self._format_signed(result.health_score_delta)),
+            ("Tecido de reparo", self._format_optional_pct(result.healthy_tissue_delta_pct, suffix=' pp')),
+            ("Tecido desvitalizado", self._format_optional_pct(result.devitalized_tissue_delta_pct, suffix=' pp')),
+        ]
+        for label, value in metric_items:
+            row = QWidget()
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(0, 1, 0, 1)
+            rl.addWidget(self._styled_label(label, "#94a3b8", 10))
+            rl.addStretch()
+            rl.addWidget(self._styled_label(value, "#e2e8f0", 10, bold=True))
+            box_metrics.layout().addWidget(row)
+        self.progression_right_layout.addWidget(box_metrics)
+
+        box_estimate = self._make_group("ESTIMATIVA DE FECHAMENTO")
+        if estimate.estimated_days_to_closure_min is not None:
+            days_text = f"{estimate.estimated_days_to_closure_min}-{estimate.estimated_days_to_closure_max} dias"
+            if estimate.estimated_weeks_to_closure is not None:
+                days_text += f" (~{estimate.estimated_weeks_to_closure:.1f} semanas)"
+            lbl_days = QLabel(days_text)
+            lbl_days.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+            lbl_days.setStyleSheet("color: #38bdf8;")
+            box_estimate.layout().addWidget(lbl_days)
+        else:
+            lbl_days = QLabel("Sem estimativa segura de fechamento")
+            lbl_days.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+            lbl_days.setStyleSheet("color: #fbbf24;")
+            box_estimate.layout().addWidget(lbl_days)
+        lbl_conf = QLabel(f"Confianca: {estimate.confidence}. {estimate.rationale}")
+        lbl_conf.setWordWrap(True)
+        lbl_conf.setFont(QFont("Segoe UI", 9))
+        lbl_conf.setStyleSheet("color: #94a3b8;")
+        box_estimate.layout().addWidget(lbl_conf)
+        for alert in estimate.alerts:
+            lbl_alert = QLabel(f"Alerta: {alert}")
+            lbl_alert.setWordWrap(True)
+            lbl_alert.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+            lbl_alert.setStyleSheet("color: #f97316;")
+            box_estimate.layout().addWidget(lbl_alert)
+        self.progression_right_layout.addWidget(box_estimate)
+
+        if result.tissue_deltas:
+            box_tissues = self._make_group("EVOLUCAO DOS TECIDOS")
+            for delta in result.tissue_deltas:
+                if abs(delta.delta_pct) < 0.5:
+                    continue
+                color = "#22c55e" if delta.delta_pct > 0 and any(k in delta.tissue_name.lower() for k in ("granula", "epitel")) else (
+                    "#ef4444" if delta.delta_pct > 0 else "#38bdf8"
+                )
                 row = QWidget()
                 rl = QHBoxLayout(row)
                 rl.setContentsMargins(0, 1, 0, 1)
-                swatch = QLabel()
-                swatch.setFixedSize(10, 10)
-                swatch.setStyleSheet(f"background: {t.color_hex}; border-radius: 2px;")
-                rl.addWidget(swatch)
-                # Trunca de forma segura para UTF-8 (sem cortar no meio de caractere)
-                tissue_name = t.name if len(t.name) <= 25 else t.name[:22] + "..."
-                rl.addWidget(self._styled_label(tissue_name, "#e2e8f0", 9))
+                rl.addWidget(self._styled_label(delta.tissue_name[:34], "#e2e8f0", 9))
                 rl.addStretch()
-                rl.addWidget(self._styled_label(f"{t.percentage:.0f}%", "#38bdf8", 9, bold=True))
-                box_tissue.layout().addWidget(row)
-        self.rt_right_layout.addWidget(box_tissue)
+                rl.addWidget(self._styled_label(
+                    f"{delta.first_pct:.1f}% -> {delta.last_pct:.1f}% ({delta.delta_pct:+.1f} pp)",
+                    color,
+                    9,
+                    bold=True,
+                ))
+                box_tissues.layout().addWidget(row)
+            self.progression_right_layout.addWidget(box_tissues)
 
-        # DL prediction
-        if r.dl_prediction:
-            box_dl = self._make_group("IA")
-            dl = r.dl_prediction
-            conf = dl.get("confidence", 0)
-            conf_color = "#22c55e" if conf >= 0.7 else ("#fbbf24" if conf >= 0.4 else "#ef4444")
-            lbl_cls = QLabel(f"{dl.get('display_name', 'N/A')} ({conf:.0%})")
-            lbl_cls.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-            lbl_cls.setStyleSheet(f"color: {conf_color};")
-            box_dl.layout().addWidget(lbl_cls)
-            self.rt_right_layout.addWidget(box_dl)
+        box_timeline = self._make_group("LINHA DO TEMPO")
+        for snapshot in result.snapshots:
+            color = "#22c55e" if snapshot.is_valid_wound else "#ef4444"
+            text = (
+                f"{snapshot.sequence_index}. {snapshot.filename}: "
+                f"{snapshot.primary_tissue or 'Imagem rejeitada'} | "
+                f"area {snapshot.wound_area_px:,} px | score {snapshot.health_score:.0f}/100"
+            )
+            lbl = QLabel(text)
+            lbl.setWordWrap(True)
+            lbl.setFont(QFont("Segoe UI", 9))
+            lbl.setStyleSheet(f"color: {color};")
+            box_timeline.layout().addWidget(lbl)
+            if snapshot.rejection_reason:
+                reason = QLabel(snapshot.rejection_reason)
+                reason.setWordWrap(True)
+                reason.setFont(QFont("Segoe UI", 8))
+                reason.setStyleSheet("color: #f97316; padding-left: 8px;")
+                box_timeline.layout().addWidget(reason)
+        self.progression_right_layout.addWidget(box_timeline)
 
-        # ResNet50 Two-Stage prediction (tempo real)
-        if r.resnet_prediction:
-            rn = r.resnet_prediction
-            box_rn = self._make_group("ETIOLOGIA (ResNet50)")
+        box_recs = self._make_group("PROXIMAS ACOES")
+        for recommendation in result.recommendations:
+            lbl = QLabel(f"- {recommendation}")
+            lbl.setWordWrap(True)
+            lbl.setFont(QFont("Segoe UI", 9))
+            lbl.setStyleSheet("color: #cbd5e1;")
+            box_recs.layout().addWidget(lbl)
+        self.progression_right_layout.addWidget(box_recs)
+        self.progression_right_layout.addStretch()
 
-            s1 = rn.get("stage1", {})
-            if s1:
-                s1_wound = s1.get("is_wound", True)
-                s1_conf = s1.get("confidence", 0)
-                s1_text = "Ferida" if s1_wound else "Normal"
-                s1_color = "#ef4444" if s1_wound else "#22c55e"
-                s1_row = QWidget()
-                s1l = QHBoxLayout(s1_row)
-                s1l.setContentsMargins(0, 1, 0, 1)
-                s1l.addWidget(self._styled_label("Triagem:", "#94a3b8", 9))
-                s1l.addWidget(self._styled_label(f"{s1_text} ({s1_conf:.0%})", s1_color, 9, bold=True))
-                s1l.addStretch()
-                box_rn.layout().addWidget(s1_row)
-
-            s2 = rn.get("stage2", {})
-            if s2:
-                s2_pt = s2.get("wound_type_pt", "")
-                s2_conf = s2.get("confidence", 0)
-                s2_color = "#22c55e" if s2_conf >= 0.7 else ("#fbbf24" if s2_conf >= 0.45 else "#ef4444")
-                lbl_type = QLabel(f"{s2_pt} ({s2_conf:.0%})")
-                lbl_type.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-                lbl_type.setStyleSheet(f"color: {s2_color};")
-                box_rn.layout().addWidget(lbl_type)
-
-            self.rt_right_layout.addWidget(box_rn)
-
-        # Ação clínica
-        box_action = self._make_group("AÇÃO CLÍNICA")
-        dominant = max(r.tissues, key=lambda x: x.percentage)
-        lbl_act = QLabel(dominant.clinical_action[:150] + "..." if len(dominant.clinical_action) > 150 else dominant.clinical_action)
-        lbl_act.setWordWrap(True)
-        lbl_act.setFont(QFont("Segoe UI", 9))
-        lbl_act.setStyleSheet("color: #cbd5e1;")
-        box_action.layout().addWidget(lbl_act)
-        self.rt_right_layout.addWidget(box_action)
-
-        # Escalas Clínicas (PUSH e BWAT) - versão compacta para tempo real
-        if HAS_CLINICAL_SCALES and (r.push_score is not None or r.bwat_score is not None):
-            box_scales = self._make_group("ESCALAS")
-            
-            # PUSH Score compacto
-            if r.push_score is not None:
-                push_total = r.push_score.get("total_score", 0)
-                push_row = QWidget()
-                pl = QHBoxLayout(push_row)
-                pl.setContentsMargins(0, 1, 0, 1)
-                pl.addWidget(self._styled_label("PUSH:", "#94a3b8", 9))
-                push_color = "#22c55e" if push_total <= 5 else ("#fbbf24" if push_total <= 10 else "#ef4444")
-                pl.addWidget(self._styled_label(f"{push_total}/17", push_color, 10, bold=True))
-                pl.addStretch()
-                box_scales.layout().addWidget(push_row)
-            
-            # BWAT Score compacto
-            if r.bwat_score is not None:
-                bwat_total = r.bwat_score.get("total_score", 0)
-                severity = r.bwat_score.get("severity", "")
-                bwat_row = QWidget()
-                bl = QHBoxLayout(bwat_row)
-                bl.setContentsMargins(0, 1, 0, 1)
-                bl.addWidget(self._styled_label("BWAT:", "#94a3b8", 9))
-                bwat_color = "#22c55e" if bwat_total <= 20 else ("#fbbf24" if bwat_total <= 35 else "#ef4444")
-                bl.addWidget(self._styled_label(f"{bwat_total}/65 ({severity})", bwat_color, 10, bold=True))
-                bl.addStretch()
-                box_scales.layout().addWidget(bwat_row)
-            
-            self.rt_right_layout.addWidget(box_scales)
-
-        self.rt_right_layout.addStretch()
-
-    def _clear_rt_right_panel(self):
-        """Limpa painel direito da aba tempo real."""
-        while self.rt_right_layout.count():
-            w = self.rt_right_layout.takeAt(0).widget()
+    def _clear_progression_panel(self):
+        while self.progression_right_layout.count():
+            w = self.progression_right_layout.takeAt(0).widget()
             if w:
                 w.deleteLater()
 
+    def _format_optional_pct(self, value: Optional[float], suffix: str = "%") -> str:
+        if value is None:
+            return "N/A"
+        return f"{value:+.1f}{suffix}"
+
+    def _format_signed(self, value: Optional[float]) -> str:
+        if value is None:
+            return "N/A"
+        return f"{value:+.1f}"
+
     # -------------------------------------------------------
-    # ACTIONS
     # -------------------------------------------------------
     def _on_open_image(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -2980,8 +2578,8 @@ class HealAnalyzerApp(QMainWindow):
 
         self._clear_right_panel()
 
-        # --- CLASSIFICAÇÃO PRINCIPAL ---
-        box_main = self._make_group("CLASSIFICAÇÃO PRINCIPAL")
+        # --- CLASSIFICACAO PRINCIPAL ---
+        box_main = self._make_group("CLASSIFICACAO PRINCIPAL")
         
         # Layout horizontal para texto
         main_hl = QHBoxLayout()
@@ -3012,8 +2610,8 @@ class HealAnalyzerApp(QMainWindow):
         box_main.layout().addLayout(main_hl)
         self.right_layout.addWidget(box_main)
 
-        # --- COMPOSIÇÃO TECIDUAL ---
-        box_tissue = self._make_group("COMPOSIÇÃO TECIDUAL")
+        # --- COMPOSICAO TECIDUAL ---
+        box_tissue = self._make_group("COMPOSICAO TECIDUAL")
         for t in sorted(r.tissues, key=lambda x: -x.percentage):
             row = QWidget()
             rl = QHBoxLayout(row)
@@ -3063,9 +2661,9 @@ class HealAnalyzerApp(QMainWindow):
 
         self.right_layout.addWidget(box_tissue)
 
-        # --- CLASSIFICAÇÃO IA (Deep Learning) ---
+        # --- CLASSIFICACAO IA (Deep Learning) ---
         if r.dl_prediction:
-            box_dl = self._make_group("CLASSIFICAÇÃO IA (Deep Learning)")
+            box_dl = self._make_group("CLASSIFICACAO IA (Deep Learning)")
             dl = r.dl_prediction
 
             # Classe principal
@@ -3110,10 +2708,10 @@ class HealAnalyzerApp(QMainWindow):
 
             self.right_layout.addWidget(box_dl)
 
-        # --- CLASSIFICAÇÃO RESNET50 (Dois Estágios) ---
+        # --- CLASSIFICACAO RESNET50 (Dois Estagios) ---
         if r.resnet_prediction:
             rn = r.resnet_prediction
-            box_rn = self._make_group("CLASSIFICAÇÃO ETIOLÓGICA (ResNet50)")
+            box_rn = self._make_group("CLASSIFICACAO ETIOLOGICA (ResNet50)")
 
             # Estágio 1 — Normal vs Ferida
             s1 = rn.get("stage1", {})
@@ -3288,9 +2886,9 @@ class HealAnalyzerApp(QMainWindow):
 
             self.right_layout.addWidget(box_ens)
 
-        # --- ANÁLISE DE INFECÇÃO E GRAVIDADE (BiomedCLIP) ---
+        # --- ANALISE DE INFECCAO E GRAVIDADE (BiomedCLIP) ---
         if r.ensemble_infection or r.ensemble_severity is not None:
-            box_inf = self._make_group("ANÁLISE DE INFECÇÃO E GRAVIDADE")
+            box_inf = self._make_group("ANALISE DE INFECCAO E GRAVIDADE")
 
             # Severidade
             if r.ensemble_severity is not None:
@@ -3356,7 +2954,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- ANÁLISE DE BORDAS ---
         if r.border_analysis:
-            box_border = self._make_group("ANÁLISE DE BORDAS E PERILESÃO")
+            box_border = self._make_group("ANALISE DE BORDAS E PERILESAO")
             ba = r.border_analysis
 
             flags = []
@@ -3379,8 +2977,8 @@ class HealAnalyzerApp(QMainWindow):
             box_border.layout().addWidget(lbl_desc)
             self.right_layout.addWidget(box_border)
 
-        # --- AÇÕES CLÍNICAS ---
-        box_actions = self._make_group("RECOMENDAÇÕES CLÍNICAS")
+        # --- ACOES CLINICAS ---
+        box_actions = self._make_group("RECOMENDACOES CLINICAS")
         dominant = max(r.tissues, key=lambda x: x.percentage)
         lbl_act = QLabel(dominant.clinical_action)
         lbl_act.setWordWrap(True)
@@ -3615,9 +3213,9 @@ class HealAnalyzerApp(QMainWindow):
 
         self.right_layout.addWidget(box_meta)
 
-        # --- ANÁLISE DE ILUMINAÇÃO ---
+        # --- ANALISE DE ILUMINACAO ---
         if r.lighting_analysis:
-            box_light = self._make_group("ILUMINAÇÃO")
+            box_light = self._make_group("ILUMINACAO")
             la = r.lighting_analysis
             
             # Condição de iluminação
@@ -3674,7 +3272,7 @@ class HealAnalyzerApp(QMainWindow):
 
         # --- PARTE DO CORPO ---
         if r.body_part:
-            box_body = self._make_group("REGIÃO ANATÔMICA")
+            box_body = self._make_group("REGIAO ANATOMICA")
             bp = r.body_part
             
             region_name = bp.get("name_pt", "Não identificado")
@@ -3768,8 +3366,18 @@ class HealAnalyzerApp(QMainWindow):
         """Encerramento seguro: para todas as threads antes de fechar."""
         logger.info("[HEAL+] Finalizando componentes com segurança...")
 
-        # Para webcam + análise em tempo real (sempre, mesmo se _webcam_active é False)
-        self._stop_webcam()
+        # Para thread de evolucao por fotos (se existir)
+        if self._progression_thread is not None:
+            try:
+                self._progression_thread.result_ready.disconnect()
+                self._progression_thread.progress.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            if self._progression_thread.isRunning():
+                if not self._progression_thread.wait(5000):
+                    self._progression_thread.terminate()
+                    self._progression_thread.wait(1000)
+            self._progression_thread = None
 
         # Para thread de análise de imagem estática (se existir)
         if self._thread is not None:
