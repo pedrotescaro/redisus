@@ -165,6 +165,160 @@ Essa é a trilha mais importante do projeto neste momento. Novas features devem 
 - Pytest
 - smoke tests de API e segurança
 
+## Guia Acadêmico da IA do Projeto
+
+Esta seção resume **como o código funciona hoje**, quais modelos de IA e redes neurais estão no repositório, de onde vieram, o que cada um explica e quais limitações precisam ser apresentadas com honestidade em contexto acadêmico.
+
+Leitura recomendada:
+
+- motor principal de inferência: [`src/processing/clinical_wound_analyzer_core.py`](src/processing/clinical_wound_analyzer_core.py)
+- desktop que reutiliza o core: [`heal_analyzer.py`](heal_analyzer.py)
+- integração do classificador LP-only ao domínio: [`src/diagnosis/clinical_ml.py`](src/diagnosis/clinical_ml.py)
+- progressão longitudinal por fotos: [`src/monitoring/wound_progression.py`](src/monitoring/wound_progression.py)
+- model cards locais: [`ml/model_cards/wound_classifier_v3.md`](ml/model_cards/wound_classifier_v3.md) e [`ml/model_cards/pressure_injury_stage_classifier.md`](ml/model_cards/pressure_injury_stage_classifier.md)
+
+### Fluxo de IA e Visão Computacional
+
+```mermaid
+flowchart LR
+    A["Imagem clínica"] --> B["Validação e preparo da imagem"]
+    B --> C["Detector de ferida + ROI anatômica"]
+    C --> D["Segmentação tecidual clínica v3"]
+    D --> E["Composição tecidual + health score + PUSH/BWAT"]
+    B --> F["Classificador local base"]
+    B --> G["ResNet50 two-stage + Grad-CAM"]
+    G --> H["Especialista LP-only (quando o caso sugere lesão por pressão)"]
+    B --> I["Ensemble externo opcional: DermaIntel + BiomedCLIP + MedSAM"]
+    E --> J["Laudo clínico estruturado"]
+    F --> J
+    G --> J
+    H --> J
+    I --> J
+    J --> K["Comparação longitudinal de 2+ fotos"]
+```
+
+### Modelos, Redes Neurais e Heurísticas
+
+| Componente | Status hoje | Arquitetura / tipo | Papel no sistema | Origem / artefato | Explicabilidade |
+|---|---|---|---|---|---|
+| Detector de ferida + ROI | Ativo | Visão computacional clássica, sem rede neural | Delimita a região da ferida, limpa fundo cirúrgico e monta a ROI de trabalho | [`src/processing/wound_detector_cv.py`](src/processing/wound_detector_cv.py) + ROI no core clínico | `detection_overlay`, contornos e máscara da ferida |
+| Segmentação tecidual clínica v3 | Ativo | Regras adaptativas em HSV/LAB + textura + zonas espaciais | Estima `%` de necrose, esfacelo, granulação e epitelização | [`src/processing/clinical_wound_analyzer_core.py`](src/processing/clinical_wound_analyzer_core.py) e [`heal_analyzer.py`](heal_analyzer.py) | `segmentation_map`, `tissue_overlay`, `tissue_analysis_trace`, justificativa textual |
+| Classificador local base | Ativo quando os pesos existem | EfficientNet-B0 em PyTorch/timm | Classifica 11 grupos experimentais de feridas e fornece probabilidades base para o pipeline | `models/wound_classifier_v2/wound_classifier_v2_traced.pt` + metadata em `models/wound_classifier_v2/model_metadata_v2.json` | probabilidades, `confidence`, `top-3`, contrato padronizado |
+| Classificador etiológico two-stage | Ativo quando os pesos existem | ResNet50 com transfer learning (2 estágios) | Estágio 1: `Normal` vs `Wound`; Estágio 2: `Diabetic`, `Pressure`, `Venous` | [`src/diagnosis/resnet_wound_classifier.py`](src/diagnosis/resnet_wound_classifier.py) | Grad-CAM em `layer4`, entropia, margem top-2, `needs_expert_review` |
+| Especialista LP-only | Ativo quando os pesos existem | ResNet50 com transfer learning + calibração par-a-par opcional | Classifica lesão por pressão em estágios I-IV e refina o diagnóstico quando a etiologia sugere LP | [`src/diagnosis/pressure_injury_stage_classifier.py`](src/diagnosis/pressure_injury_stage_classifier.py) + PIID local | `visual_signals`, `considerations`, probabilidades por estágio, margem, revisão especialista |
+| Detector anatômico | Ativo quando o peso existe | MobileNetV3-Small + MediaPipe opcional | Detecta região anatômica e ajusta o contexto clínico por priors anatômicos | [`src/detection/body_part_detector.py`](src/detection/body_part_detector.py) + `models/body_part_detector.pt` | região prevista, probabilidade e priors de etiologia por região |
+| Ensemble externo | Opcional | DermaIntel ViT + BiomedCLIP + MedSAM + soft voting ponderado | Reforça classificação etiológica, infecção, severidade e contorno de ferida | [`src/ai_layer/ensemble_orchestrator.py`](src/ai_layer/ensemble_orchestrator.py) | `agreement_score`, resultados individuais, `infection_risk`, `severity_index`, fusão de máscaras |
+| Segmentador U-Net de tecidos | Opcional / experimental | U-Net com encoder EfficientNet-B0 | Caminho alternativo de segmentação pixel a pixel | [`src/diagnosis/tissue_segmenter.py`](src/diagnosis/tissue_segmenter.py) | máscara colorida, `tissue_percentages`, overlay |
+| Progressão longitudinal | Ativo | Modelo heurístico longitudinal, não uma CNN | Compara 2 ou mais fotos da mesma ferida e estima evolução tecidual e janela de fechamento | [`src/monitoring/wound_progression.py`](src/monitoring/wound_progression.py) | deltas por tecido, trajetória, alertas, estimativa de fechamento |
+
+### Como o Código Decide Hoje
+
+1. O runtime principal da análise de imagem está em [`src/processing/clinical_wound_analyzer_core.py`](src/processing/clinical_wound_analyzer_core.py). O desktop em [`heal_analyzer.py`](heal_analyzer.py) reutiliza esse comportamento.
+2. A imagem passa por validação, correção opcional e detecção da região de interesse. O sistema remove fundo cirúrgico, tenta separar a ferida do entorno e cria zonas espaciais (`periferia`, `core`, `anel externo`).
+3. A composição tecidual principal hoje é calculada por um pipeline clínico explicável, não por uma CNN pura. Ele considera:
+   - cor em HSV e LAB;
+   - textura local;
+   - gradiente de borda para epitelização;
+   - posição do pixel dentro da ferida;
+   - tom de pele perilesional para reduzir viés na necrose;
+   - exclusão de fundo cirúrgico e de pele saudável.
+4. O `health_score` e as escalas PUSH/BWAT são derivados da composição tecidual e da área da ferida, servindo como apoio de triagem e monitoramento.
+5. Se os pesos locais estiverem presentes, o classificador base `EfficientNet-B0` adiciona uma leitura de classes experimentais do acervo de feridas.
+6. Em paralelo, o classificador `ResNet50 two-stage` gera uma leitura etiológica mais focada e produz Grad-CAM para mostrar quais regiões sustentaram a decisão.
+7. Se o caso parecer lesão por pressão, o sistema pode acionar o especialista LP-only baseado em PIID para estadiamento I-IV e anexar os sinais visuais medidos.
+8. Se as dependências externas e checkpoints estiverem disponíveis, o ensemble combina o modelo local com DermaIntel, BiomedCLIP e MedSAM.
+9. No acompanhamento longitudinal, o sistema compara duas ou mais fotos da mesma ferida para medir mudança de área, variação da composição tecidual e estimativa de fechamento.
+
+### O Que a IA Explica para o Usuário
+
+O projeto não retorna apenas um rótulo. Hoje ele já expõe diferentes camadas de explicabilidade:
+
+- **Grad-CAM** no `ResNet50 two-stage`, destacando regiões de ativação relevantes para a classe prevista.
+- **`tissue_analysis_trace`** na segmentação clínica, informando cobertura classificada, porcentagem não classificada e os critérios usados para cada tecido.
+- **`visual_signals`** no especialista LP-only, com proporção de vermelho, amarelo, escuro, rosa, densidade de bordas, brilho e fração da lesão.
+- **margem entre top-2 classes**, entropia e flag de `needs_expert_review` nos classificadores com saída probabilística.
+- **concordância do ensemble**, mostrando quando os modelos concordam ou divergem.
+- **overlays visuais**: detecção, segmentação, sobreposição tecidual, Grad-CAM e comparação longitudinal.
+
+### Dados, Treino e Artefatos
+
+#### 1. Classificador local base (`EfficientNet-B0`)
+
+- artefato principal: `models/wound_classifier_v2/wound_classifier_v2_traced.pt`
+- metadata: `models/wound_classifier_v2/model_metadata_v2.json`
+- base model: `efficientnet_b0`
+- classes atuais: `11`
+- fonte principal documentada: acervo público **Medetec**
+- métricas registradas:
+  - `accuracy = 0.6025`
+  - `top-3 accuracy = 0.8484`
+  - `244` amostras de validação
+
+#### 2. Especialista LP-only (`ResNet50 + PIID`)
+
+- artefato principal: `models/pressure_injury_stage_classifier/pressure_injury_stage_resnet50.pth`
+- metadata: `models/pressure_injury_stage_classifier/model_metadata.json`
+- dataset local: **PIID**
+- split local atual:
+  - treino: `763`
+  - validação: `163`
+  - teste: `165`
+- baseline local registrado:
+  - `validation accuracy = 0.7730`
+  - `test accuracy = 0.7030`
+- ponto fraco atual explicitado no projeto:
+  - maior confusão entre `stage_3` e `stage_4`
+
+#### 3. Detector anatômico (`MobileNetV3-Small`)
+
+- artefato esperado: `models/body_part_detector.pt`
+- treino com transfer learning em dataset anatômico local (`dataset/body_parts`)
+- uso atual: contexto anatômico e ajuste de priors clínicos
+
+#### 4. Modelos externos pré-treinados
+
+- **DermaIntel ViT**: utilizado como classificador externo de feridas mapeado para a taxonomia REDISUS.
+- **BiomedCLIP**: usado como modelo multimodal zero-shot para etiologia, tecido, severidade e risco de infecção.
+- **MedSAM**: usado para segmentação por bounding box prompt quando o checkpoint está disponível.
+
+Esses modelos externos **não são o mesmo que os pesos locais treinados no projeto**. Eles entram como apoio adicional ao ensemble.
+
+### Fontes e Referências Primárias
+
+#### Referências acadêmicas e oficiais
+
+- He K, Zhang X, Ren S, Sun J. **Deep Residual Learning for Image Recognition** (ResNet). CVPR 2016. Disponível em: [CVF Open Access](https://www.cv-foundation.org/openaccess/content_cvpr_2016/html/He_Deep_Residual_Learning_CVPR_2016_paper.html)
+- Selvaraju RR, Cogswell M, Das A, et al. **Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization**. Disponível em: [arXiv](https://arxiv.org/abs/1610.02391)
+- Howard A, Sandler M, Chu G, et al. **Searching for MobileNetV3**. Disponível em: [arXiv](https://arxiv.org/abs/1905.02244)
+- Ronneberger O, Fischer P, Brox T. **U-Net: Convolutional Networks for Biomedical Image Segmentation**. Disponível em: [U-Net project page](https://lmb.informatik.uni-freiburg.de/people/ronneber/u-net/)
+- Kirillov A, Mintun E, Ravi N, et al. **Segment Anything**. Disponível em: [arXiv](https://arxiv.org/abs/2304.02643)
+- Ma J, He Y, Li F, et al. **Segment Anything in Medical Images (MedSAM)**. Disponível em: [Nature Communications](https://www.nature.com/articles/s41467-024-44824-z) e [GitHub oficial](https://github.com/bowang-lab/MedSAM)
+- Zhang Y, Jiang J, et al. **BiomedCLIP: A Multimodal Biomedical Foundation Model Pretrained from Fifteen Million Scientific Image-Text Pairs**. Disponível em: [arXiv](https://arxiv.org/abs/2303.00915) e [Hugging Face](https://huggingface.co/microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224)
+- **DermaIntel Wound Classifier**. Model card oficial em: [Hugging Face](https://huggingface.co/PayamFard123/dermaintel-wound-classifier)
+- **PIID - Pressure Injury Images Dataset**. Artigo relacionado em: [Springer](https://link.springer.com/article/10.1007/s00521-022-07274-6)
+- **Medetec Wound Image Databases**. Fonte pública usada como base experimental em: [Medetec](https://www.medetec.co.uk/files/medetec-image-databases.html)
+- **Ultralytics YOLO**. Documentação oficial em: [docs.ultralytics.com](https://docs.ultralytics.com/)
+
+#### Referências internas do projeto
+
+- baseline dos modelos: [ml/benchmarks/baseline_report.md](ml/benchmarks/baseline_report.md)
+- model card do classificador base: [ml/model_cards/wound_classifier_v3.md](ml/model_cards/wound_classifier_v3.md)
+- model card do especialista LP: [ml/model_cards/pressure_injury_stage_classifier.md](ml/model_cards/pressure_injury_stage_classifier.md)
+- guia do PIID no projeto: [docs/research/piid-pressure-injury-guide.md](docs/research/piid-pressure-injury-guide.md)
+- README técnico legado com detalhamento histórico: [docs/research/legacy-readme.md](docs/research/legacy-readme.md)
+
+### Limitações Metodológicas que Devem Ser Explicadas
+
+Para apresentação acadêmica, é importante deixar explícito que:
+
+- este projeto é **plataforma de pesquisa aplicada e apoio à decisão**, não dispositivo médico validado para uso autônomo;
+- parte dos modelos depende de pesos locais, checkpoints e dependências opcionais;
+- há componentes ativos em produção experimental e outros ainda opcionais/experimentais;
+- os datasets usados são heterogêneos, com desbalanceamento de classes e sem validação multicêntrica formal;
+- a análise por imagem sem escala física mede área em pixels e pode sofrer com iluminação, ângulo, foco e qualidade da captura;
+- a estimativa longitudinal de cicatrização é aproximada e deve ser sempre confrontada com avaliação clínica humana;
+- a explicabilidade melhora a transparência do sistema, mas **não elimina erro, viés ou necessidade de revisão especializada**.
+
 ## Arquitetura Real do Repositório
 
 ```text

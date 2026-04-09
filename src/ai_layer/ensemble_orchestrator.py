@@ -17,7 +17,7 @@ Agreement scoring:
   - Penalty 0.85× se há discordância
 """
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -133,15 +133,15 @@ class EnsembleOrchestrator:
                 logger.error(f"Ensemble: erro ao carregar {name}: {e}")
                 return name, False
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = [
-                executor.submit(_safe_load, "dermaintel", self.dermaintel),
-                executor.submit(_safe_load, "medsam", self.medsam),
-                executor.submit(_safe_load, "biomedclip", self.biomedclip),
-            ]
-            for f in as_completed(futures):
-                name, ok = f.result()
-                status[name] = ok
+        # Carregamento sequencial evita deadlocks/circular imports do
+        # torchvision em ambientes Windows/Python 3.14.
+        for name, model in (
+            ("dermaintel", self.dermaintel),
+            ("medsam", self.medsam),
+            ("biomedclip", self.biomedclip),
+        ):
+            loaded_name, ok = _safe_load(name, model)
+            status[loaded_name] = ok
 
         self._loaded = True
         loaded_count = sum(1 for v in status.values() if v)

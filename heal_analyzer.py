@@ -236,6 +236,16 @@ except ImportError:
     HAS_RESNET_CLASSIFIER = False
 
 
+DL_CLASS_TO_REDISUS = {
+    "abdominal_wounds": {4: 1.0},
+    "diabetic_ulcers": {2: 1.0},
+    "pilonidal_sinus": {4: 1.0},
+    "pressure_ulcers": {3: 1.0},
+    "surgical_wounds": {4: 1.0},
+    "venous_arterial_ulcers": {0: 0.6, 1: 0.4},
+}
+
+
 # ============================================================
 # TAXONOMIA CLINICA - Estomaterapia
 # ============================================================
@@ -269,6 +279,8 @@ class ModelPrediction:
     confidence: float
     top3: List[Dict[str, float]] = field(default_factory=list)
     probabilities: Dict[str, float] = field(default_factory=dict)
+    redisus_probs: Dict[int, float] = field(default_factory=dict)
+    redisus_supported_mass: float = 0.0
 
 @dataclass
 class AIPredictions:
@@ -319,6 +331,7 @@ class ClinicalReport:
     detection_overlay: Optional[np.ndarray] = None
     segmentation_map: Optional[np.ndarray] = None
     tissue_overlay: Optional[np.ndarray] = None
+    tissue_analysis_trace: Optional[Dict] = None
 
     @property
     def dl_prediction(self):
@@ -560,6 +573,7 @@ class ClinicalWoundAnalyzer:
         # Ensemble Multi-Modelo (camada adicional de IA pré-treinada)
         self._ensemble = None
         self._ensemble_available = False
+        self._last_tissue_analysis_trace = None
         self._load_ensemble()
 
     def _safe_load(self, name: str, loader):
@@ -718,6 +732,44 @@ class ClinicalWoundAnalyzer:
             logger.info(f"[HEAL+] Ensemble prediction error: {e}")
             return None
 
+    @staticmethod
+    def _map_classifier_probs_to_redisus(
+        all_probs: Optional[Dict[str, float]],
+    ) -> Tuple[Optional[Dict[int, float]], float]:
+        """Mapeia a saida 11-classes do EfficientNet para 5 classes REDISUS."""
+        if not all_probs:
+            return None, 0.0
+
+        mapped = {i: 0.0 for i in range(5)}
+        supported_mass = 0.0
+
+        for class_name, raw_prob in all_probs.items():
+            try:
+                prob = float(raw_prob)
+            except (TypeError, ValueError):
+                continue
+            if prob <= 0.0:
+                continue
+
+            class_map = DL_CLASS_TO_REDISUS.get(str(class_name))
+            if not class_map:
+                continue
+
+            supported_mass += prob
+            for class_id, share in class_map.items():
+                mapped[class_id] += prob * float(share)
+
+        total = sum(mapped.values())
+        if total <= 1e-8:
+            return None, supported_mass
+
+        normalized = {
+            class_id: float(value / total)
+            for class_id, value in mapped.items()
+            if value > 1e-8
+        }
+        return normalized, supported_mass
+
     def _predict_dl(self, image: np.ndarray) -> Optional[ModelPrediction]:
         """Predição com modelo DL PyTorch (se disponível)."""
         if not self._dl_available or self._dl_model is None:
@@ -782,12 +834,15 @@ class ClinicalWoundAnalyzer:
                 top3.append({"class": name, "display": dname, "confidence": float(avg_pred[idx])})
 
             probabilities = {class_names[i]: float(avg_pred[i]) for i in range(len(class_names)) if i < len(avg_pred)}
+            redisus_probs, supported_mass = self._map_classifier_probs_to_redisus(probabilities)
             return ModelPrediction(
                 class_name=class_name,
                 display_name=display_name,
                 confidence=confidence,
                 top3=top3,
                 probabilities=probabilities,
+                redisus_probs=redisus_probs or {},
+                redisus_supported_mass=float(supported_mass),
             )
         except Exception as e:
             logger.exception(f"[HEAL+] Erro predicao DL: {e}")
@@ -850,7 +905,8 @@ class ClinicalWoundAnalyzer:
 
         dl_probs = None
         if dl_result and hasattr(dl_result, 'probabilities'):
-            dl_probs = dl_result.probabilities
+            if getattr(dl_result, "redisus_supported_mass", 0.0) >= 0.40:
+                dl_probs = getattr(dl_result, "redisus_probs", None)
             
         ensemble_result = self._predict_ensemble(
             image, detections, dl_probs=dl_probs, wound_mask=wound_mask,
@@ -902,6 +958,7 @@ class ClinicalWoundAnalyzer:
             )
             report.segmentation_map = seg_map
             report.tissue_overlay = tissue_overlay
+            report.tissue_analysis_trace = dict(self._last_tissue_analysis_trace or {})
 
             for key in ["necrosis", "slough", "granulation", "epithelialization"]:
                 pct = tissue_pcts.get(key, 0.0)
@@ -1294,6 +1351,187 @@ class ClinicalWoundAnalyzer:
 
         return L_mean, a_mean, b_mean, fitz
 
+    @staticmethod
+    def _safe_percentile(values: np.ndarray, q: float, default: float) -> float:
+        arr = np.asarray(values, dtype=np.float32).reshape(-1)
+        arr = arr[np.isfinite(arr)]
+        if arr.size < 32:
+            return float(default)
+        return float(np.percentile(arr, q))
+
+    def _build_adaptive_tissue_masks(
+        self,
+        denoised_norm: np.ndarray,
+        hsv: np.ndarray,
+        lab: np.ndarray,
+        wound_mask: np.ndarray,
+        peripheral_zone: np.ndarray,
+        core_zone: np.ndarray,
+        skin_exclude_mask: np.ndarray,
+        not_drape_mask: np.ndarray,
+        local_var: np.ndarray,
+        kernel_s: np.ndarray,
+        kernel_m: np.ndarray,
+    ) -> Tuple[Dict[str, np.ndarray], Dict[str, object]]:
+        h, w = wound_mask.shape[:2]
+        adaptive_masks = {
+            "necrosis": np.zeros((h, w), dtype=np.uint8),
+            "slough": np.zeros((h, w), dtype=np.uint8),
+            "granulation": np.zeros((h, w), dtype=np.uint8),
+            "epithelialization": np.zeros((h, w), dtype=np.uint8),
+        }
+
+        roi = wound_mask > 0
+        roi_pixels = int(np.count_nonzero(roi))
+        if roi_pixels < 80:
+            return adaptive_masks, {
+                "criteria": [
+                    "ROI pequena: sem reforco adaptativo de cores.",
+                ],
+                "adaptive_thresholds": {},
+            }
+
+        bgr_f = denoised_norm.astype(np.float32)
+        blue, green, red = cv2.split(bgr_f)
+        hue = hsv[:, :, 0].astype(np.float32)
+        sat = hsv[:, :, 1].astype(np.float32)
+        val = hsv[:, :, 2].astype(np.float32)
+        light = lab[:, :, 0].astype(np.float32)
+        a_ch = lab[:, :, 1].astype(np.float32)
+        b_ch = lab[:, :, 2].astype(np.float32)
+
+        red_excess = red - np.maximum(green, blue)
+        red_gap = red - green
+        yellow_signal = (b_ch - 128.0) + 0.35 * (green - blue)
+        dark_signal = 0.70 * (255.0 - light) + 0.30 * (255.0 - val)
+        pink_signal = (
+            0.45 * (a_ch - 128.0)
+            + 0.35 * (light - 160.0)
+            - 0.20 * np.maximum(sat - 110.0, 0.0)
+        )
+
+        roi_values = lambda arr: arr[roi]
+        low_texture_thr = self._safe_percentile(roi_values(local_var), 45, 220.0)
+        high_texture_thr = self._safe_percentile(roi_values(local_var), 62, 520.0)
+        dark_l_thr = min(108.0, self._safe_percentile(roi_values(light), 28, 82.0))
+        dark_v_thr = min(95.0, self._safe_percentile(roi_values(val), 25, 72.0) + 6.0)
+        red_a_thr = max(144.0, self._safe_percentile(roi_values(a_ch), 60, 146.0))
+        red_gap_thr = max(20.0, self._safe_percentile(roi_values(red_gap), 58, 22.0))
+        red_excess_thr = max(14.0, self._safe_percentile(roi_values(red_excess), 55, 18.0))
+        yellow_b_thr = max(142.0, self._safe_percentile(roi_values(b_ch), 60, 145.0))
+        yellow_sig_thr = max(16.0, self._safe_percentile(roi_values(yellow_signal), 60, 18.0))
+        light_l_thr = max(118.0, self._safe_percentile(roi_values(light), 42, 125.0))
+        sat_soft_thr = max(55.0, min(125.0, self._safe_percentile(roi_values(sat), 56, 95.0) + 10.0))
+        pink_l_thr = max(165.0, self._safe_percentile(roi_values(light), 66, 170.0))
+
+        border_zone = peripheral_zone > 0
+        pink_signal_thr = self._safe_percentile(pink_signal[border_zone], 55, 6.0)
+        dark_signal_thr = self._safe_percentile(roi_values(dark_signal), 72, 120.0)
+
+        base_roi = roi & (not_drape_mask > 0)
+        not_skin = skin_exclude_mask == 0
+        inner_zone = (core_zone > 0) | (peripheral_zone > 0)
+
+        dark_candidate = (
+            (light <= dark_l_thr)
+            | (val <= dark_v_thr)
+            | (dark_signal >= dark_signal_thr)
+        )
+        brown_or_olive = (
+            ((hue >= 8.0) & (hue <= 55.0) & (sat >= 20.0))
+            | ((yellow_signal >= yellow_sig_thr * 0.8) & (a_ch <= red_a_thr + 4.0))
+        )
+        neutral_dark = (
+            (np.abs(a_ch - 128.0) <= 20.0)
+            & (np.abs(b_ch - 128.0) <= 26.0)
+        )
+        anti_red_bias = (
+            (red_excess <= red_excess_thr + 8.0)
+            | (light < dark_l_thr - 4.0)
+        )
+        necrosis_bool = (
+            base_roi
+            & inner_zone
+            & not_skin
+            & dark_candidate
+            & anti_red_bias
+            & (brown_or_olive | neutral_dark | (local_var <= low_texture_thr + 90.0))
+        )
+
+        yellowish = (b_ch >= yellow_b_thr) | (yellow_signal >= yellow_sig_thr)
+        off_white = (sat <= sat_soft_thr) & (light >= light_l_thr)
+        slough_bool = (
+            base_roi
+            & inner_zone
+            & (~dark_candidate)
+            & (yellowish | off_white)
+            & (light >= light_l_thr)
+            & (red_excess < red_excess_thr + 20.0)
+            & (local_var <= high_texture_thr + 180.0)
+        )
+
+        reddish = (
+            (a_ch >= red_a_thr)
+            & ((red_excess >= red_excess_thr) | (red_gap >= red_gap_thr))
+        )
+        granulation_bool = (
+            base_roi
+            & reddish
+            & (~dark_candidate)
+            & ((local_var >= high_texture_thr) | (sat >= sat_soft_thr))
+            & (yellow_signal < yellow_sig_thr + 8.0)
+        )
+
+        pinkish = (
+            (light >= pink_l_thr)
+            & (a_ch >= 132.0)
+            & (sat <= sat_soft_thr)
+            & (val >= light_l_thr)
+        )
+        epithelial_bool = (
+            base_roi
+            & border_zone
+            & pinkish
+            & (local_var <= high_texture_thr)
+            & (pink_signal >= pink_signal_thr)
+        )
+
+        raw_masks = {
+            "necrosis": necrosis_bool,
+            "slough": slough_bool,
+            "granulation": granulation_bool,
+            "epithelialization": epithelial_bool,
+        }
+        for key, bool_mask in raw_masks.items():
+            mask = bool_mask.astype(np.uint8) * 255
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_m)
+            adaptive_masks[key] = mask
+
+        trace = {
+            "criteria": [
+                "Granulacao: vermelho relativo + a* alto + textura mais vascular dentro do leito.",
+                "Esfacelo: amarelo/branco + brilho intermediario + textura menos vascular.",
+                "Necrose: baixa luminosidade + tons castanho/oliva escuros + exclusao de pele saudavel.",
+                "Epitelizacao: rosa claro + baixa textura + restrita a borda interna da ferida.",
+            ],
+            "adaptive_thresholds": {
+                "dark_l": round(dark_l_thr, 2),
+                "dark_v": round(dark_v_thr, 2),
+                "red_a": round(red_a_thr, 2),
+                "yellow_b": round(yellow_b_thr, 2),
+                "low_texture": round(low_texture_thr, 2),
+                "high_texture": round(high_texture_thr, 2),
+                "sat_soft": round(sat_soft_thr, 2),
+                "pink_l": round(pink_l_thr, 2),
+            },
+            "adaptive_pixels": {
+                key: int(np.count_nonzero(mask > 0))
+                for key, mask in adaptive_masks.items()
+            },
+        }
+        return adaptive_masks, trace
+
     def _segment_clinical_v3(
         self,
         image: np.ndarray,
@@ -1495,13 +1733,12 @@ class ClinicalWoundAnalyzer:
             denoised_norm, wound_mask, peripheral_zone, outer_ring
         )
         # Mescla: máscara de cor original (restrita à periferia) + gradiente
-        epi_roi_zone = cv2.bitwise_or(peripheral_zone, outer_ring)
-        epi_color_periph = cv2.bitwise_and(masks["epithelialization"], epi_roi_zone)
-        
-        # Epitelização só é válida se estiver na zona periférica
+        epi_color_periph = cv2.bitwise_and(masks["epithelialization"], peripheral_zone)
+
+        # Epitelização só é válida se estiver na zona periférica interna
         masks["epithelialization"] = cv2.bitwise_and(
             cv2.bitwise_or(epi_color_periph, epi_gradient),
-            epi_roi_zone
+            peripheral_zone
         )
 
         # ── 6. Refinamento por textura ───────────────────────────────
@@ -1524,6 +1761,23 @@ class ClinicalWoundAnalyzer:
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
             hsv_raw, np.array([0, 0, 40]), np.array([180, 22, 170])))
         _not_drape = cv2.bitwise_not(_drape)
+
+        adaptive_masks, adaptive_trace = self._build_adaptive_tissue_masks(
+            denoised_norm=denoised_norm,
+            hsv=hsv,
+            lab=lab,
+            wound_mask=wound_mask,
+            peripheral_zone=peripheral_zone,
+            core_zone=core_zone,
+            skin_exclude_mask=skin_exclude_mask,
+            not_drape_mask=_not_drape,
+            local_var=local_var,
+            kernel_s=kernel_s,
+            kernel_m=kernel_m,
+        )
+        for key, adaptive_mask in adaptive_masks.items():
+            masks[key] = cv2.bitwise_or(masks[key], adaptive_mask)
+
         for _tk in masks:
             masks[_tk] = cv2.bitwise_and(masks[_tk], _not_drape)
 
@@ -1601,6 +1855,16 @@ class ClinicalWoundAnalyzer:
         pcts = {}
         for key in priority:
             pcts[key] = float(np.sum(masks[key] > 0) / total * 100)
+
+        coverage_pct = min(sum(pcts.values()), 100.0)
+        self._last_tissue_analysis_trace = {
+            "coverage_pct": round(coverage_pct, 2),
+            "unclassified_pct": round(max(0.0, 100.0 - coverage_pct), 2),
+            "final_tissue_percentages": {
+                key: round(value, 2) for key, value in pcts.items()
+            },
+            **adaptive_trace,
+        }
 
         # Mapa de segmentação colorido
         seg_map = np.full((h, w, 3), 80, dtype=np.uint8)
@@ -1742,34 +2006,27 @@ class ClinicalWoundAnalyzer:
         return " ".join(parts)
 
     # -------------------------------------------------------
-    def _compute_health_score(self, pcts: Dict[str, float]) -> float:
-        """Score de saúde baseado na composição tecidual.
+    @staticmethod
+    def _compute_health_score(pcts: Dict[str, float]) -> float:
+        """Score de saúde baseado na composição tecidual."""
+        gran = max(0.0, float(pcts.get("granulation", 0.0)))
+        epit = max(0.0, float(pcts.get("epithelialization", 0.0)))
+        slough = max(0.0, float(pcts.get("slough", 0.0)))
+        necro = max(0.0, float(pcts.get("necrosis", 0.0)))
 
-        Critérios clínicos:
-        - Granulação e epitelização são tecidos saudáveis (positivo)
-        - Necrose é o pior indicador (penalidade forte)
-        - Esfacelo indica desvitalização moderada
-        - Tecido não classificado na ferida não conta como saudável
-        """
-        gran = pcts.get("granulation", 0)
-        epit = pcts.get("epithelialization", 0)
-        slough = pcts.get("slough", 0)
-        necro = pcts.get("necrosis", 0)
-
-        # Proporção de tecido saudável vs total classificado
         total_classified = gran + epit + slough + necro
-        if total_classified < 5:
-            return 50.0  # Sem dados suficientes
+        if total_classified < 5.0:
+            return 45.0
 
-        # Tecido não classificado (dentro da ferida) é neutro/negativo
-        unclassified = max(0, 100 - total_classified)
+        unclassified = max(0.0, 100.0 - total_classified)
+        reparative_load = gran + (1.15 * epit)
+        devitalized_load = (1.35 * necro) + (0.85 * slough)
 
-        # Score: peso positivo para saudável, negativo para inviável
-        healthy = gran * 0.6 + epit * 1.0
-        unhealthy = necro * 2.0 + slough * 0.8 + unclassified * 0.3
+        score = 55.0
+        score += 0.55 * (reparative_load - devitalized_load)
+        score -= 0.20 * unclassified
 
-        score = max(0.0, min(100.0, healthy - unhealthy))
-        return score
+        return float(np.clip(score, 0.0, 100.0))
 
 
 # ============================================================
@@ -2258,6 +2515,7 @@ class HealAnalyzerApp(QMainWindow):
         layout.addWidget(splitter, stretch=1)
 
     # -------------------------------------------------------
+    def _on_tab_changed(self, index: int):
         """Callback quando troca de aba."""
         if index == 0:
             self.lbl_status.setText("Modo: Arquivo de Imagem")
@@ -2660,6 +2918,40 @@ class HealAnalyzerApp(QMainWindow):
         box_tissue.layout().addWidget(score_row)
 
         self.right_layout.addWidget(box_tissue)
+
+        trace = r.tissue_analysis_trace or {}
+        criteria = [str(item).strip() for item in trace.get("criteria") or [] if str(item).strip()]
+        coverage = trace.get("coverage_pct")
+        unclassified = trace.get("unclassified_pct")
+        if criteria or coverage is not None:
+            box_trace = self._make_group("SINAIS CONSIDERADOS")
+
+            if coverage is not None:
+                summary = f"Cobertura classificada: {float(coverage):.1f}%"
+                if unclassified is not None:
+                    summary += f" | Indeterminado: {float(unclassified):.1f}%"
+                lbl_summary = QLabel(summary)
+                lbl_summary.setWordWrap(True)
+                lbl_summary.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+                lbl_summary.setStyleSheet("color: #38bdf8; padding: 2px 0 6px;")
+                box_trace.layout().addWidget(lbl_summary)
+
+            lbl_hint = QLabel(
+                "Os limiares de cor e textura sao adaptados ao ROI da propria ferida."
+            )
+            lbl_hint.setWordWrap(True)
+            lbl_hint.setFont(QFont("Segoe UI", 9))
+            lbl_hint.setStyleSheet("color: #94a3b8; padding-bottom: 4px;")
+            box_trace.layout().addWidget(lbl_hint)
+
+            for item in criteria:
+                lbl_item = QLabel(f"- {item}")
+                lbl_item.setWordWrap(True)
+                lbl_item.setFont(QFont("Segoe UI", 9))
+                lbl_item.setStyleSheet("color: #cbd5e1; padding: 1px 0;")
+                box_trace.layout().addWidget(lbl_item)
+
+            self.right_layout.addWidget(box_trace)
 
         # --- CLASSIFICACAO IA (Deep Learning) ---
         if r.dl_prediction:
