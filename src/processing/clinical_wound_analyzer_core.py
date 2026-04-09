@@ -836,8 +836,8 @@ class ClinicalWoundAnalyzer:
         # 12. Ensemble Multi-Modelo â€” camada adicional de IA prÃ©-treinada
         #     Passa probabilidades DL e mÃ¡scara de segmentaÃ§Ã£o para fusÃ£o cruzada
         dl_probs = None
-        if dl_result and "probabilities" in dl_result:
-            dl_probs = dl_result["probabilities"]
+        if dl_result:
+            dl_probs = dl_result.get("probabilities") or dl_result.get("all_probs")
         ensemble_result = self._predict_ensemble(
             image, detections, dl_probs=dl_probs, wound_mask=wound_mask,
         )
