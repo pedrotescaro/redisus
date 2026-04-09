@@ -74,7 +74,7 @@ def _get_wound_analyzer():
     if _wound_analyzer is not None:
         return _wound_analyzer
     try:
-        from heal_analyzer import ClinicalWoundAnalyzer
+        from src.processing.clinical_wound_analyzer_core import ClinicalWoundAnalyzer
 
         _wound_analyzer = ClinicalWoundAnalyzer()
         return _wound_analyzer
