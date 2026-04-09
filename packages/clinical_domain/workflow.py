@@ -40,6 +40,15 @@ _ETIOLOGY_LABELS = {
     "SURGICAL_WOUND": "Surgical wound",
 }
 
+_HEADLESS_TISSUE_KEY_ALIASES = {
+    "coagulation_necrosis_eschar": "necrosis",
+    "necrose_de_coagulacao_escara": "necrosis",
+    "slough_fibrin": "slough",
+    "esfacelo_fibrina": "slough",
+    "granulation_tissue": "granulation",
+    "tecido_de_granulacao": "granulation",
+}
+
 _FOLLOW_UP_DAYS = {
     "critico": 1,
     "alto": 3,
@@ -210,6 +219,209 @@ def normalize_ai_output(
         "inference": inference,
         "interpretation": interpretation,
         "metadata": metadata,
+    }
+
+
+def _serialize_headless_report_legacy(report: Any) -> dict[str, Any]:
+    result = {
+        "is_valid_wound": bool(getattr(report, "is_valid_wound", False)),
+        "rejection_reason": getattr(report, "rejection_reason", "") or "",
+        "primary_tissue": getattr(report, "primary_tissue", "") or "",
+        "primary_justification": getattr(report, "primary_justification", "") or "",
+        "wound_area_px": int(getattr(report, "wound_area_px", 0) or 0),
+        "health_score": float(getattr(report, "health_score", 0.0) or 0.0),
+        "processing_time_ms": float(getattr(report, "processing_time_ms", 0.0) or 0.0),
+        "tissues": [],
+        "border_analysis": None,
+    }
+
+    for tissue in getattr(report, "tissues", []) or []:
+        result["tissues"].append(
+            {
+                "name": getattr(tissue, "name", ""),
+                "name_en": getattr(tissue, "name_en", ""),
+                "percentage": getattr(tissue, "percentage", 0.0),
+                "color_hex": getattr(tissue, "color_hex", ""),
+                "description": getattr(tissue, "description", ""),
+                "clinical_action": getattr(tissue, "clinical_action", ""),
+            }
+        )
+
+    border = getattr(report, "border_analysis", None)
+    if border:
+        result["border_analysis"] = {
+            "maceration": bool(getattr(border, "maceration", False)),
+            "inflammation": bool(getattr(border, "inflammation", False)),
+            "regular_borders": bool(getattr(border, "regular_borders", False)),
+            "description": getattr(border, "description", "") or "",
+        }
+
+    for field in (
+        "dl_prediction",
+        "resnet_prediction",
+        "ensemble_classification",
+        "body_part",
+        "push_score",
+        "lighting_analysis",
+    ):
+        value = getattr(report, field, None)
+        if value:
+            result[field] = value
+
+    return result
+
+
+def _extract_headless_tissue_percentages(report: Any) -> dict[str, float]:
+    tissue_percentages = {"granulation": 0.0, "slough": 0.0, "necrosis": 0.0}
+    for tissue in getattr(report, "tissues", []) or []:
+        label = _slugify(getattr(tissue, "name_en", "") or getattr(tissue, "name", ""))
+        key = _HEADLESS_TISSUE_KEY_ALIASES.get(label)
+        if key:
+            tissue_percentages[key] = round(_safe_float(getattr(tissue, "percentage", 0.0)), 2)
+    return tissue_percentages
+
+
+def _resolve_headless_report_etiology(report: Any) -> str:
+    resnet_prediction = getattr(report, "resnet_prediction", None) or {}
+    if resnet_prediction.get("mapped_etiology"):
+        return str(resnet_prediction["mapped_etiology"])
+
+    final_class = str(resnet_prediction.get("final_class") or "").strip()
+    if final_class:
+        return final_class
+
+    dl_prediction = getattr(report, "dl_prediction", None) or {}
+    if dl_prediction.get("class_name"):
+        return str(dl_prediction["class_name"])
+
+    ensemble_prediction = getattr(report, "ensemble_classification", None) or {}
+    if ensemble_prediction.get("class_name"):
+        return str(ensemble_prediction["class_name"])
+
+    return "unspecified_wound"
+
+
+def _resolve_headless_report_confidence(report: Any) -> float:
+    resnet_prediction = getattr(report, "resnet_prediction", None) or {}
+    if resnet_prediction.get("final_confidence") is not None:
+        return _safe_float(resnet_prediction.get("final_confidence"), 0.0)
+
+    dl_prediction = getattr(report, "dl_prediction", None) or {}
+    if dl_prediction.get("confidence") is not None:
+        return _safe_float(dl_prediction.get("confidence"), 0.0)
+
+    ensemble_prediction = getattr(report, "ensemble_classification", None) or {}
+    if ensemble_prediction.get("confidence") is not None:
+        return _safe_float(ensemble_prediction.get("confidence"), 0.0)
+
+    return 0.0
+
+
+def _resolve_headless_model_version(report: Any) -> str:
+    if getattr(report, "resnet_prediction", None):
+        return "heal-analyzer-headless-resnet"
+    if getattr(report, "dl_prediction", None):
+        return "heal-analyzer-headless-dl"
+    if getattr(report, "ensemble_classification", None):
+        return "heal-analyzer-headless-ensemble"
+    return DEFAULT_MODEL_VERSION
+
+
+def _build_headless_raw_output(report: Any) -> dict[str, Any]:
+    confidence = max(0.0, min(1.0, _resolve_headless_report_confidence(report)))
+    fallback_used = not bool(
+        getattr(report, "resnet_prediction", None)
+        or getattr(report, "dl_prediction", None)
+        or getattr(report, "ensemble_classification", None)
+    )
+    resnet_prediction = getattr(report, "resnet_prediction", None) or {}
+    primary_tissue = getattr(report, "primary_tissue", "") or "Unspecified wound"
+    primary_justification = getattr(report, "primary_justification", "") or getattr(report, "rejection_reason", "")
+    recommendations: list[str] = []
+    for tissue in getattr(report, "tissues", []) or []:
+        if _safe_float(getattr(tissue, "percentage", 0.0)) <= 0:
+            continue
+        action = str(getattr(tissue, "clinical_action", "") or "").strip()
+        if action:
+            recommendations.append(action)
+            break
+    if not recommendations:
+        recommendations.append("Validar clinicamente o resultado antes de tomada de decisao.")
+
+    metadata: dict[str, Any] = {
+        "source": "integration_headless_analyzer",
+        "wound_area_px": int(getattr(report, "wound_area_px", 0) or 0),
+        "primary_tissue": primary_tissue,
+        "is_valid_wound": bool(getattr(report, "is_valid_wound", False)),
+    }
+    if getattr(report, "body_part", None):
+        metadata["body_part"] = dict(getattr(report, "body_part") or {})
+    if getattr(report, "lighting_analysis", None):
+        metadata["lighting_analysis"] = dict(getattr(report, "lighting_analysis") or {})
+
+    raw_output = {
+        "etiology": _resolve_headless_report_etiology(report),
+        "confidence": confidence,
+        "tissue_percentages": _extract_headless_tissue_percentages(report),
+        "wound_area_cm2": 0.0,
+        "diagnosis_summary": primary_justification or f"{primary_tissue} identified in headless integration analysis.",
+        "recommendations": recommendations,
+        "fallback_used": fallback_used,
+        "needs_expert_review": bool(resnet_prediction.get("needs_expert_review")) or fallback_used or confidence < 0.8,
+        "confidence_level": str(resnet_prediction.get("confidence_level") or ""),
+        "confidence_entropy": _safe_float(resnet_prediction.get("confidence_entropy"), 0.0),
+        "confidence_margin": _safe_float(resnet_prediction.get("confidence_margin"), 0.0),
+        "metadata": metadata,
+    }
+    if not getattr(report, "is_valid_wound", False):
+        raw_output["diagnosis_summary"] = getattr(report, "rejection_reason", "") or "Image rejected by analyzer."
+        raw_output["needs_expert_review"] = True
+        raw_output["fallback_used"] = True
+    return raw_output
+
+
+def build_headless_analyzer_result(
+    report: Any,
+    *,
+    analysis_id: str,
+    patient_id: str,
+    image_filename: str,
+    image_content_type: str,
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    generated_at = generated_at or _now_iso()
+    raw_output = _build_headless_raw_output(report)
+    evaluation = {
+        "id": analysis_id,
+        "patient_id": patient_id,
+        "evaluation_date": generated_at,
+        "wound_type": raw_output.get("etiology"),
+        "wound_area_cm2": raw_output.get("wound_area_cm2", 0.0),
+        "depth_mm": 0.0,
+        "pain_score": 0.0,
+        "tissue_composition": dict(raw_output.get("tissue_percentages") or {}),
+    }
+    official_result = normalize_ai_output(
+        raw_output,
+        patient_id=patient_id,
+        lesion_id=analysis_id,
+        evaluation=evaluation,
+        fallback_used=bool(raw_output.get("fallback_used")),
+        model_version=_resolve_headless_model_version(report),
+        generated_at=generated_at,
+    )
+    official_result.setdefault("metadata", {}).update(
+        {
+            "analysis_id": analysis_id,
+            "image_filename": image_filename or "unknown",
+            "image_content_type": image_content_type,
+        }
+    )
+    legacy_result = _serialize_headless_report_legacy(report)
+    return {
+        **official_result,
+        **legacy_result,
+        "analysis_id": analysis_id,
     }
 
 
