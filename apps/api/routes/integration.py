@@ -7,6 +7,7 @@ import io
 import json
 import os
 import traceback
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -14,6 +15,7 @@ from typing import Any, Dict, Optional
 from flask import Blueprint, current_app, jsonify, request
 from PIL import Image
 
+from packages.clinical_domain.workflow import DEFAULT_MODEL_VERSION, normalize_ai_output
 from packages.clinical_domain.validation import (
     AIChatPayload,
     assert_allowed_form_fields,
@@ -40,6 +42,16 @@ integration_api = Blueprint("integration_api", __name__, url_prefix="/api/v1")
 
 _gemini_model = None
 _wound_analyzer = None
+
+
+_TISSUE_KEY_ALIASES = {
+    "coagulation necrosis (eschar)": "necrosis",
+    "necrose de coagulacao (escara)": "necrosis",
+    "slough (fibrin)": "slough",
+    "esfacelo (fibrina)": "slough",
+    "granulation tissue": "granulation",
+    "tecido de granulacao": "granulation",
+}
 
 
 def _init_gemini():
@@ -96,6 +108,196 @@ def get_current_user() -> Optional[Dict[str, Any]]:
     return current_user()
 
 
+def _slugify_text(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    text = unicodedata.normalize("NFKD", text)
+    normalized: list[str] = []
+    for char in text:
+        if unicodedata.category(char) == "Mn":
+            continue
+        if char.isalnum():
+            normalized.append(char)
+        elif normalized and normalized[-1] != " ":
+            normalized.append(" ")
+    return " ".join("".join(normalized).split())
+
+
+def _serialize_legacy_report(report: Any) -> Dict[str, Any]:
+    result = {
+        "is_valid_wound": bool(getattr(report, "is_valid_wound", False)),
+        "rejection_reason": getattr(report, "rejection_reason", "") or "",
+        "primary_tissue": getattr(report, "primary_tissue", "") or "",
+        "primary_justification": getattr(report, "primary_justification", "") or "",
+        "wound_area_px": int(getattr(report, "wound_area_px", 0) or 0),
+        "health_score": float(getattr(report, "health_score", 0.0) or 0.0),
+        "processing_time_ms": float(getattr(report, "processing_time_ms", 0.0) or 0.0),
+        "tissues": [],
+        "border_analysis": None,
+    }
+
+    for tissue in getattr(report, "tissues", []) or []:
+        result["tissues"].append(
+            {
+                "name": tissue.name,
+                "name_en": tissue.name_en,
+                "percentage": tissue.percentage,
+                "color_hex": tissue.color_hex,
+                "description": tissue.description,
+                "clinical_action": tissue.clinical_action,
+            }
+        )
+
+    border = getattr(report, "border_analysis", None)
+    if border:
+        result["border_analysis"] = {
+            "maceration": border.maceration,
+            "inflammation": border.inflammation,
+            "regular_borders": border.regular_borders,
+            "description": border.description,
+        }
+
+    for field in (
+        "dl_prediction",
+        "resnet_prediction",
+        "ensemble_classification",
+        "body_part",
+        "push_score",
+        "lighting_analysis",
+    ):
+        value = getattr(report, field, None)
+        if value:
+            result[field] = value
+
+    return result
+
+
+def _extract_tissue_percentages(report: Any) -> Dict[str, float]:
+    tissue_percentages = {"granulation": 0.0, "slough": 0.0, "necrosis": 0.0}
+    for tissue in getattr(report, "tissues", []) or []:
+        label = _slugify_text(getattr(tissue, "name_en", "") or getattr(tissue, "name", ""))
+        key = _TISSUE_KEY_ALIASES.get(label)
+        if key:
+            tissue_percentages[key] = round(float(getattr(tissue, "percentage", 0.0) or 0.0), 2)
+    return tissue_percentages
+
+
+def _resolve_report_etiology(report: Any) -> str:
+    resnet_prediction = getattr(report, "resnet_prediction", None) or {}
+    if resnet_prediction.get("mapped_etiology"):
+        return str(resnet_prediction["mapped_etiology"])
+
+    final_class = str(resnet_prediction.get("final_class") or "").strip()
+    if final_class:
+        return final_class
+
+    dl_prediction = getattr(report, "dl_prediction", None) or {}
+    if dl_prediction.get("class_name"):
+        return str(dl_prediction["class_name"])
+
+    ensemble_prediction = getattr(report, "ensemble_classification", None) or {}
+    if ensemble_prediction.get("class_name"):
+        return str(ensemble_prediction["class_name"])
+
+    return "unspecified_wound"
+
+
+def _resolve_report_confidence(report: Any) -> float:
+    resnet_prediction = getattr(report, "resnet_prediction", None) or {}
+    if resnet_prediction.get("final_confidence") is not None:
+        return float(resnet_prediction.get("final_confidence") or 0.0)
+
+    dl_prediction = getattr(report, "dl_prediction", None) or {}
+    if dl_prediction.get("confidence") is not None:
+        return float(dl_prediction.get("confidence") or 0.0)
+
+    ensemble_prediction = getattr(report, "ensemble_classification", None) or {}
+    if ensemble_prediction.get("confidence") is not None:
+        return float(ensemble_prediction.get("confidence") or 0.0)
+
+    return 0.0
+
+
+def _resolve_model_version(report: Any) -> str:
+    if getattr(report, "resnet_prediction", None):
+        return "heal-analyzer-headless-resnet"
+    if getattr(report, "dl_prediction", None):
+        return "heal-analyzer-headless-dl"
+    if getattr(report, "ensemble_classification", None):
+        return "heal-analyzer-headless-ensemble"
+    return DEFAULT_MODEL_VERSION
+
+
+def _build_workflow_raw_output(report: Any) -> Dict[str, Any]:
+    confidence = max(0.0, min(1.0, _resolve_report_confidence(report)))
+    fallback_used = not bool(
+        getattr(report, "resnet_prediction", None)
+        or getattr(report, "dl_prediction", None)
+        or getattr(report, "ensemble_classification", None)
+    )
+    resnet_prediction = getattr(report, "resnet_prediction", None) or {}
+    primary_tissue = getattr(report, "primary_tissue", "") or "Unspecified wound"
+    primary_justification = getattr(report, "primary_justification", "") or getattr(report, "rejection_reason", "")
+    recommendations = []
+    for tissue in getattr(report, "tissues", []) or []:
+        if getattr(tissue, "percentage", 0.0) and getattr(tissue, "percentage", 0.0) > 0:
+            action = str(getattr(tissue, "clinical_action", "") or "").strip()
+            if action:
+                recommendations.append(action)
+                break
+    if not recommendations:
+        recommendations.append("Validar clinicamente o resultado antes de tomada de decisao.")
+
+    metadata = {
+        "source": "integration_headless_analyzer",
+        "wound_area_px": int(getattr(report, "wound_area_px", 0) or 0),
+        "primary_tissue": primary_tissue,
+        "is_valid_wound": bool(getattr(report, "is_valid_wound", False)),
+    }
+    if getattr(report, "body_part", None):
+        metadata["body_part"] = dict(getattr(report, "body_part") or {})
+    if getattr(report, "lighting_analysis", None):
+        metadata["lighting_analysis"] = dict(getattr(report, "lighting_analysis") or {})
+
+    raw_output = {
+        "etiology": _resolve_report_etiology(report),
+        "confidence": confidence,
+        "tissue_percentages": _extract_tissue_percentages(report),
+        "wound_area_cm2": 0.0,
+        "diagnosis_summary": primary_justification or f"{primary_tissue} identified in headless integration analysis.",
+        "recommendations": recommendations,
+        "fallback_used": fallback_used,
+        "needs_expert_review": bool(resnet_prediction.get("needs_expert_review")) or fallback_used or confidence < 0.8,
+        "confidence_level": str(resnet_prediction.get("confidence_level") or ""),
+        "confidence_entropy": float(resnet_prediction.get("confidence_entropy") or 0.0),
+        "confidence_margin": float(resnet_prediction.get("confidence_margin") or 0.0),
+        "metadata": metadata,
+    }
+    if not getattr(report, "is_valid_wound", False):
+        raw_output["diagnosis_summary"] = getattr(report, "rejection_reason", "") or "Image rejected by analyzer."
+        raw_output["needs_expert_review"] = True
+        raw_output["fallback_used"] = True
+    return raw_output
+
+
+def _build_integration_evaluation_context(
+    *,
+    analysis_id: str,
+    patient_id: str,
+    generated_at: str,
+    raw_output: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "id": analysis_id,
+        "patient_id": patient_id,
+        "evaluation_date": generated_at,
+        "wound_type": raw_output.get("etiology"),
+        "wound_area_cm2": raw_output.get("wound_area_cm2", 0.0),
+        "depth_mm": 0.0,
+        "pain_score": 0.0,
+        "tissue_composition": dict(raw_output.get("tissue_percentages") or {}),
+    }
+
+
 def _rule_based_response(message: str) -> str:
     msg = message.lower()
     if any(w in msg for w in ["ferida", "ulcera", "lesao", "wound"]):
@@ -147,51 +349,6 @@ def analyze_image():
         if analyzer is None:
             return jsonify({"error": "analyzer_unavailable", "detail": "Modelo de analise nao disponivel"}), 503
 
-        report = analyzer.analyze(image)
-        result = {
-            "is_valid_wound": report.is_valid_wound,
-            "rejection_reason": report.rejection_reason,
-            "primary_tissue": report.primary_tissue,
-            "primary_justification": report.primary_justification,
-            "wound_area_px": report.wound_area_px,
-            "health_score": report.health_score,
-            "processing_time_ms": report.processing_time_ms,
-            "tissues": [],
-            "border_analysis": None,
-        }
-
-        for tissue in report.tissues:
-            result["tissues"].append(
-                {
-                    "name": tissue.name,
-                    "name_en": tissue.name_en,
-                    "percentage": tissue.percentage,
-                    "color_hex": tissue.color_hex,
-                    "description": tissue.description,
-                    "clinical_action": tissue.clinical_action,
-                }
-            )
-
-        if report.border_analysis:
-            result["border_analysis"] = {
-                "maceration": report.border_analysis.maceration,
-                "inflammation": report.border_analysis.inflammation,
-                "regular_borders": report.border_analysis.regular_borders,
-                "description": report.border_analysis.description,
-            }
-
-        for field in (
-            "dl_prediction",
-            "resnet_prediction",
-            "ensemble_classification",
-            "body_part",
-            "push_score",
-            "lighting_analysis",
-        ):
-            value = getattr(report, field, None)
-            if value:
-                result[field] = value
-
         analysis_id = str(uuid.uuid4())
         owner_uid = user_uid(user)
         linked_patient_id = None
@@ -202,6 +359,38 @@ def analyze_image():
             patient = ensure_patient_access(database, patient_id, user=user)
             linked_patient_id = patient.id
 
+        report = analyzer.analyze(image)
+        generated_at = datetime.now(timezone.utc).isoformat()
+        legacy_result = _serialize_legacy_report(report)
+        raw_output = _build_workflow_raw_output(report)
+        evaluation_context = _build_integration_evaluation_context(
+            analysis_id=analysis_id,
+            patient_id=linked_patient_id or "",
+            generated_at=generated_at,
+            raw_output=raw_output,
+        )
+        official_result = normalize_ai_output(
+            raw_output,
+            patient_id=linked_patient_id or "",
+            lesion_id=analysis_id,
+            evaluation=evaluation_context,
+            fallback_used=bool(raw_output.get("fallback_used")),
+            model_version=_resolve_model_version(report),
+            generated_at=generated_at,
+        )
+        official_result.setdefault("metadata", {}).update(
+            {
+                "analysis_id": analysis_id,
+                "image_filename": validated_image.original_name or "unknown",
+                "image_content_type": validated_image.mime_type,
+            }
+        )
+        result = {
+            **official_result,
+            **legacy_result,
+            "analysis_id": analysis_id,
+        }
+
         try:
             db = get_firestore_db()
             doc_data = {
@@ -209,7 +398,7 @@ def analyze_image():
                 "id": analysis_id,
                 "patient_id": linked_patient_id,
                 "owner_uid": owner_uid,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": generated_at,
                 "image_filename": validated_image.original_name or "unknown",
             }
             db.collection("analyses").document(analysis_id).set(doc_data)
@@ -222,7 +411,6 @@ def analyze_image():
         except Exception:
             pass
 
-        result["analysis_id"] = analysis_id
         return jsonify(result)
 
     except Exception as exc:

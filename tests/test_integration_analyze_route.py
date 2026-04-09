@@ -31,3 +31,8 @@ def test_integration_analyze_route_uses_headless_analyzer(tmp_path, monkeypatch)
     assert "is_valid_wound" in payload
     assert "primary_tissue" in payload
     assert "processing_time_ms" in payload
+    assert payload["contract_version"] == "2026-04-07"
+    assert payload["model_version"]
+    assert isinstance(payload["inference"], dict)
+    assert isinstance(payload["interpretation"], dict)
+    assert isinstance(payload["metadata"], dict)
