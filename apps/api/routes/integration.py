@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import os
 import traceback
 import uuid
+import base64
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from flask import Blueprint, current_app, jsonify, request
 from PIL import Image
@@ -41,6 +43,12 @@ integration_api = Blueprint("integration_api", __name__, url_prefix="/api/v1")
 
 _gemini_model = None
 _wound_analyzer = None
+_MOJIBAKE_MARKERS = ("\u00c3", "\u00c2", "\u00e2\u20ac", "\ufffd")
+
+try:
+    import numpy as _np
+except Exception:  # pragma: no cover - numpy is expected in runtime but keep route resilient
+    _np = None
 
 
 def _init_gemini():
@@ -97,6 +105,58 @@ def get_current_user() -> Optional[Dict[str, Any]]:
     return current_user()
 
 
+def _repair_mojibake_text(value: str) -> str:
+    if not value or not any(marker in value for marker in _MOJIBAKE_MARKERS):
+        return value
+
+    for encoding in ("latin1", "cp1252"):
+        try:
+            repaired = value.encode(encoding).decode("utf-8")
+        except UnicodeError:
+            continue
+        if repaired:
+            return repaired
+    return value
+
+
+def _to_json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int)):
+        return value
+
+    if isinstance(value, str):
+        return _repair_mojibake_text(value)
+
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, Mapping):
+        return {str(key): _to_json_safe(item) for key, item in value.items()}
+
+    if isinstance(value, (list, tuple, set)):
+        return [_to_json_safe(item) for item in value]
+
+    if _np is not None:
+        if isinstance(value, _np.generic):
+            return _to_json_safe(value.item())
+        if isinstance(value, _np.ndarray):
+            return _to_json_safe(value.tolist())
+
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return _to_json_safe(item())
+        except Exception:
+            pass
+
+    if hasattr(value, "__dict__"):
+        return _to_json_safe(vars(value))
+
+    return str(value)
+
+
 def _rule_based_response(message: str) -> str:
     msg = message.lower()
     if any(w in msg for w in ["ferida", "ulcera", "lesao", "wound"]):
@@ -141,6 +201,57 @@ def analyze_image():
         import cv2
         import numpy as np
 
+        def encode_visual_payload(
+            image_array,
+            *,
+            label: str,
+            description: str,
+            mime_type: str = "image/jpeg",
+        ) -> Optional[dict[str, Any]]:
+            if image_array is None:
+                return None
+
+            image = np.asarray(image_array)
+            if image.size == 0:
+                return None
+
+            if image.dtype != np.uint8:
+                image = np.clip(image, 0, 255).astype(np.uint8)
+
+            if image.ndim == 2:
+                image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+            height, width = image.shape[:2]
+            max_edge = max(height, width)
+            if max_edge > 1400:
+                scale = 1400.0 / float(max_edge)
+                image = cv2.resize(
+                    image,
+                    (max(1, int(width * scale)), max(1, int(height * scale))),
+                    interpolation=cv2.INTER_AREA,
+                )
+
+            if mime_type == "image/png":
+                success, buffer = cv2.imencode(".png", image)
+            else:
+                success, buffer = cv2.imencode(
+                    ".jpg",
+                    image,
+                    [int(cv2.IMWRITE_JPEG_QUALITY), 88],
+                )
+                mime_type = "image/jpeg"
+
+            if not success:
+                return None
+
+            encoded = base64.b64encode(buffer.tobytes()).decode("ascii")
+            return {
+                "label": label,
+                "description": description,
+                "mime_type": mime_type,
+                "data_url": f"data:{mime_type};base64,{encoded}",
+            }
+
         validated_image = validate_and_sanitize_image_upload(image_file)
         image = cv2.cvtColor(np.array(Image.open(io.BytesIO(validated_image.content)).convert("RGB")), cv2.COLOR_RGB2BGR)
 
@@ -168,6 +279,30 @@ def analyze_image():
             image_content_type=validated_image.mime_type,
             generated_at=generated_at,
         )
+        result["visuals"] = {
+            "detection": encode_visual_payload(
+                getattr(report, "detection_overlay", None),
+                label="Regiao analisada",
+                description="Contorno e area considerada pela IA para a leitura clinica.",
+            ),
+            "segmentation": encode_visual_payload(
+                getattr(report, "segmentation_map", None),
+                label="Mapa de tecidos",
+                description="Distribuicao de tecidos identificados pela segmentacao clinica.",
+                mime_type="image/png",
+            ),
+            "combined": encode_visual_payload(
+                getattr(report, "tissue_overlay", None),
+                label="Visualizacao combinada",
+                description="Foto original combinada com a leitura visual da IA.",
+            ),
+            "attention": encode_visual_payload(
+                getattr(report, "grad_cam_overlay", None),
+                label="Mapa de atencao da IA",
+                description="Areas em vermelho indicam onde a rede concentrou maior relevancia.",
+            ),
+        }
+        result = _to_json_safe(result)
 
         try:
             db = get_firestore_db()

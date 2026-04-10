@@ -1,6 +1,7 @@
 """
 Testes unitários — WoundDetectorCV
 """
+import cv2
 import numpy as np
 import pytest
 
@@ -144,6 +145,32 @@ class TestDetectOnSyntheticFrames:
             results = det.detect(red_wound_frame)
             assert isinstance(results, list), f"Falhou com {method}"
 
+    def test_texture_priority_detects_pressure_injury_like_olive_slough(self):
+        image = np.full((420, 420, 3), (175, 188, 205), dtype=np.uint8)
+        cv2.circle(image, (210, 210), 120, (100, 130, 125), -1)
+        cv2.ellipse(image, (210, 110), (55, 40), 0, 0, 360, (70, 75, 190), -1)
+        cv2.ellipse(image, (210, 305), (60, 42), 0, 0, 360, (70, 75, 185), -1)
+        cv2.circle(image, (165, 135), 10, (25, 30, 40), -1)
+        cv2.circle(image, (255, 295), 12, (22, 28, 38), -1)
+        cv2.circle(image, (190, 210), 14, (45, 60, 70), -1)
+
+        det = WoundDetectorCV(
+            method=DetectionMethod.TEXTURE_PRIORITY,
+            min_area=1000,
+            confidence_threshold=0.15,
+            enable_false_positive_filter=False,
+        )
+        results = det.detect(image)
+
+        assert results
+        x1 = min(result.bbox[0] for result in results)
+        y1 = min(result.bbox[1] for result in results)
+        x2 = max(result.bbox[2] for result in results)
+        y2 = max(result.bbox[3] for result in results)
+
+        assert x1 < 170 < x2
+        assert y1 < 210 < y2
+
 
 # ===================================================================
 # Confidence filtering
@@ -175,6 +202,7 @@ class TestColorRanges:
         attrs = [
             "RED_LOWER_1", "RED_UPPER_1", "RED_LOWER_2", "RED_UPPER_2",
             "YELLOW_LOWER", "YELLOW_UPPER", "DARK_LOWER", "DARK_UPPER",
+            "OLIVE_SLOUGH_LOWER", "OLIVE_SLOUGH_UPPER",
             "PINK_LOWER", "PINK_UPPER", "SKIN_LOWER", "SKIN_UPPER",
         ]
         for attr in attrs:
@@ -186,6 +214,7 @@ class TestColorRanges:
         pairs = [
             ("RED_LOWER_1", "RED_UPPER_1"),
             ("YELLOW_LOWER", "YELLOW_UPPER"),
+            ("OLIVE_SLOUGH_LOWER", "OLIVE_SLOUGH_UPPER"),
             ("DARK_LOWER", "DARK_UPPER"),
             ("PINK_LOWER", "PINK_UPPER"),
             ("SKIN_LOWER", "SKIN_UPPER"),

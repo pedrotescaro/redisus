@@ -56,6 +56,11 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 from dataclasses import dataclass, field
 
+if __name__ == "__main__" and os.getenv("HEAL_ANALYZER_UI", "web").strip().lower() != "desktop":
+    from heal_web_launcher import launch_heal_analyzer_web
+
+    raise SystemExit(launch_heal_analyzer_web())
+
 # Força o console do Windows a aceitar UTF-8
 try:
     if sys.stdout and sys.stdout.encoding != 'utf-8':
@@ -90,7 +95,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFileDialog, QScrollArea, QFrame,
     QProgressBar, QSplitter, QGroupBox, QTextEdit,
-    QTabWidget, QComboBox,
+    QTabWidget, QComboBox, QGridLayout,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap, QFont, QColor, QPalette
@@ -2146,12 +2151,16 @@ class HealAnalyzerApp(QMainWindow):
         header.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
         header.setStyleSheet("color: #e2e8f0; padding: 0px; margin: 0px;")
         title_layout.addWidget(header)
+        header.setText("HEAL+  |  Apoio à avaliação clínica de feridas")
 
         subtitle = QLabel("Estomaterapia + Visão Computacional  ·  ResNet50 Two-Stage + Grad-CAM  ·  Classificação Tecidual e Etiológica")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         subtitle.setFont(QFont("Segoe UI", 10))
         subtitle.setStyleSheet("color: #94a3b8; padding: 0px; margin: 0px;")
         title_layout.addWidget(subtitle)
+        subtitle.setText(
+            "Fluxo guiado para selecionar a imagem, revisar o resultado clínico e entender como a IA chegou à conclusão"
+        )
         
         header_layout.addLayout(title_layout)
         header_layout.addStretch()
@@ -2170,6 +2179,7 @@ class HealAnalyzerApp(QMainWindow):
         self.lbl_status = QLabel("Selecione uma aba para começar")
         self.lbl_status.setFont(QFont("Segoe UI", 10))
         self.lbl_status.setStyleSheet("color: #94a3b8; padding-left: 10px;")
+        self.lbl_status.setText("Aguardando imagem para iniciar a análise guiada")
         toolbar.addWidget(self.lbl_status, stretch=1)
 
         self.progress = QProgressBar()
@@ -2215,7 +2225,7 @@ class HealAnalyzerApp(QMainWindow):
         # === TAB 1: ARQUIVO DE IMAGEM ===
         self.tab_image = QWidget()
         self._setup_image_tab()
-        self.tab_widget.addTab(self.tab_image, "Arquivo de Imagem")
+        self.tab_widget.addTab(self.tab_image, "Análise Guiada")
 
         # === TAB 2: EVOLUCAO POR FOTOS ===
         self.tab_progression = QWidget()
@@ -2251,6 +2261,8 @@ class HealAnalyzerApp(QMainWindow):
 
     # -------------------------------------------------------
     def _setup_image_tab(self):
+        self._setup_image_tab_redesigned()
+        return
         """Configura aba de análise de imagem estática."""
         layout = QVBoxLayout(self.tab_image)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -2366,6 +2378,1077 @@ class HealAnalyzerApp(QMainWindow):
         layout.addWidget(splitter, stretch=1)
 
     # -------------------------------------------------------
+    def _setup_image_tab_redesigned(self):
+        """Configura a aba principal em um dashboard clinico mais limpo."""
+        layout = QVBoxLayout(self.tab_image)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+
+        flow_card, flow_layout = self._make_dashboard_card(
+            "Fluxo",
+            "Fluxo guiado",
+            "Siga a sequencia: selecionar imagem, processar, revisar o resultado e conferir a explicacao da IA.",
+            accent="#38bdf8",
+        )
+        steps_row = QHBoxLayout()
+        steps_row.setContentsMargins(0, 0, 0, 0)
+        steps_row.setSpacing(10)
+        self.image_steps = []
+
+        steps_data = [
+            ("🖼", "Upload da imagem", "Selecione a foto da ferida."),
+            ("⚙", "Processamento da IA", "A IA organiza os sinais visuais."),
+            ("🩺", "Resultado clinico", "Veja o tecido predominante e o resumo."),
+            ("🧠", "Como a IA decidiu", "Confira confianca e mapa de atencao."),
+        ]
+        for index, (icon, title, description) in enumerate(steps_data, start=1):
+            steps_row.addWidget(self._create_step_card(index, icon, title, description), 1)
+        flow_layout.addLayout(steps_row)
+        layout.addWidget(flow_card)
+
+        dashboard = QSplitter(Qt.Orientation.Horizontal)
+        dashboard.setHandleWidth(8)
+        dashboard.setChildrenCollapsible(False)
+        dashboard.setStyleSheet("QSplitter::handle { background: transparent; }")
+
+        dashboard.addWidget(self._build_image_sidebar())
+
+        center = QWidget()
+        center_layout = QVBoxLayout(center)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(10)
+
+        center_row = QHBoxLayout()
+        center_row.setContentsMargins(0, 0, 0, 0)
+        center_row.setSpacing(8)
+
+        center_header = QLabel("Paineis visuais da analise")
+        center_header.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        center_header.setStyleSheet("color: #f8fafc;")
+        center_row.addWidget(center_header)
+
+        center_note = QLabel("A visualizacao central mostra imagem, area analisada, tecidos e explicabilidade.")
+        center_note.setWordWrap(True)
+        center_note.setFont(QFont("Segoe UI", 9))
+        center_note.setStyleSheet("color: #94a3b8;")
+        center_row.addWidget(center_note, 1)
+        center_layout.addLayout(center_row)
+
+        visual_grid = QGridLayout()
+        visual_grid.setContentsMargins(0, 0, 0, 0)
+        visual_grid.setHorizontalSpacing(12)
+        visual_grid.setVerticalSpacing(12)
+        self.visual_panels = {}
+
+        visual_grid.addWidget(
+            self._build_visual_card(
+                "original",
+                "Entrada",
+                "Imagem original",
+                "Pre-visualizacao imediata da imagem enviada.",
+                "Aguardando imagem",
+                min_height=250,
+            ),
+            0,
+            0,
+        )
+        visual_grid.addWidget(
+            self._build_visual_card(
+                "detection",
+                "Etapa 1",
+                "Regiao analisada",
+                "Destaque da area principal considerada pela IA.",
+                "Aguardando processamento",
+                min_height=250,
+            ),
+            0,
+            1,
+        )
+        visual_grid.addWidget(
+            self._build_visual_card(
+                "segmentation",
+                "Etapa 2",
+                "Mapa de tecidos",
+                "Cada cor representa um tecido identificado.",
+                "Aguardando resultado",
+                min_height=240,
+            ),
+            1,
+            0,
+        )
+        visual_grid.addWidget(
+            self._build_visual_card(
+                "overlay",
+                "Etapa 3",
+                "Visualizacao combinada",
+                "Foto original combinada com a interpretacao da IA.",
+                "Aguardando resultado",
+                min_height=240,
+            ),
+            1,
+            1,
+        )
+        visual_grid.addWidget(
+            self._build_visual_card(
+                "attention",
+                "XAI",
+                "Mapa de atencao da IA",
+                "Regioes mais relevantes para a decisao automatica.",
+                "Aguardando resultado",
+                min_height=260,
+            ),
+            2,
+            0,
+            1,
+            2,
+        )
+        visual_grid.setColumnStretch(0, 1)
+        visual_grid.setColumnStretch(1, 1)
+        center_layout.addLayout(visual_grid, 1)
+        dashboard.addWidget(center)
+
+        dashboard.addWidget(self._build_image_results_panel())
+        dashboard.setStretchFactor(0, 11)
+        dashboard.setStretchFactor(1, 22)
+        dashboard.setStretchFactor(2, 13)
+        dashboard.setSizes([330, 930, 470])
+
+        layout.addWidget(dashboard, stretch=1)
+
+        self._reset_visual_dashboard()
+        self._render_waiting_panel()
+        self._set_analysis_state("idle")
+
+    def _create_step_card(self, index: int, icon: str, title: str, description: str) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("stepCard")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(8)
+
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(8)
+
+        badge = QLabel(str(index))
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        badge.setFixedSize(28, 28)
+        badge.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        header_row.addWidget(badge)
+
+        icon_label = QLabel(icon)
+        icon_label.setFont(QFont("Segoe UI Emoji", 13))
+        header_row.addWidget(icon_label)
+
+        title_label = QLabel(title)
+        title_label.setWordWrap(True)
+        title_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        header_row.addWidget(title_label, 1)
+
+        status = QLabel()
+        status.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        header_row.addWidget(status)
+        layout.addLayout(header_row)
+
+        description_label = QLabel(description)
+        description_label.setWordWrap(True)
+        description_label.setFont(QFont("Segoe UI", 9))
+        layout.addWidget(description_label)
+
+        step = {
+            "frame": frame,
+            "badge": badge,
+            "icon": icon_label,
+            "status": status,
+            "title": title_label,
+            "description": description_label,
+        }
+        self.image_steps.append(step)
+        self._apply_step_card_style(step, "pending")
+        return frame
+
+    def _apply_step_card_style(self, step: Dict, state: str):
+        styles = {
+            "pending": {
+                "background": "#101827",
+                "border": "#223047",
+                "badge_bg": "#172033",
+                "badge_fg": "#94a3b8",
+                "title": "#e2e8f0",
+                "description": "#94a3b8",
+                "icon": "#94a3b8",
+                "chip_bg": "#172033",
+                "chip_fg": "#94a3b8",
+                "chip_text": "Aguardando",
+            },
+            "active": {
+                "background": "#111d2f",
+                "border": "#2f5d8a",
+                "badge_bg": "#0c2943",
+                "badge_fg": "#7dd3fc",
+                "title": "#f8fafc",
+                "description": "#cbd5e1",
+                "icon": "#7dd3fc",
+                "chip_bg": "#0c2943",
+                "chip_fg": "#7dd3fc",
+                "chip_text": "Em andamento",
+            },
+            "done": {
+                "background": "#101827",
+                "border": "#223047",
+                "badge_bg": "#153826",
+                "badge_fg": "#86efac",
+                "title": "#f8fafc",
+                "description": "#cbd5e1",
+                "icon": "#86efac",
+                "chip_bg": "#153826",
+                "chip_fg": "#86efac",
+                "chip_text": "Concluida",
+            },
+            "error": {
+                "background": "#211017",
+                "border": "#7f1d1d",
+                "badge_bg": "#7f1d1d",
+                "badge_fg": "#fecaca",
+                "title": "#fee2e2",
+                "description": "#fecaca",
+                "icon": "#fca5a5",
+                "chip_bg": "#7f1d1d",
+                "chip_fg": "#fecaca",
+                "chip_text": "Revisar",
+            },
+        }
+        cfg = styles.get(state, styles["pending"])
+        step["frame"].setStyleSheet(
+            f"QFrame#stepCard {{ background: {cfg['background']}; border: 1px solid {cfg['border']}; border-radius: 14px; }}"
+        )
+        step["badge"].setStyleSheet(
+            f"background: {cfg['badge_bg']}; color: {cfg['badge_fg']}; border: none; border-radius: 14px;"
+        )
+        step["icon"].setStyleSheet(f"color: {cfg['icon']};")
+        step["title"].setStyleSheet(f"color: {cfg['title']};")
+        step["description"].setStyleSheet(f"color: {cfg['description']};")
+        self._set_chip_style(step["status"], cfg["chip_text"], cfg["chip_bg"], cfg["chip_fg"])
+
+    def _update_step_flow(self, state: str):
+        mappings = {
+            "idle": ("active", "pending", "pending", "pending"),
+            "processing": ("done", "active", "pending", "pending"),
+            "complete": ("done", "done", "done", "active"),
+            "invalid": ("done", "done", "error", "pending"),
+        }
+        sequence = mappings.get(state, mappings["idle"])
+        for step, step_state in zip(self.image_steps, sequence):
+            self._apply_step_card_style(step, step_state)
+
+    def _make_dashboard_card(self, tag: str, title: str, description: str, accent: str = "#38bdf8"):
+        frame = QFrame()
+        frame.setObjectName("dashboardCard")
+        frame.setStyleSheet(
+            "QFrame#dashboardCard { background: #111827; border: 1px solid #223047; border-radius: 18px; }"
+        )
+
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(8)
+
+        tag_label = QLabel(tag.upper())
+        tag_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tag_label.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        tag_label.setStyleSheet(
+            f"background: {accent}22; color: {accent}; border: 1px solid {accent}44; border-radius: 10px; padding: 3px 8px;"
+        )
+        layout.addWidget(tag_label, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        title_label = QLabel(title)
+        title_label.setWordWrap(True)
+        title_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        title_label.setStyleSheet("color: #f8fafc;")
+        layout.addWidget(title_label)
+
+        desc_label = QLabel(description)
+        desc_label.setWordWrap(True)
+        desc_label.setFont(QFont("Segoe UI", 9))
+        desc_label.setStyleSheet("color: #94a3b8;")
+        layout.addWidget(desc_label)
+        return frame, layout
+
+    def _build_image_sidebar(self) -> QWidget:
+        sidebar = QWidget()
+        sidebar.setMinimumWidth(310)
+        sidebar.setMaximumWidth(380)
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        upload_card, upload_layout = self._make_dashboard_card(
+            "1",
+            "Enviar imagem",
+            "Selecione uma imagem nitida. A pre-visualizacao aparece no painel central assim que a foto for escolhida.",
+            accent="#38bdf8",
+        )
+
+        self.lbl_upload_state = QLabel()
+        self._set_chip_style(self.lbl_upload_state, "Aguardando imagem", "#172033", "#94a3b8")
+        upload_layout.addWidget(self.lbl_upload_state, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self.btn_open = QPushButton("Selecionar imagem")
+        self.btn_open.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.btn_open.setMinimumHeight(52)
+        self.btn_open.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_open.setStyleSheet("""
+            QPushButton {
+                background: #0ea5e9;
+                color: white;
+                border: none;
+                border-radius: 12px;
+                padding: 0 20px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background: #38bdf8;
+            }
+            QPushButton:pressed {
+                background: #0284c7;
+            }
+            QPushButton:disabled {
+                background: #334155;
+                color: #94a3b8;
+            }
+        """)
+        self.btn_open.clicked.connect(self._on_open_image)
+        upload_layout.addWidget(self.btn_open)
+
+        self.lbl_selected_file = QLabel("Nenhuma imagem selecionada")
+        self.lbl_selected_file.setWordWrap(True)
+        self.lbl_selected_file.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self.lbl_selected_file.setStyleSheet("color: #e2e8f0;")
+        upload_layout.addWidget(self.lbl_selected_file)
+
+        self.lbl_upload_helper = QLabel(
+            "Dica: prefira boa iluminacao, pouco borrado e enquadramento central da ferida."
+        )
+        self.lbl_upload_helper.setWordWrap(True)
+        self.lbl_upload_helper.setFont(QFont("Segoe UI", 9))
+        self.lbl_upload_helper.setStyleSheet("color: #94a3b8;")
+        upload_layout.addWidget(self.lbl_upload_helper)
+
+        formats = QLabel("Formatos suportados: JPG, PNG, BMP e TIFF")
+        formats.setFont(QFont("Segoe UI", 9))
+        formats.setStyleSheet("color: #64748b;")
+        upload_layout.addWidget(formats)
+        layout.addWidget(upload_card)
+
+        instructions_card, instructions_layout = self._make_dashboard_card(
+            "Boas praticas",
+            "Como capturar melhor",
+            "Pequenos cuidados melhoram a leitura da IA e deixam a interpretacao mais confiavel.",
+            accent="#22c55e",
+        )
+        for tip in [
+            "Evite sombras fortes, reflexos e filtros da camera.",
+            "Mantenha a imagem estavel para reduzir borrado.",
+            "Mostre a lesao inteira com contraste visivel do entorno.",
+        ]:
+            lbl_tip = QLabel(f"• {tip}")
+            lbl_tip.setWordWrap(True)
+            lbl_tip.setFont(QFont("Segoe UI", 9))
+            lbl_tip.setStyleSheet("color: #cbd5e1;")
+            instructions_layout.addWidget(lbl_tip)
+        layout.addWidget(instructions_card)
+
+        warning_card, warning_layout = self._make_dashboard_card(
+            "Aviso",
+            "Aviso",
+            "Este sistema apoia a decisao clinica, mas nao substitui a avaliacao profissional.",
+            accent="#f59e0b",
+        )
+        warning_note = QLabel(
+            "Use o resultado como suporte visual, principalmente quando a confianca estiver moderada ou baixa."
+        )
+        warning_note.setWordWrap(True)
+        warning_note.setFont(QFont("Segoe UI", 9))
+        warning_note.setStyleSheet("color: #fcd34d;")
+        warning_layout.addWidget(warning_note)
+        layout.addWidget(warning_card)
+
+        layout.addStretch()
+        return sidebar
+
+    def _build_visual_card(
+        self,
+        key: str,
+        tag: str,
+        title: str,
+        description: str,
+        empty_text: str,
+        min_height: int = 230,
+    ) -> QWidget:
+        card, card_layout = self._make_dashboard_card(tag, title, description, accent="#22c55e")
+        status = QLabel()
+        self._set_chip_style(status, "Aguardando", "#172033", "#94a3b8")
+        card_layout.addWidget(status, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        image_label = QLabel(empty_text)
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image_label.setMinimumHeight(min_height)
+        image_label.setWordWrap(True)
+        image_label.setFont(QFont("Segoe UI", 10))
+        image_label.setStyleSheet("""
+            QLabel {
+                background: #0b1220;
+                border: 1px dashed #26344d;
+                border-radius: 16px;
+                color: #64748b;
+                padding: 14px;
+            }
+        """)
+        card_layout.addWidget(image_label, stretch=1)
+
+        legend = QLabel("Aguardando resultado para este painel.")
+        legend.setWordWrap(True)
+        legend.setFont(QFont("Segoe UI", 9))
+        legend.setStyleSheet("color: #94a3b8;")
+        card_layout.addWidget(legend)
+
+        self.visual_panels[key] = {
+            "image": image_label,
+            "legend": legend,
+            "status": status,
+        }
+        return card
+
+    def _build_image_results_panel(self) -> QScrollArea:
+        right_scroll = QScrollArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setMinimumWidth(420)
+        right_scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: #0f172a;
+            }
+            QScrollBar:vertical {
+                background: #0f172a;
+                width: 8px;
+                margin: 4px 2px;
+            }
+            QScrollBar::handle:vertical {
+                background: #475569;
+                border-radius: 4px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #64748b;
+            }
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+        self.right_panel = QWidget()
+        self.right_panel.setStyleSheet("background: #0f172a;")
+        self.right_layout = QVBoxLayout(self.right_panel)
+        self.right_layout.setContentsMargins(0, 0, 2, 0)
+        self.right_layout.setSpacing(12)
+        self.right_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        right_scroll.setWidget(self.right_panel)
+        return right_scroll
+
+    def _set_chip_style(self, label: QLabel, text: str, bg: str, fg: str, border: Optional[str] = None):
+        border_color = border or bg
+        label.setText(text)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        label.setStyleSheet(
+            f"background: {bg}; color: {fg}; border: 1px solid {border_color}; border-radius: 11px; padding: 4px 10px;"
+        )
+
+    def _set_visual_placeholder(self, key: str, placeholder: str, legend: str, state: str = "pending"):
+        panel = self.visual_panels[key]
+        panel["image"].clear()
+        panel["image"].setText(placeholder)
+        panel["image"].setWordWrap(True)
+        panel["image"].setStyleSheet("""
+            QLabel {
+                background: #0b1220;
+                border: 1px dashed #26344d;
+                border-radius: 14px;
+                color: #64748b;
+                padding: 14px;
+            }
+        """)
+        panel["legend"].setText(legend)
+        states = {
+            "pending": ("Aguardando", "#172033", "#94a3b8"),
+            "processing": ("Processando", "#3a2506", "#fbbf24"),
+            "complete": ("Concluido", "#14532d", "#86efac"),
+            "warning": ("Revisar", "#7f1d1d", "#fca5a5"),
+        }
+        text, bg, fg = states.get(state, states["pending"])
+        self._set_chip_style(panel["status"], text, bg, fg)
+
+    def _set_visual_pixmap(self, key: str, image: np.ndarray, legend: str, max_w: int = 520):
+        panel = self.visual_panels[key]
+        panel["image"].clear()
+        panel["image"].setPixmap(np_to_qpixmap(image, max_w))
+        panel["image"].setStyleSheet("""
+            QLabel {
+                background: #0b1220;
+                border: 1px solid #26344d;
+                border-radius: 16px;
+                padding: 10px;
+            }
+        """)
+        panel["legend"].setText(legend)
+        self._set_chip_style(panel["status"], "Concluido", "#14532d", "#86efac")
+
+    def _reset_visual_dashboard(self):
+        self._set_visual_placeholder(
+            "original",
+            "A pre-visualizacao da imagem aparecera aqui.",
+            "Selecione uma foto para iniciar a analise.",
+            "pending",
+        )
+        self._set_visual_placeholder(
+            "detection",
+            "A regiao principal da ferida aparecera aqui.",
+            "A IA indicara qual regiao concentrou a analise.",
+            "pending",
+        )
+        self._set_visual_placeholder(
+            "segmentation",
+            "O mapa de tecidos aparecera aqui.",
+            "Cada cor mostrara o tipo de tecido identificado.",
+            "pending",
+        )
+        self._set_visual_placeholder(
+            "overlay",
+            "A visualizacao combinada aparecera aqui.",
+            "A foto original sera combinada com a interpretacao da IA.",
+            "pending",
+        )
+        self._set_visual_placeholder(
+            "attention",
+            "O mapa de atencao aparecera aqui.",
+            "As regioes mais quentes indicarao o que mais influenciou a decisao.",
+            "pending",
+        )
+
+    def _set_analysis_state(self, state: str, detail: str = ""):
+        config = {
+            "idle": {
+                "toolbar": "Aguardando imagem para iniciar a analise guiada",
+                "toolbar_color": "#94a3b8",
+                "chip_text": "Aguardando imagem",
+                "chip_bg": "#172033",
+                "chip_fg": "#94a3b8",
+                "helper": "Selecione uma foto nitida para iniciar o fluxo guiado.",
+            },
+            "processing": {
+                "toolbar": "Processando analise...",
+                "toolbar_color": "#fbbf24",
+                "chip_text": "Processando analise",
+                "chip_bg": "#3a2506",
+                "chip_fg": "#fbbf24",
+                "helper": "A IA esta preparando a leitura clinica e as visualizacoes explicativas.",
+            },
+            "complete": {
+                "toolbar": "Analise concluida",
+                "toolbar_color": "#22c55e",
+                "chip_text": "Analise concluida",
+                "chip_bg": "#14532d",
+                "chip_fg": "#86efac",
+                "helper": "Confira o resultado clinico, as probabilidades e a explicacao visual da IA.",
+            },
+            "invalid": {
+                "toolbar": "Imagem nao validada para analise",
+                "toolbar_color": "#ef4444",
+                "chip_text": "Revisar imagem",
+                "chip_bg": "#7f1d1d",
+                "chip_fg": "#fca5a5",
+                "helper": "A imagem precisa de nova captura para que a IA consiga interpretar a ferida com seguranca.",
+            },
+        }
+        cfg = config.get(state, config["idle"])
+        self.lbl_status.setText(detail or cfg["toolbar"])
+        self.lbl_status.setStyleSheet(f"color: {cfg['toolbar_color']}; padding-left: 10px;")
+        self._set_chip_style(self.lbl_upload_state, cfg["chip_text"], cfg["chip_bg"], cfg["chip_fg"])
+        self.lbl_upload_helper.setText(cfg["helper"])
+        self._update_step_flow(state)
+
+    def _render_waiting_panel(self):
+        self._clear_right_panel()
+
+        overview = self._make_group("Resultado clinico")
+        waiting_chip = QLabel()
+        self._set_chip_style(waiting_chip, "Aguardando imagem", "#172033", "#94a3b8")
+        overview.layout().addWidget(waiting_chip, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        title = QLabel("Nenhuma analise em andamento")
+        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title.setStyleSheet("color: #e2e8f0;")
+        overview.layout().addWidget(title)
+
+        text = QLabel(
+            "Selecione uma foto para ver o tipo de tecido identificado, as probabilidades, o indicador geral da ferida e a explicacao visual da IA."
+        )
+        text.setWordWrap(True)
+        text.setFont(QFont("Segoe UI", 10))
+        text.setStyleSheet("color: #cbd5e1;")
+        overview.layout().addWidget(text)
+        self.right_layout.addWidget(overview)
+
+        guide = self._make_group("O que vai aparecer aqui")
+        for item in [
+            "Tipo de tecido identificado com destaque visual.",
+            "Probabilidade de cada tecido reconhecido na imagem.",
+            "Explicacao simples sobre como a IA chegou a decisao.",
+            "Mapa de atencao da IA para reforcar transparencia.",
+        ]:
+            lbl_item = QLabel(f"• {item}")
+            lbl_item.setWordWrap(True)
+            lbl_item.setFont(QFont("Segoe UI", 9))
+            lbl_item.setStyleSheet("color: #cbd5e1;")
+            guide.layout().addWidget(lbl_item)
+        self.right_layout.addWidget(guide)
+
+        xai = self._make_group("Como a IA toma a decisao")
+        xai_text = QLabel(
+            "Quando a analise terminar, o painel mostrara o mapa de atencao da IA. Areas em vermelho e laranja indicam as regioes que mais influenciaram o resultado."
+        )
+        xai_text.setWordWrap(True)
+        xai_text.setFont(QFont("Segoe UI", 9))
+        xai_text.setStyleSheet("color: #cbd5e1;")
+        xai.layout().addWidget(xai_text)
+        self.right_layout.addWidget(xai)
+
+        notice = self._make_group("Aviso")
+        notice_text = QLabel(
+            "Este sistema e um apoio a decisao clinica e nao substitui a avaliacao profissional."
+        )
+        notice_text.setWordWrap(True)
+        notice_text.setFont(QFont("Segoe UI", 9))
+        notice_text.setStyleSheet("color: #fcd34d;")
+        notice.layout().addWidget(notice_text)
+        self.right_layout.addWidget(notice)
+        self.right_layout.addStretch()
+
+    def _render_processing_panel(self, filename: str):
+        self._clear_right_panel()
+
+        overview = self._make_group("Processamento da IA")
+        progress_chip = QLabel()
+        self._set_chip_style(progress_chip, "Processando", "#3a2506", "#fbbf24")
+        overview.layout().addWidget(progress_chip, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        title = QLabel("Analise em andamento")
+        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title.setStyleSheet("color: #f8fafc;")
+        overview.layout().addWidget(title)
+
+        desc = QLabel(
+            f"A IA esta analisando a imagem \"{filename}\". Em seguida, o painel exibira o resultado clinico, as probabilidades e a explicacao visual."
+        )
+        desc.setWordWrap(True)
+        desc.setFont(QFont("Segoe UI", 10))
+        desc.setStyleSheet("color: #cbd5e1;")
+        overview.layout().addWidget(desc)
+
+        for width in (270, 230, 190):
+            skeleton = QFrame()
+            skeleton.setFixedHeight(12)
+            skeleton.setFixedWidth(width)
+            skeleton.setStyleSheet("background: #1e293b; border-radius: 6px; border: 1px solid #26344d;")
+            overview.layout().addWidget(skeleton)
+
+        self.right_layout.addWidget(overview)
+
+        next_steps = self._make_group("Proximos paineis")
+        for item in [
+            "Resultado clinico com destaque por cor.",
+            "Probabilidades por tecido em barras faceis de ler.",
+            "Mapa de atencao da IA com legenda simples.",
+        ]:
+            lbl_item = QLabel(f"• {item}")
+            lbl_item.setWordWrap(True)
+            lbl_item.setFont(QFont("Segoe UI", 9))
+            lbl_item.setStyleSheet("color: #cbd5e1;")
+            next_steps.layout().addWidget(lbl_item)
+        self.right_layout.addWidget(next_steps)
+        self.right_layout.addStretch()
+
+    def _render_invalid_panel(self, report: ClinicalReport):
+        self._clear_right_panel()
+
+        overview = self._make_group("Resultado clinico")
+        error_chip = QLabel()
+        self._set_chip_style(error_chip, "Imagem nao validada", "#7f1d1d", "#fca5a5")
+        overview.layout().addWidget(error_chip, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        title = QLabel("Nao foi possivel concluir a analise")
+        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title.setStyleSheet("color: #fee2e2;")
+        overview.layout().addWidget(title)
+
+        message = QLabel(
+            report.rejection_reason or "A imagem nao apresentou sinais suficientes para uma interpretacao segura."
+        )
+        message.setWordWrap(True)
+        message.setFont(QFont("Segoe UI", 10))
+        message.setStyleSheet("color: #fecaca;")
+        overview.layout().addWidget(message)
+        self.right_layout.addWidget(overview)
+
+        tips = self._make_group("Como melhorar a captura")
+        for item in [
+            "Centralize a ferida na imagem.",
+            "Evite sombra forte e baixa iluminacao.",
+            "Refaca a foto com menos borrado e melhor contraste.",
+        ]:
+            lbl_tip = QLabel(f"• {item}")
+            lbl_tip.setWordWrap(True)
+            lbl_tip.setFont(QFont("Segoe UI", 9))
+            lbl_tip.setStyleSheet("color: #cbd5e1;")
+            tips.layout().addWidget(lbl_tip)
+        self.right_layout.addWidget(tips)
+
+        notice = self._make_group("Aviso")
+        notice_text = QLabel(
+            "Se a imagem permanecer inconclusiva, prefira uma nova captura antes de utilizar qualquer interpretacao automatica."
+        )
+        notice_text.setWordWrap(True)
+        notice_text.setFont(QFont("Segoe UI", 9))
+        notice_text.setStyleSheet("color: #fcd34d;")
+        notice.layout().addWidget(notice_text)
+        self.right_layout.addWidget(notice)
+        self.right_layout.addStretch()
+
+    def _render_results_panel(self, report: ClinicalReport):
+        self._clear_right_panel()
+        result_color = self._result_color(report.primary_tissue)
+        confidence = self._decision_confidence(report)
+
+        overview = self._make_group("Resultado clinico")
+        done_chip = QLabel()
+        self._set_chip_style(done_chip, "Analise concluida", "#14532d", "#86efac")
+        overview.layout().addWidget(done_chip, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        primary = QLabel(report.primary_tissue or "Resultado indisponivel")
+        primary.setWordWrap(True)
+        primary.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        primary.setStyleSheet(f"color: {result_color};")
+        overview.layout().addWidget(primary)
+
+        summary = QLabel(self._build_simple_explanation(report))
+        summary.setWordWrap(True)
+        summary.setFont(QFont("Segoe UI", 10))
+        summary.setStyleSheet("color: #cbd5e1;")
+        overview.layout().addWidget(summary)
+
+        metrics = QFrame()
+        metrics.setObjectName("resultMetrics")
+        metrics.setStyleSheet("""
+            QFrame#resultMetrics {
+                background: #0b1220;
+                border: 1px solid #223047;
+                border-radius: 14px;
+            }
+        """)
+        metrics_grid = QGridLayout(metrics)
+        metrics_grid.setContentsMargins(14, 12, 14, 12)
+        metrics_grid.setHorizontalSpacing(18)
+        metrics_grid.setVerticalSpacing(8)
+
+        score_text, score_color = self._score_summary(report.health_score)
+        metrics_grid.addWidget(self._styled_label("Indicador geral", "#94a3b8", 9), 0, 0)
+        metrics_grid.addWidget(self._styled_label(score_text, score_color, 10, bold=True), 0, 1)
+        metrics_grid.addWidget(self._styled_label("Tempo da analise", "#94a3b8", 9), 1, 0)
+        metrics_grid.addWidget(
+            self._styled_label(f"{report.processing_time_ms:.0f} ms", "#e2e8f0", 10, bold=True),
+            1,
+            1,
+        )
+        if confidence is not None:
+            label, value = confidence
+            metrics_grid.addWidget(self._styled_label(label, "#94a3b8", 9), 2, 0)
+            metrics_grid.addWidget(
+                self._styled_label(f"{value:.0%}", self._confidence_color(value), 10, bold=True),
+                2,
+                1,
+            )
+        overview.layout().addWidget(metrics)
+
+        rn = report.resnet_prediction or {}
+        final_class = rn.get("final_class_pt") or rn.get("stage2", {}).get("wound_type_pt", "")
+        final_conf = rn.get("final_confidence") or rn.get("stage2", {}).get("confidence", 0.0)
+        if final_class:
+            context = QLabel(f"Possivel contexto clinico sugerido: {final_class} ({final_conf:.0%}).")
+            context.setWordWrap(True)
+            context.setFont(QFont("Segoe UI", 9))
+            context.setStyleSheet("color: #94a3b8;")
+            overview.layout().addWidget(context)
+
+        self.right_layout.addWidget(overview)
+
+        tissues = self._make_group("Probabilidades por tecido")
+        sorted_tissues = sorted(report.tissues, key=lambda item: -item.percentage)
+        if sorted_tissues:
+            for tissue in sorted_tissues:
+                self._add_probability_bar(
+                    tissues.layout(),
+                    tissue.name,
+                    max(0.0, tissue.percentage) / 100.0,
+                    tissue.color_hex,
+                    f"{tissue.percentage:.1f}%",
+                )
+        else:
+            empty = QLabel("Nao ha probabilidades disponiveis para esta imagem.")
+            empty.setWordWrap(True)
+            empty.setFont(QFont("Segoe UI", 9))
+            empty.setStyleSheet("color: #94a3b8;")
+            tissues.layout().addWidget(empty)
+        self.right_layout.addWidget(tissues)
+
+        xai = self._make_group("Como a IA tomou essa decisao?")
+        explanation = QLabel(self._build_simple_explanation(report))
+        explanation.setWordWrap(True)
+        explanation.setFont(QFont("Segoe UI", 10))
+        explanation.setStyleSheet("color: #cbd5e1;")
+        xai.layout().addWidget(explanation)
+
+        if confidence is not None:
+            label, value = confidence
+            xai.layout().addWidget(
+                self._make_progress_metric(
+                    label,
+                    value,
+                    self._confidence_color(value),
+                    "Quanto maior a confianca, mais consistente foi o padrao encontrado pela IA.",
+                )
+            )
+
+        legend_1 = QLabel("• Areas em vermelho e laranja indicam maior relevancia para a decisao da IA.")
+        legend_1.setWordWrap(True)
+        legend_1.setFont(QFont("Segoe UI", 9))
+        legend_1.setStyleSheet("color: #cbd5e1;")
+        xai.layout().addWidget(legend_1)
+
+        legend_2 = QLabel("• O painel central mostra esse mapa para que o usuario veja onde a IA concentrou a atencao.")
+        legend_2.setWordWrap(True)
+        legend_2.setFont(QFont("Segoe UI", 9))
+        legend_2.setStyleSheet("color: #cbd5e1;")
+        xai.layout().addWidget(legend_2)
+
+        if confidence is not None and confidence[1] < 0.55:
+            warning = QLabel(
+                "A confianca ficou moderada ou baixa. Use o resultado como apoio a decisao e mantenha a revisao profissional."
+            )
+            warning.setWordWrap(True)
+            warning.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+            warning.setStyleSheet("color: #fbbf24;")
+            xai.layout().addWidget(warning)
+
+        self.right_layout.addWidget(xai)
+
+        clues = self._make_group("Sinais observados na imagem")
+        for item in self._build_visual_clues(report):
+            lbl_item = QLabel(f"• {item}")
+            lbl_item.setWordWrap(True)
+            lbl_item.setFont(QFont("Segoe UI", 9))
+            lbl_item.setStyleSheet("color: #cbd5e1;")
+            clues.layout().addWidget(lbl_item)
+        self.right_layout.addWidget(clues)
+
+        notice = self._make_group("Aviso")
+        notice_text = QLabel(
+            "Este sistema e um apoio a decisao clinica e nao substitui a avaliacao profissional."
+        )
+        notice_text.setWordWrap(True)
+        notice_text.setFont(QFont("Segoe UI", 9))
+        notice_text.setStyleSheet("color: #fcd34d;")
+        notice.layout().addWidget(notice_text)
+        self.right_layout.addWidget(notice)
+        self.right_layout.addStretch()
+
+    def _make_progress_metric(self, title: str, value: float, color: str, caption: str) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        row.addWidget(self._styled_label(title, "#94a3b8", 9))
+        row.addStretch()
+        row.addWidget(self._styled_label(f"{value:.0%}", color, 10, bold=True))
+        layout.addLayout(row)
+
+        bar = QProgressBar()
+        bar.setRange(0, 100)
+        bar.setValue(int(max(0.0, min(1.0, value)) * 100))
+        bar.setTextVisible(False)
+        bar.setFixedHeight(10)
+        bar.setStyleSheet(f"""
+            QProgressBar {{
+                background: #0b1220;
+                border: 1px solid #223047;
+                border-radius: 5px;
+            }}
+            QProgressBar::chunk {{
+                background: {color};
+                border-radius: 4px;
+            }}
+        """)
+        layout.addWidget(bar)
+
+        note = QLabel(caption)
+        note.setWordWrap(True)
+        note.setFont(QFont("Segoe UI", 8))
+        note.setStyleSheet("color: #64748b;")
+        layout.addWidget(note)
+        return widget
+
+    def _add_probability_bar(self, layout: QVBoxLayout, label: str, value: float, color: str, value_text: str):
+        row = QWidget()
+        row_layout = QVBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(6)
+
+        top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+        top.setSpacing(8)
+        top.addWidget(self._styled_label(label, "#e2e8f0", 9))
+        top.addStretch()
+        top.addWidget(self._styled_label(value_text, color, 9, bold=True))
+        row_layout.addLayout(top)
+
+        bar = QProgressBar()
+        bar.setRange(0, 100)
+        bar.setValue(int(max(0.0, min(1.0, value)) * 100))
+        bar.setTextVisible(False)
+        bar.setFixedHeight(10)
+        bar.setStyleSheet(f"""
+            QProgressBar {{
+                background: #0b1220;
+                border: 1px solid #223047;
+                border-radius: 5px;
+            }}
+            QProgressBar::chunk {{
+                background: {color};
+                border-radius: 4px;
+            }}
+        """)
+        row_layout.addWidget(bar)
+        layout.addWidget(row)
+
+    def _decision_confidence(self, report: ClinicalReport) -> Optional[Tuple[str, float]]:
+        rn = report.resnet_prediction or {}
+        final_conf = float(rn.get("final_confidence") or rn.get("stage2", {}).get("confidence") or 0.0)
+        if final_conf > 0:
+            return "Confianca da IA", final_conf
+
+        dl = report.dl_prediction or {}
+        dl_conf = float(dl.get("confidence") or 0.0)
+        if dl_conf > 0:
+            return "Confianca da IA", dl_conf
+
+        if report.tissues:
+            top_tissue = max(report.tissues, key=lambda item: item.percentage)
+            return "Predominancia do tecido identificado", max(0.0, top_tissue.percentage) / 100.0
+        return None
+
+    def _result_color(self, primary_tissue: str) -> str:
+        tissue = (primary_tissue or "").lower()
+        if "granula" in tissue:
+            return "#22c55e"
+        if "epitel" in tissue:
+            return "#a78bfa"
+        if "esfacelo" in tissue or "fibrina" in tissue:
+            return "#fbbf24"
+        if "necrose" in tissue or "escara" in tissue:
+            return "#ef4444"
+        return "#38bdf8"
+
+    def _confidence_color(self, value: float) -> str:
+        if value >= 0.75:
+            return "#22c55e"
+        if value >= 0.5:
+            return "#fbbf24"
+        return "#ef4444"
+
+    def _score_summary(self, score: float) -> Tuple[str, str]:
+        if score >= 70:
+            return f"Mais favoravel ({score:.0f}/100)", "#22c55e"
+        if score >= 40:
+            return f"Atencao moderada ({score:.0f}/100)", "#fbbf24"
+        return f"Exige atencao ({score:.0f}/100)", "#ef4444"
+
+    def _build_simple_explanation(self, report: ClinicalReport) -> str:
+        tissue = (report.primary_tissue or "").lower()
+        if "granula" in tissue:
+            base = (
+                "A IA identificou caracteristicas compativeis com tecido de granulacao, principalmente por areas avermelhadas e aspecto visual de reparo."
+            )
+        elif "epitel" in tissue:
+            base = (
+                "A IA destacou regioes com coloracao mais clara e padrao visual compativel com epitelizacao, sugerindo avanco do fechamento da ferida."
+            )
+        elif "esfacelo" in tissue:
+            base = (
+                "A IA observou areas amareladas ou esbranquicadas e textura compativel com esfacelo, indicando tecido desvitalizado que merece atencao."
+            )
+        elif "necrose" in tissue:
+            base = (
+                "A IA encontrou regioes escuras com padrao visual compativel com necrose, o que sugere tecido desvitalizado e maior necessidade de avaliacao."
+            )
+        else:
+            base = "A IA analisou cor, textura e distribuicao da lesao para indicar o padrao predominante na imagem."
+
+        confidence = self._decision_confidence(report)
+        if confidence is not None:
+            label, value = confidence
+            base += f" {label}: {value:.0%}."
+
+        rn = report.resnet_prediction or {}
+        final_class = rn.get("final_class_pt") or rn.get("stage2", {}).get("wound_type_pt", "")
+        final_conf = rn.get("final_confidence") or rn.get("stage2", {}).get("confidence", 0.0)
+        if final_class:
+            base += f" Como complemento, o sistema tambem sugeriu relacao com {final_class.lower()} ({final_conf:.0%})."
+        return base
+
+    def _build_visual_clues(self, report: ClinicalReport) -> List[str]:
+        tissue = (report.primary_tissue or "").lower()
+        if "granula" in tissue:
+            return [
+                "Predominio de regioes avermelhadas com aspecto de tecido de reparo.",
+                "Distribuicao do tecido observada principalmente no leito da ferida.",
+                "Mapa de atencao concentrado nas areas mais alteradas da lesao.",
+            ]
+        if "epitel" in tissue:
+            return [
+                "Presenca de areas mais claras compativeis com formacao de nova cobertura.",
+                "Concentracao de sinais nas bordas ou regioes de transicao da lesao.",
+                "Distribuicao visual sugerindo evolucao de fechamento da ferida.",
+            ]
+        if "esfacelo" in tissue:
+            return [
+                "Areas amareladas ou esbranquicadas chamaram a atencao da IA.",
+                "O padrao visual sugere tecido desvitalizado aderido ao leito da ferida.",
+                "Atencao visual concentrada nas regioes de maior contraste dentro da lesao.",
+            ]
+        if "necrose" in tissue:
+            return [
+                "Regioes escuras tiveram grande peso na decisao da IA.",
+                "O padrao visual e compativel com tecido desvitalizado de maior risco.",
+                "A distribuicao dessas areas reforcou o resultado final apresentado.",
+            ]
+        return [
+            "A IA levou em conta cor, textura e distribuicao do tecido na area analisada.",
+            "A regiao destacada no centro da tela mostra onde a leitura foi concentrada.",
+            "O mapa de atencao ajuda a visualizar por que a decisao foi tomada.",
+        ]
+
     def _setup_progression_tab(self):
         """Configura aba de comparacao longitudinal por fotos."""
         layout = QVBoxLayout(self.tab_progression)
@@ -2518,7 +3601,14 @@ class HealAnalyzerApp(QMainWindow):
     def _on_tab_changed(self, index: int):
         """Callback quando troca de aba."""
         if index == 0:
-            self.lbl_status.setText("Modo: Arquivo de Imagem")
+            if self._thread is not None and self._thread.isRunning():
+                self._set_analysis_state("processing")
+            elif self._current_report is not None and self._current_report.is_valid_wound:
+                self._set_analysis_state("complete")
+            elif self._current_report is not None and not self._current_report.is_valid_wound:
+                self._set_analysis_state("invalid")
+            else:
+                self._set_analysis_state("idle")
         else:
             self.lbl_status.setText("Modo: Evolucao por Fotos")
 
@@ -2760,6 +3850,65 @@ class HealAnalyzerApp(QMainWindow):
     # -------------------------------------------------------
     def _on_open_image(self):
         path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Selecionar Imagem de Ferida",
+            str(Path(__file__).parent / "dataset"),
+            "Imagens (*.jpg *.jpeg *.png *.bmp *.tif *.tiff);;Todos (*)",
+        )
+        if not path:
+            return
+
+        self._current_report = None
+        self.lbl_selected_file.setText(Path(path).name)
+
+        preview = cv2.imread(path)
+        if preview is not None:
+            self._set_visual_pixmap("original", preview, "Pré-visualização imediata da imagem selecionada.")
+        else:
+            self._set_visual_placeholder(
+                "original",
+                "Não foi possível carregar a pré-visualização.",
+                "Selecione outra imagem para continuar.",
+                "warning",
+            )
+
+        self._set_visual_placeholder(
+            "detection",
+            "A IA está localizando a região principal da ferida.",
+            "A área analisada aparecerá aqui ao final do processamento.",
+            "processing",
+        )
+        self._set_visual_placeholder(
+            "segmentation",
+            "O mapa de tecidos está sendo preparado.",
+            "As cores dos tecidos aparecerão aqui após a análise.",
+            "processing",
+        )
+        self._set_visual_placeholder(
+            "overlay",
+            "A visualização combinada está sendo preparada.",
+            "A foto original será combinada com a interpretação da IA.",
+            "processing",
+        )
+        self._set_visual_placeholder(
+            "attention",
+            "O mapa de atenção da IA será exibido após o processamento.",
+            "As regiões mais relevantes para a decisão aparecerão aqui.",
+            "processing",
+        )
+
+        self._render_processing_panel(Path(path).name)
+        self._set_analysis_state("processing", f"Processando análise de {Path(path).name}")
+        self.progress.setVisible(True)
+        self.btn_open.setEnabled(False)
+
+        self._thread = AnalysisThread(path, parent=self)
+        self._thread.progress.connect(self._on_progress, Qt.ConnectionType.QueuedConnection)
+        self._thread.result_ready.connect(self._on_analysis_done, Qt.ConnectionType.QueuedConnection)
+        self._thread.start()
+        return
+
+        path, _ = QFileDialog.getOpenFileName(
             self, "Selecionar Imagem de Ferida",
             str(Path(__file__).parent / "dataset"),
             "Imagens (*.jpg *.jpeg *.png *.bmp *.tif *.tiff);;Todos (*)",
@@ -2778,9 +3927,34 @@ class HealAnalyzerApp(QMainWindow):
         self._thread.start()
 
     def _on_progress(self, msg: str):
+        if self._thread is not None and self._thread.isRunning():
+            friendly = {
+                "Carregando imagem...": "Preparando imagem para análise...",
+                "Analisando ferida...": "Processando análise clínica com IA...",
+            }
+            self._set_analysis_state("processing", friendly.get(msg, msg))
+            return
         self.lbl_status.setText(msg)
 
     def _on_analysis_done(self, report: ClinicalReport):
+        self.progress.setVisible(False)
+        self.btn_open.setEnabled(True)
+        self._current_report = report
+        self._thread = None
+
+        if not report.is_valid_wound:
+            self._set_analysis_state("invalid", "Imagem não validada para análise")
+            self._show_invalid(report)
+            return
+
+        confidence = self._decision_confidence(report)
+        detail = f"Análise concluída | Tecido identificado: {report.primary_tissue}"
+        if confidence is not None:
+            detail += f" | {confidence[0]} {confidence[1]:.0%}"
+        self._set_analysis_state("complete", detail)
+        self._show_results(report)
+        return
+
         self.progress.setVisible(False)
         self.btn_open.setEnabled(True)
         self._current_report = report
@@ -2810,6 +3984,35 @@ class HealAnalyzerApp(QMainWindow):
     # -------------------------------------------------------
     def _show_invalid(self, report: ClinicalReport):
         if report.original is not None:
+            self._set_visual_pixmap("original", report.original, "Imagem enviada para análise.")
+        self._set_visual_placeholder(
+            "detection",
+            "A IA não conseguiu confirmar uma região adequada para análise.",
+            "Tente uma nova captura com melhor enquadramento e iluminação.",
+            "warning",
+        )
+        self._set_visual_placeholder(
+            "segmentation",
+            "Mapa de tecidos indisponível para esta imagem.",
+            "A análise não foi concluída com segurança.",
+            "warning",
+        )
+        self._set_visual_placeholder(
+            "overlay",
+            "Visualização combinada indisponível.",
+            "Envie uma nova imagem para gerar este painel.",
+            "warning",
+        )
+        self._set_visual_placeholder(
+            "attention",
+            "Mapa de atenção indisponível.",
+            "Ele será mostrado quando a análise for concluída com sucesso.",
+            "warning",
+        )
+        self._render_invalid_panel(report)
+        return
+
+        if report.original is not None:
             self.lbl_img_original.setPixmap(np_to_qpixmap(report.original, 400))
         self._clear_right_panel()
         lbl = QLabel(report.rejection_reason)
@@ -2820,6 +4023,76 @@ class HealAnalyzerApp(QMainWindow):
 
     # -------------------------------------------------------
     def _show_results(self, r: ClinicalReport):
+        if r.original is not None:
+            self._set_visual_pixmap("original", r.original, "Imagem original enviada pelo usuário.")
+        else:
+            self._set_visual_placeholder(
+                "original",
+                "Imagem original indisponível.",
+                "Não foi possível recuperar a imagem enviada.",
+                "warning",
+            )
+
+        if r.detection_overlay is not None:
+            self._set_visual_pixmap(
+                "detection",
+                r.detection_overlay,
+                "A área destacada foi a principal região considerada pela IA.",
+            )
+        else:
+            self._set_visual_placeholder(
+                "detection",
+                "Região analisada indisponível.",
+                "A IA não retornou uma visualização de localização nesta execução.",
+                "warning",
+            )
+
+        if r.segmentation_map is not None:
+            self._set_visual_pixmap(
+                "segmentation",
+                r.segmentation_map,
+                "Cada cor representa um tipo de tecido identificado na ferida.",
+            )
+        else:
+            self._set_visual_placeholder(
+                "segmentation",
+                "Mapa de tecidos indisponível.",
+                "A distribuição dos tecidos não foi gerada nesta análise.",
+                "warning",
+            )
+
+        if r.tissue_overlay is not None:
+            self._set_visual_pixmap(
+                "overlay",
+                r.tissue_overlay,
+                "Visualização combinada da foto original com a interpretação da IA.",
+            )
+        else:
+            self._set_visual_placeholder(
+                "overlay",
+                "Visualização combinada indisponível.",
+                "A combinação entre foto e interpretação não foi gerada.",
+                "warning",
+            )
+
+        if r.grad_cam_overlay is not None:
+            self._set_visual_pixmap(
+                "attention",
+                r.grad_cam_overlay,
+                "Áreas em vermelho e laranja indicam maior relevância para a decisão da IA.",
+                max_w=640,
+            )
+        else:
+            self._set_visual_placeholder(
+                "attention",
+                "Mapa de atenção da IA indisponível.",
+                "Esta execução não retornou o mapa de atenção.",
+                "warning",
+            )
+
+        self._render_results_panel(r)
+        return
+
         # Imagens
         if r.original is not None:
             self.lbl_img_original.setPixmap(np_to_qpixmap(r.original, 400))
@@ -3617,27 +4890,25 @@ class HealAnalyzerApp(QMainWindow):
     # -------------------------------------------------------
     def _make_group(self, title: str) -> QGroupBox:
         box = QGroupBox(title)
-        box.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        box.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         box.setStyleSheet("""
             QGroupBox {
-                background: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 8px;
+                background: #111827;
+                border: 1px solid #223047;
+                border-radius: 18px;
                 margin-top: 12px;
-                padding: 16px 12px 10px;
-                color: #94a3b8;
+                padding: 18px 16px 14px;
+                color: #e2e8f0;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 12px;
-                padding: 1px 6px;
+                left: 14px;
+                padding: 2px 8px;
                 color: #94a3b8;
-                text-transform: uppercase;
-                letter-spacing: 1px;
             }
         """)
         layout = QVBoxLayout()
-        layout.setSpacing(6)
+        layout.setSpacing(8)
         box.setLayout(layout)
         return box
 
@@ -3648,11 +4919,18 @@ class HealAnalyzerApp(QMainWindow):
         lbl.setStyleSheet(f"color: {color};")
         return lbl
 
+    def _clear_layout_items(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            child_layout = item.layout()
+            if widget is not None:
+                widget.deleteLater()
+            elif child_layout is not None:
+                self._clear_layout_items(child_layout)
+
     def _clear_right_panel(self):
-        while self.right_layout.count():
-            w = self.right_layout.takeAt(0).widget()
-            if w:
-                w.deleteLater()
+        self._clear_layout_items(self.right_layout)
 
     def closeEvent(self, event):
         """Encerramento seguro: para todas as threads antes de fechar."""

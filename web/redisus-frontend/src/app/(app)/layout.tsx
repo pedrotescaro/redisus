@@ -18,19 +18,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiHealthy, setApiHealthy] = useState<boolean>(false);
+  const isStandaloneAnalyzer = pathname === "/analyzer";
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
       setUser(authUser);
       setLoading(false);
 
-      if (!authUser) {
+      if (!authUser && !isStandaloneAnalyzer) {
         router.replace("/login");
       }
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [isStandaloneAnalyzer, router]);
 
   useEffect(() => {
     let mounted = true;
@@ -68,6 +69,26 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }
 
   if (!user) {
+    if (isStandaloneAnalyzer) {
+      return (
+        <div className="min-h-screen bg-surface">
+          <div className="mx-auto max-w-[1800px] px-6 py-6 sm:px-8">
+            <div className="mb-5">
+              <span
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                  apiHealthy ? "bg-green-500/15 text-green-400" : "bg-error/15 text-error"
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm">monitor_heart</span>
+                API clinica {apiHealthy ? "online" : "offline"}
+              </span>
+            </div>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
     return null;
   }
 

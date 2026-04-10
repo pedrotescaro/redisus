@@ -11,6 +11,7 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
+  { label: "HEAL Analyzer", href: "/analyzer", icon: "neurology" },
   { label: "Início", href: "/dashboard", icon: "dashboard" },
   { label: "Pacientes", href: "/patients", icon: "group" },
   { label: "Avaliações", href: "/evaluations/new", icon: "assignment" },

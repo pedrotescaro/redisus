@@ -350,6 +350,10 @@ CLINICAL_HSV_RANGES = {
         (np.array([30, 40, 130]), np.array([45, 180, 230])),
         # Bege claro (fibrina seca)
         (np.array([12, 15, 150]), np.array([25, 80, 230])),
+        # Oliva / verde-amarelado de esfacelo umido
+        (np.array([30, 18, 80]), np.array([72, 135, 185])),
+        # Cinza-esverdeado de tecido desvitalizado
+        (np.array([32, 10, 68]), np.array([82, 95, 170])),
     ],
     "granulation": [
         # Vermelho vivo intenso â€” S â‰¥ 130 (requer alta saturaÃ§Ã£o)
@@ -391,6 +395,10 @@ CLINICAL_LAB_RANGES = {
         (np.array([150, 110, 150]), np.array([240, 140, 200])),
         # Bege/branco-amarelado
         (np.array([170, 118, 135]), np.array([250, 135, 165])),
+        # Oliva / amarelo-acinzentado
+        (np.array([105, 112, 134]), np.array([175, 132, 155])),
+        # Esfacelo umido um pouco mais escuro
+        (np.array([90, 110, 130]), np.array([160, 128, 148])),
     ],
     "granulation": [
         # Vermelho (a muito positivo, L mÃ©dio)
@@ -975,7 +983,7 @@ class ClinicalWoundAnalyzer:
         # Verde cirÃºrgico
         drape_mask = cv2.bitwise_or(
             drape_mask,
-            cv2.inRange(hsv, np.array([35, 30, 30]), np.array([85, 255, 255]))
+            cv2.inRange(hsv, np.array([55, 60, 35]), np.array([95, 255, 255]))
         )
         # Cinza acromÃ¡tico (maca, superfÃ­cie metÃ¡lica)
         drape_mask = cv2.bitwise_or(
@@ -1074,6 +1082,49 @@ class ClinicalWoundAnalyzer:
 
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
+        def build_roi_mask(rx1: int, ry1: int, rx2: int, ry2: int) -> np.ndarray:
+            roi_hsv = hsv[ry1:ry2, rx1:rx2]
+
+            wound_colors = np.zeros(roi_hsv.shape[:2], dtype=np.uint8)
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([0, 40, 40]), np.array([15, 255, 255])))
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([155, 40, 40]), np.array([180, 255, 255])))
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([10, 18, 70]), np.array([55, 255, 255])))
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([30, 12, 68]), np.array([82, 130, 185])))
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([0, 0, 0]), np.array([180, 255, 85])))
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([0, 8, 160]), np.array([20, 80, 255])))
+            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
+                roi_hsv, np.array([150, 8, 160]), np.array([180, 80, 255])))
+
+            bg_mask = np.zeros(roi_hsv.shape[:2], dtype=np.uint8)
+            bg_mask = cv2.bitwise_or(bg_mask, cv2.inRange(
+                roi_hsv, np.array([92, 45, 20]), np.array([130, 255, 255])))
+            bg_mask = cv2.bitwise_or(bg_mask, cv2.inRange(
+                roi_hsv, np.array([55, 60, 35]), np.array([95, 255, 255])))
+
+            roi_mask = cv2.bitwise_and(wound_colors, cv2.bitwise_not(bg_mask))
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+            roi_mask = cv2.morphologyEx(roi_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+            roi_mask = cv2.morphologyEx(roi_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+            roi_filled = np.zeros_like(roi_mask)
+            contours, _ = cv2.findContours(
+                roi_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if contours:
+                min_contour_area = (rx2 - rx1) * (ry2 - ry1) * 0.02
+                for cnt in contours:
+                    if cv2.contourArea(cnt) >= min_contour_area:
+                        cv2.drawContours(roi_filled, [cnt], -1, 255, cv2.FILLED)
+
+            return roi_filled
+
         for det in detections:
             x1, y1, x2, y2 = det.bbox
             # Margem de seguranÃ§a (5% do bbox)
@@ -1084,56 +1135,7 @@ class ClinicalWoundAnalyzer:
             rx2 = min(w, x2 + margin_x)
             ry2 = min(h, y2 + margin_y)
 
-            roi_hsv = hsv[ry1:ry2, rx1:rx2]
-
-            # MÃ¡scara de cores compatÃ­veis com ferida (nÃ£o-pele-sÃ£, nÃ£o-fundo)
-            wound_colors = np.zeros(roi_hsv.shape[:2], dtype=np.uint8)
-
-            # Vermelho/rosa (granulaÃ§Ã£o, sangue, inflamaÃ§Ã£o)
-            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
-                roi_hsv, np.array([0, 40, 40]), np.array([15, 255, 255])))
-            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
-                roi_hsv, np.array([155, 40, 40]), np.array([180, 255, 255])))
-            # Amarelo (esfacelo/fibrina)
-            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
-                roi_hsv, np.array([12, 30, 100]), np.array([45, 255, 255])))
-            # Escuro (necrose)
-            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
-                roi_hsv, np.array([0, 0, 0]), np.array([180, 255, 70])))
-            # Rosa (epitelizaÃ§Ã£o)
-            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
-                roi_hsv, np.array([0, 8, 160]), np.array([20, 80, 255])))
-            wound_colors = cv2.bitwise_or(wound_colors, cv2.inRange(
-                roi_hsv, np.array([150, 8, 160]), np.array([180, 80, 255])))
-
-            # Exclui fundo hospitalar
-            bg_mask = np.zeros(roi_hsv.shape[:2], dtype=np.uint8)
-            # Azul
-            bg_mask = cv2.bitwise_or(bg_mask, cv2.inRange(
-                roi_hsv, np.array([90, 30, 20]), np.array([130, 255, 255])))
-            # Verde
-            bg_mask = cv2.bitwise_or(bg_mask, cv2.inRange(
-                roi_hsv, np.array([35, 30, 30]), np.array([85, 255, 255])))
-
-            # Combina: cor de ferida AND NOT fundo
-            roi_mask = cv2.bitwise_and(wound_colors, cv2.bitwise_not(bg_mask))
-
-            # Limpeza morfolÃ³gica
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-            roi_mask = cv2.morphologyEx(roi_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-            roi_mask = cv2.morphologyEx(roi_mask, cv2.MORPH_OPEN, kernel, iterations=1)
-
-            # Preenche buracos: extrai e preenche contornos externos
-            roi_filled = np.zeros_like(roi_mask)
-            contours, _ = cv2.findContours(
-                roi_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
-            if contours:
-                # Pega contornos maiores (descarta artefatos < 2% do bbox)
-                min_contour_area = (rx2 - rx1) * (ry2 - ry1) * 0.02
-                for cnt in contours:
-                    if cv2.contourArea(cnt) >= min_contour_area:
-                        cv2.drawContours(roi_filled, [cnt], -1, 255, cv2.FILLED)
+            roi_filled = build_roi_mask(rx1, ry1, rx2, ry2)
 
             # Se segmentaÃ§Ã£o capturou muito pouco, fallback para bbox
             roi_area = np.sum(roi_filled > 0)
@@ -1143,6 +1145,24 @@ class ClinicalWoundAnalyzer:
             else:
                 wound_mask[ry1:ry2, rx1:rx2] = cv2.bitwise_or(
                     wound_mask[ry1:ry2, rx1:rx2], roi_filled
+                )
+
+        if len(detections) >= 2:
+            x1 = max(0, min(det.bbox[0] for det in detections))
+            y1 = max(0, min(det.bbox[1] for det in detections))
+            x2 = min(w, max(det.bbox[2] for det in detections))
+            y2 = min(h, max(det.bbox[3] for det in detections))
+            merged_filled = build_roi_mask(x1, y1, x2, y2)
+            merged_area = int(np.sum(merged_filled > 0))
+            current_roi_area = int(np.sum(wound_mask > 0))
+            merged_bbox_area = max((x2 - x1) * (y2 - y1), 1)
+            if (
+                merged_area > max(int(current_roi_area * 1.15), 1200)
+                and merged_area < int(merged_bbox_area * 0.92)
+            ):
+                wound_mask[y1:y2, x1:x2] = cv2.bitwise_or(
+                    wound_mask[y1:y2, x1:x2],
+                    merged_filled,
                 )
 
         return wound_mask
@@ -1475,7 +1495,7 @@ class ClinicalWoundAnalyzer:
             hsv_raw, np.array([90, 30, 20]), np.array([130, 255, 255])))
         # Verde cirÃºrgico
         drape = cv2.bitwise_or(drape, cv2.inRange(
-            hsv_raw, np.array([35, 30, 30]), np.array([85, 255, 255])))
+            hsv_raw, np.array([55, 60, 35]), np.array([95, 255, 255])))
         # Cinza acromÃ¡tico (maca/fundo)
         drape = cv2.bitwise_or(drape, cv2.inRange(
             hsv_raw, np.array([0, 0, 0]), np.array([180, 20, 100])))
@@ -1577,7 +1597,7 @@ class ClinicalWoundAnalyzer:
         red_excess_thr = max(14.0, self._safe_percentile(roi_values(red_excess), 55, 18.0))
         yellow_b_thr = max(142.0, self._safe_percentile(roi_values(b_ch), 60, 145.0))
         yellow_sig_thr = max(16.0, self._safe_percentile(roi_values(yellow_signal), 60, 18.0))
-        light_l_thr = max(118.0, self._safe_percentile(roi_values(light), 42, 125.0))
+        light_l_thr = max(105.0, self._safe_percentile(roi_values(light), 40, 118.0))
         sat_soft_thr = max(55.0, min(125.0, self._safe_percentile(roi_values(sat), 56, 95.0) + 10.0))
         pink_l_thr = max(165.0, self._safe_percentile(roi_values(light), 66, 170.0))
 
@@ -1617,12 +1637,22 @@ class ClinicalWoundAnalyzer:
 
         yellowish = (b_ch >= yellow_b_thr) | (yellow_signal >= yellow_sig_thr)
         off_white = (sat <= sat_soft_thr) & (light >= light_l_thr)
+        olive_slough = (
+            (hue >= 30.0)
+            & (hue <= 78.0)
+            & (sat >= 12.0)
+            & (sat <= sat_soft_thr + 28.0)
+            & (val >= max(68.0, dark_v_thr - 6.0))
+            & (light >= max(92.0, light_l_thr - 18.0))
+            & (green >= blue + 2.0)
+            & (red >= blue - 8.0)
+        )
         slough_bool = (
             base_roi
             & inner_zone
             & (~dark_candidate)
-            & (yellowish | off_white)
-            & (light >= light_l_thr)
+            & (yellowish | off_white | olive_slough)
+            & ((light >= light_l_thr - 16.0) | olive_slough)
             & (red_excess < red_excess_thr + 20.0)
             & (local_var <= high_texture_thr + 180.0)
         )
@@ -1669,6 +1699,7 @@ class ClinicalWoundAnalyzer:
             "criteria": [
                 "Granulacao: vermelho relativo + a* alto + textura mais vascular dentro do leito.",
                 "Esfacelo: amarelo/branco + brilho intermediario + textura menos vascular.",
+                "Esfacelo oliva/acinzentado: tons amarelo-esverdeados ou cinza-oliva ainda contam como tecido desvitalizado.",
                 "Necrose: baixa luminosidade + tons castanho/oliva escuros + exclusao de pele saudavel.",
                 "Epitelizacao: rosa claro + baixa textura + restrita a borda interna da ferida.",
             ],
@@ -1914,7 +1945,7 @@ class ClinicalWoundAnalyzer:
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
             hsv_raw, np.array([90, 30, 20]), np.array([130, 255, 255])))
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
-            hsv_raw, np.array([35, 30, 30]), np.array([85, 255, 255])))
+            hsv_raw, np.array([55, 60, 35]), np.array([95, 255, 255])))
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
             hsv_raw, np.array([0, 0, 40]), np.array([180, 22, 170])))
         _not_drape = cv2.bitwise_not(_drape)

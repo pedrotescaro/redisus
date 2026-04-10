@@ -75,12 +75,16 @@ class ColorRanges:
     RED_UPPER_2 = np.array([180, 255, 255])
     
     # Tons amarelados (esfacelo, pus)
-    YELLOW_LOWER = np.array([15, 60, 60])
-    YELLOW_UPPER = np.array([35, 255, 255])
+    YELLOW_LOWER = np.array([12, 25, 70])
+    YELLOW_UPPER = np.array([60, 255, 255])
+
+    # Tons oliva / amarelo-acinzentados de esfacelo umido
+    OLIVE_SLOUGH_LOWER = np.array([30, 12, 68])
+    OLIVE_SLOUGH_UPPER = np.array([82, 135, 185])
     
     # Tons escuros (necrose)
     DARK_LOWER = np.array([0, 0, 0])
-    DARK_UPPER = np.array([180, 255, 50])
+    DARK_UPPER = np.array([180, 255, 85])
     
     # Tons rosados (granulação saudável)
     PINK_LOWER = np.array([0, 30, 100])
@@ -285,7 +289,10 @@ class WoundDetectorCV:
         
         # Amarelo (esfacelo)
         mask_yellow = cv2.inRange(hsv, ColorRanges.YELLOW_LOWER, ColorRanges.YELLOW_UPPER)
-        
+        mask_olive_slough = cv2.inRange(
+            hsv, ColorRanges.OLIVE_SLOUGH_LOWER, ColorRanges.OLIVE_SLOUGH_UPPER
+        )
+
         # Escuro (necrose)
         mask_dark = cv2.inRange(hsv, ColorRanges.DARK_LOWER, ColorRanges.DARK_UPPER)
         
@@ -294,6 +301,7 @@ class WoundDetectorCV:
         
         # Combina máscaras
         mask_wound = cv2.bitwise_or(mask_red, mask_yellow)
+        mask_wound = cv2.bitwise_or(mask_wound, mask_olive_slough)
         mask_wound = cv2.bitwise_or(mask_wound, mask_dark)
         mask_wound = cv2.bitwise_or(mask_wound, mask_pink)
         
@@ -472,11 +480,19 @@ class WoundDetectorCV:
         
         # Amarelo (esfacelo)
         mask_yellow = cv2.inRange(hsv, ColorRanges.YELLOW_LOWER, ColorRanges.YELLOW_UPPER)
-        
+        mask_olive_slough = cv2.inRange(
+            hsv, ColorRanges.OLIVE_SLOUGH_LOWER, ColorRanges.OLIVE_SLOUGH_UPPER
+        )
+
+        # Escuro (necrose)
+        mask_dark = cv2.inRange(hsv, ColorRanges.DARK_LOWER, ColorRanges.DARK_UPPER)
+
         # Rosa/vermelho claro
         mask_pink = cv2.inRange(hsv, ColorRanges.PINK_LOWER, ColorRanges.PINK_UPPER)
-        
+
         color_mask = cv2.bitwise_or(mask_red, mask_yellow)
+        color_mask = cv2.bitwise_or(color_mask, mask_olive_slough)
+        color_mask = cv2.bitwise_or(color_mask, mask_dark)
         color_mask = cv2.bitwise_or(color_mask, mask_pink)
         color_score = color_mask.astype(np.float32) / 255.0
         
@@ -500,9 +516,9 @@ class WoundDetectorCV:
         # 4.1 EXCLUSAO DE CAMPO CIRURGICO (lencol azul/verde/cinza de maca)
         # Evita que sombras do drape sejam detectadas como ferida
         drape_blue = cv2.inRange(hsv,
-                                 np.array([90, 30, 20]), np.array([130, 255, 255]))
+                                 np.array([92, 45, 20]), np.array([130, 255, 255]))
         drape_green = cv2.inRange(hsv,
-                                  np.array([35, 30, 30]), np.array([85, 255, 255]))
+                                  np.array([55, 60, 35]), np.array([95, 255, 255]))
         drape_gray = cv2.inRange(hsv,
                                  np.array([0, 0, 40]), np.array([180, 22, 170]))
         drape_mask = cv2.bitwise_or(drape_blue, drape_green)
