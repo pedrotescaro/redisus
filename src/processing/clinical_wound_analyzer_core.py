@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Headless clinical wound analyzer shared by API and desktop runtime.
 
 This module is a transitional extraction from heal_analyzer.py. It keeps the
@@ -44,7 +44,7 @@ def cv2_put_text_utf8(
     Args:
         img: Imagem BGR do OpenCV
         text: Texto a desenhar (suporta acentos)
-        pos: PosiÃ§Ã£o (x, y) do canto superior esquerdo
+        pos: Posição (x, y) do canto superior esquerdo
         font_size: Tamanho da fonte em pixels
         color: Cor BGR do texto
         bg_color: Cor BGR do fundo (opcional)
@@ -101,7 +101,7 @@ def cv2_put_text_utf8(
 
 
 # ============================================================
-# MÃ³dulos do projeto
+# Módulos do projeto
 # ============================================================
 from src.processing.wound_detector_cv import WoundDetectorCV, DetectionMethod
 from src.processing.tissue_analyzer import TissueAnalyzerCV, TissueType, TISSUE_COLORS
@@ -109,7 +109,7 @@ from src.processing.wound_classifier_cv import WoundClassifierCV
 
 logger = logging.getLogger(__name__)
 
-# Escalas clÃ­nicas validadas
+# Escalas clínicas validadas
 try:
     from src.clinical.scales import (
         PushScore, PushExudateScore, PushTissueScore,
@@ -121,7 +121,7 @@ try:
 except ImportError:
     HAS_CLINICAL_SCALES = False
 
-# MÃ³dulos avanÃ§ados de processamento de imagem
+# Módulos avançados de processamento de imagem
 try:
     from src.processing.image_enhancer import (
         ImageEnhancer, LightingAnalysis, LightingCondition,
@@ -149,7 +149,7 @@ try:
 except ImportError:
     HAS_DL_MODULES = False
 
-# Classificador ResNet50 de dois estÃ¡gios (do notebook de treinamento)
+# Classificador ResNet50 de dois estágios (do notebook de treinamento)
 try:
     from src.diagnosis.resnet_wound_classifier import (
         TwoStageWoundClassifier, TwoStageResult, GradCAM,
@@ -174,12 +174,12 @@ DL_CLASS_TO_REDISUS = {
 
 
 # ============================================================
-# TAXONOMIA CLÃNICA â€” Estomaterapia
+# TAXONOMIA CLÍNICA — Estomaterapia
 # ============================================================
 
 @dataclass
 class TissueClassification:
-    """ClassificaÃ§Ã£o tecidual clÃ­nica."""
+    """Classificação tecidual clínica."""
     name: str
     name_en: str
     percentage: float
@@ -191,7 +191,7 @@ class TissueClassification:
 
 @dataclass
 class BorderAnalysis:
-    """AnÃ¡lise das bordas da ferida."""
+    """Análise das bordas da ferida."""
     maceration: bool
     inflammation: bool
     regular_borders: bool
@@ -200,11 +200,11 @@ class BorderAnalysis:
 
 @dataclass
 class ClinicalReport:
-    """Laudo clÃ­nico completo."""
+    """Laudo clínico completo."""
     is_valid_wound: bool
     rejection_reason: str = ""
 
-    # ClassificaÃ§Ã£o principal
+    # Classificação principal
     primary_tissue: str = ""
     primary_justification: str = ""
 
@@ -214,38 +214,41 @@ class ClinicalReport:
     # Bordas
     border_analysis: Optional[BorderAnalysis] = None
 
-    # MÃ©tricas
+    # Métricas
     wound_area_px: int = 0
     health_score: float = 0.0
     processing_time_ms: float = 0.0
 
-    # Deep Learning prediction (quando disponÃ­vel)
+    # Deep Learning prediction (quando disponível)
     dl_prediction: Optional[Dict] = None
 
-    # ClassificaÃ§Ã£o ResNet50 dois estÃ¡gios (Normal/Ferida + Tipo)
+    # Classificação ResNet50 dois estágios (Normal/Ferida + Tipo)
     resnet_prediction: Optional[Dict] = None
     grad_cam_overlay: Optional[np.ndarray] = None
 
-    # Escalas clÃ­nicas (PUSH, BWAT) - calculadas automaticamente
+    # Escalas clínicas (PUSH, BWAT) - calculadas automaticamente
     push_score: Optional[Dict] = None
     bwat_score: Optional[Dict] = None
 
-    # AnÃ¡lise de iluminaÃ§Ã£o (quando disponÃ­vel)
+    # Análise de iluminação (quando disponível)
     lighting_analysis: Optional[Dict] = None
     image_corrections: Optional[Dict] = None
     
-    # DetecÃ§Ã£o de parte do corpo (quando disponÃ­vel)
+    # Detecção de parte do corpo (quando disponível)
     body_part: Optional[Dict] = None
 
     # Zonas espaciais da ferida (periferia, core, anel externo)
     wound_zones: Optional[Dict] = None
 
-    # Ensemble Multi-Modelo (camada adicional de IA prÃ©-treinada)
+    # Ensemble Multi-Modelo (camada adicional de IA pré-treinada)
     ensemble_classification: Optional[Dict] = None
     ensemble_agreement: Optional[Dict] = None
     ensemble_infection: Optional[Dict] = None
     ensemble_severity: Optional[float] = None
     ensemble_models_loaded: Optional[Dict] = None
+
+    # Pipeline DL de segmentação tecidual (quando disponível)
+    dl_tissue_pipeline: Optional[Dict] = None
 
     # Imagens processadas
     original: Optional[np.ndarray] = None
@@ -255,21 +258,21 @@ class ClinicalReport:
     tissue_analysis_trace: Optional[Dict] = None
 
 
-# DefiniÃ§Ã£o clÃ­nica dos tecidos
+# Definição clínica dos tecidos
 CLINICAL_TISSUES = {
     "necrosis": {
-        "name": "Necrose de CoagulaÃ§Ã£o (Escara)",
+        "name": "Necrose de Coagulação (Escara)",
         "name_en": "Coagulation Necrosis (Eschar)",
         "color_bgr": (30, 30, 60),
         "color_hex": "#3C1E1E",
         "description": (
-            "Tecido preto ou marrom-escuro, endurecido, seco ou Ãºmido (couro), "
-            "que indica morte celular por falta de suprimento sanguÃ­neo. "
+            "Tecido preto ou marrom-escuro, endurecido, seco ou úmido (couro), "
+            "que indica morte celular por falta de suprimento sanguíneo. "
             "Pode estar aderido ou solto no leito da ferida."
         ),
         "clinical_action": (
-            "Necessita de desbridamento (autolÃ­tico, enzimÃ¡tico, instrumental ou cirÃºrgico) "
-            "para remoÃ§Ã£o do tecido desvitalizado e promoÃ§Ã£o da cicatrizaÃ§Ã£o."
+            "Necessita de desbridamento (autolítico, enzimático, instrumental ou cirúrgico) "
+            "para remoção do tecido desvitalizado e promoção da cicatrização."
         ),
     },
     "slough": {
@@ -278,65 +281,65 @@ CLINICAL_TISSUES = {
         "color_bgr": (80, 220, 220),
         "color_hex": "#DCC850",
         "description": (
-            "Tecido amarelado, esbranquiÃ§ado ou acinzentado, de consistÃªncia viscosa "
+            "Tecido amarelado, esbranquiçado ou acinzentado, de consistência viscosa "
             "ou fibrosa, que adere ao leito da ferida. Composto por fibrina, "
-            "leucÃ³citos, bactÃ©rias e restos celulares."
+            "leucócitos, bactérias e restos celulares."
         ),
         "clinical_action": (
-            "Avaliar necessidade de desbridamento autolÃ­tico (hidrogel) ou enzimÃ¡tico. "
-            "Manter o leito Ãºmido para facilitar a remoÃ§Ã£o fisiolÃ³gica."
+            "Avaliar necessidade de desbridamento autolítico (hidrogel) ou enzimático. "
+            "Manter o leito úmido para facilitar a remoção fisiológica."
         ),
     },
     "granulation": {
-        "name": "Tecido de GranulaÃ§Ã£o",
+        "name": "Tecido de Granulação",
         "name_en": "Granulation Tissue",
         "color_bgr": (60, 60, 220),
         "color_hex": "#DC3C3C",
         "description": (
-            "Tecido vermelho vivo/brilhante, Ãºmido, com aspecto granulado ('em amora'). "
-            "Rico em neovasos e fibroblastos, indicando processo de cicatrizaÃ§Ã£o ativo "
+            "Tecido vermelho vivo/brilhante, úmido, com aspecto granulado ('em amora'). "
+            "Rico em neovasos e fibroblastos, indicando processo de cicatrização ativo "
             "na fase proliferativa."
         ),
         "clinical_action": (
-            "Proteger o tecido neoformado. Utilizar coberturas que mantenham meio Ãºmido "
+            "Proteger o tecido neoformado. Utilizar coberturas que mantenham meio úmido "
             "(espuma, alginato, hidrofibra). Evitar trauma na troca de curativos."
         ),
     },
     "epithelialization": {
-        "name": "EpitelizaÃ§Ã£o",
+        "name": "Epitelização",
         "name_en": "Epithelialization",
         "color_bgr": (200, 180, 255),
         "color_hex": "#FFB4C8",
         "description": (
-            "Tecido rosa claro ou translÃºcido que avanÃ§a das bordas para o centro "
-            "da ferida, selando a superfÃ­cie. Indica fase final da cicatrizaÃ§Ã£o "
-            "com migraÃ§Ã£o de queratinÃ³citos."
+            "Tecido rosa claro ou translúcido que avança das bordas para o centro "
+            "da ferida, selando a superfície. Indica fase final da cicatrização "
+            "com migração de queratinócitos."
         ),
         "clinical_action": (
-            "Proteger o epitÃ©lio neoformado com coberturas nÃ£o aderentes. "
+            "Proteger o epitélio neoformado com coberturas não aderentes. "
             "Evitar qualquer trauma. Monitorar fechamento completo."
         ),
     },
 }
 
 # ============================================================
-# INTERVALOS CLÃNICOS REFINADOS v2 â€” Multi-espaÃ§o de cor
+# INTERVALOS CLÍNICOS REFINADOS v2 — Multi-espaço de cor
 # ============================================================
-# HSV: matiz-saturaÃ§Ã£o-valor (boa discriminaÃ§Ã£o de cores puras)
-# LAB: luminosidade-a*-b* (boa separaÃ§Ã£o perceptual, eixo a*=vermelho/verde)
-# YCrCb: luminÃ¢ncia-crominÃ¢ncia (boa para detecÃ§Ã£o de pele/tecido)
+# HSV: matiz-saturação-valor (boa discriminação de cores puras)
+# LAB: luminosidade-a*-b* (boa separação perceptual, eixo a*=vermelho/verde)
+# YCrCb: luminância-crominância (boa para detecção de pele/tecido)
 
 CLINICAL_HSV_RANGES = {
     "necrosis": [
-        # 1. Preto/muito escuro â€” V â‰¤ 40, exceto azul/verde cirÃºrgico
+        # 1. Preto/muito escuro — V ≤ 40, exceto azul/verde cirúrgico
         (np.array([0, 0, 0]), np.array([80, 255, 40])),
         (np.array([140, 0, 0]), np.array([180, 255, 40])),
-        # 2. Marrom escuro necrÃ³tico â€” tom marrom (H 5-25), V 15-60
-        #    S â‰¥ 25 para separar de cinza acromÃ¡tico
+        # 2. Marrom escuro necrótico — tom marrom (H 5-25), V 15-60
+        #    S ≥ 25 para separar de cinza acromático
         (np.array([5, 25, 15]), np.array([25, 200, 60])),
-        # 3. Escara seca acromÃ¡tica â€” S < 30, V < 50
+        # 3. Escara seca acromática — S < 30, V < 50
         (np.array([0, 5, 5]), np.array([180, 30, 50])),
-        # 4. Marrom acinzentado (necrose Ãºmida) â€” H 8-30, S moderada
+        # 4. Marrom acinzentado (necrose úmida) — H 8-30, S moderada
         (np.array([8, 15, 20]), np.array([30, 120, 65])),
     ],
     "slough": [
@@ -356,38 +359,38 @@ CLINICAL_HSV_RANGES = {
         (np.array([32, 10, 68]), np.array([82, 95, 170])),
     ],
     "granulation": [
-        # Vermelho vivo intenso â€” S â‰¥ 130 (requer alta saturaÃ§Ã£o)
+        # Vermelho vivo intenso — S ≥ 130 (requer alta saturação)
         (np.array([0, 130, 90]), np.array([10, 255, 255])),
         (np.array([165, 130, 90]), np.array([180, 255, 255])),
-        # Vermelho moderado â€” S â‰¥ 100 (mais restrito para nÃ£o pegar pele/epi)
+        # Vermelho moderado — S ≥ 100 (mais restrito para não pegar pele/epi)
         (np.array([0, 100, 110]), np.array([8, 220, 255])),
         (np.array([170, 100, 110]), np.array([180, 220, 255])),
-        # Vermelho escuro (granulaÃ§Ã£o madura) â€” S â‰¥ 110
+        # Vermelho escuro (granulação madura) — S ≥ 110
         (np.array([0, 110, 60]), np.array([10, 255, 150])),
         (np.array([162, 110, 60]), np.array([180, 255, 150])),
     ],
     "epithelialization": [
-        # Rosa claro â€” S baixa (15-50), V alta (â‰¥ 190)
+        # Rosa claro — S baixa (15-50), V alta (≥ 190)
         (np.array([0, 15, 190]), np.array([10, 50, 255])),
         (np.array([165, 15, 190]), np.array([180, 50, 255])),
-        # Rosa pÃ¡lido quase branco â€” S muito baixa
+        # Rosa pálido quase branco — S muito baixa
         (np.array([0, 8, 210]), np.array([8, 35, 255])),
         (np.array([168, 8, 210]), np.array([180, 35, 255])),
     ],
 }
 
-# Intervalos no espaÃ§o LAB para refinamento
+# Intervalos no espaço LAB para refinamento
 # L: luminosidade (0=preto, 255=branco)
-# A: verde(-) â†’ vermelho(+)
-# B: azul(-) â†’ amarelo(+)
+# A: verde(-) → vermelho(+)
+# B: azul(-) → amarelo(+)
 CLINICAL_LAB_RANGES = {
     "necrosis": [
-        # Muito escuro com crominÃ¢ncia neutra (escara/necrose)
-        # L < 45 â€” pele escura saudÃ¡vel geralmente L > 50
+        # Muito escuro com crominância neutra (escara/necrose)
+        # L < 45 — pele escura saudável geralmente L > 50
         (np.array([0, 100, 100]), np.array([45, 150, 150])),
-        # Marrom necrÃ³tico (L baixo-mÃ©dio, a+/b+ moderados)
+        # Marrom necrótico (L baixo-médio, a+/b+ moderados)
         (np.array([10, 128, 120]), np.array([55, 165, 165])),
-        # Necrose Ãºmida/esverdeada (L baixo, b desviado)
+        # Necrose úmida/esverdeada (L baixo, b desviado)
         (np.array([5, 120, 105]), np.array([40, 145, 135])),
     ],
     "slough": [
@@ -401,7 +404,7 @@ CLINICAL_LAB_RANGES = {
         (np.array([90, 110, 130]), np.array([160, 128, 148])),
     ],
     "granulation": [
-        # Vermelho (a muito positivo, L mÃ©dio)
+        # Vermelho (a muito positivo, L médio)
         (np.array([40, 150, 115]), np.array([180, 220, 165])),
         # Vermelho escuro
         (np.array([25, 145, 110]), np.array([100, 200, 150])),
@@ -414,28 +417,28 @@ CLINICAL_LAB_RANGES = {
 
 
 # ============================================================
-# MOTOR DE ANÃLISE CLÃNICA
+# MOTOR DE ANÁLISE CLÍNICA
 # ============================================================
 
 class ClinicalWoundAnalyzer:
     """
-    Motor de anÃ¡lise clÃ­nica de feridas v2.
+    Motor de análise clínica de feridas v2.
 
-    Atua como especialista em Estomaterapia â€” classifica texturas
-    segundo a taxonomia de tecidos viÃ¡veis e inviÃ¡veis, analisa
-    bordas/perilesÃ£o e gera laudo tÃ©cnico.
+    Atua como especialista em Estomaterapia — classifica texturas
+    segundo a taxonomia de tecidos viáveis e inviáveis, analisa
+    bordas/perilesão e gera laudo técnico.
 
-    v2: Multi-espaÃ§o de cor (HSV + LAB), textura LBP, modelo DL
-    integrado (quando disponÃ­vel), calibraÃ§Ã£o de confianÃ§a.
+    v2: Multi-espaço de cor (HSV + LAB), textura LBP, modelo DL
+    integrado (quando disponível), calibração de confiança.
     """
 
-    MIN_WOUND_AREA_RATIO = 0.005   # MÃ­nimo 0.5% da imagem
-    MAX_SKIN_RATIO = 0.97          # Se > 97% for pele â†’ invÃ¡lido
+    MIN_WOUND_AREA_RATIO = 0.005   # Mínimo 0.5% da imagem
+    MAX_SKIN_RATIO = 0.97          # Se > 97% for pele → inválido
 
     # Escala de Fitzpatrick aproximada por luminosidade LAB
     # Usada para adaptar limiares de necrose ao tom de pele do paciente
     FITZPATRICK_L_THRESHOLDS = {
-        # L mÃ©dio do periwound -> Fitzpatrick aproximado
+        # L médio do periwound -> Fitzpatrick aproximado
         # I-II: L > 180, III: L 150-180, IV: L 110-150, V: L 70-110, VI: L < 70
         "very_light": 180,  # I-II
         "light": 150,       # III
@@ -465,21 +468,21 @@ class ClinicalWoundAnalyzer:
         self._dl_available = False
         self._load_dl_model()
 
-        # Classificador ResNet50 de dois estÃ¡gios (do notebook)
+        # Classificador ResNet50 de dois estágios (do notebook)
         self._resnet_classifier = None
         self._resnet_available = False
         self._load_resnet_classifier()
 
-        # Ensemble Multi-Modelo (camada adicional de IA prÃ©-treinada)
+        # Ensemble Multi-Modelo (camada adicional de IA pré-treinada)
         self._ensemble = None
         self._ensemble_available = False
         self._last_tissue_analysis_trace = None
         self._load_ensemble()
 
     def _load_resnet_classifier(self):
-        """Carrega o classificador ResNet50 de dois estÃ¡gios."""
+        """Carrega o classificador ResNet50 de dois estágios."""
         if not HAS_RESNET_CLASSIFIER:
-            print("[HEAL+] MÃ³dulo ResNet50 nÃ£o disponÃ­vel")
+            print("[HEAL+] Módulo ResNet50 não disponível")
             return
         try:
             self._resnet_classifier = create_two_stage_classifier()
@@ -488,13 +491,13 @@ class ClinicalWoundAnalyzer:
                 status = self._resnet_classifier.get_status()
                 print(f"[HEAL+] ResNet50 Two-Stage: S1={status['stage1_available']}, S2={status['stage2_available']} ({status['device']})")
             else:
-                print("[HEAL+] ResNet50: Modelos nÃ£o encontrados (classificaÃ§Ã£o por heurÃ­stica)")
+                print("[HEAL+] ResNet50: Modelos não encontrados (classificação por heurística)")
         except Exception as e:
             print(f"[HEAL+] Erro ao carregar ResNet50: {e}")
             self._resnet_available = False
 
     def _load_dl_model(self):
-        """Tenta carregar modelo DL treinado (PyTorch) para classificaÃ§Ã£o."""
+        """Tenta carregar modelo DL treinado (PyTorch) para classificação."""
         # PyTorch model paths (traced/TorchScript preferred - self-contained)
         model_paths = [
             LEGACY_ROOT / "models" / "wound_classifier_v2" / "wound_classifier_v2_traced.pt",
@@ -515,7 +518,7 @@ class ClinicalWoundAnalyzer:
                     elif "full" in mp.name:
                         self._dl_model = torch.load(str(mp), map_location="cpu", weights_only=False)
                     else:
-                        # state_dict â€” needs metadata to reconstruct model
+                        # state_dict — needs metadata to reconstruct model
                         # skip if no metadata loaded yet; will try full model first
                         continue
                     self._dl_model.eval()
@@ -555,7 +558,7 @@ class ClinicalWoundAnalyzer:
             self._ensemble_available = loaded > 0
             print(f"[HEAL+] Ensemble multi-modelo: {loaded}/3 modelos ({status})")
         except Exception as e:
-            print(f"[HEAL+] Ensemble indisponÃ­vel: {e}")
+            print(f"[HEAL+] Ensemble indisponível: {e}")
             self._ensemble_available = False
 
     def _predict_ensemble(
@@ -565,18 +568,18 @@ class ClinicalWoundAnalyzer:
         dl_probs: Optional[Dict[int, float]] = None,
         wound_mask: Optional[np.ndarray] = None,
     ) -> Optional[Dict]:
-        """PrediÃ§Ã£o via ensemble multi-modelo (quando disponÃ­vel).
+        """Predição via ensemble multi-modelo (quando disponível).
 
         Args:
             image: imagem BGR
-            detections: lista de detecÃ§Ãµes (com bbox)
+            detections: lista de detecções (com bbox)
             dl_probs: probabilidades do modelo DL base (5 classes REDISUS)
-            wound_mask: mÃ¡scara de segmentaÃ§Ã£o do pipeline base
+            wound_mask: máscara de segmentação do pipeline base
         """
         if not self._ensemble_available or self._ensemble is None:
             return None
         try:
-            # Determina bbox a partir das detecÃ§Ãµes
+            # Determina bbox a partir das detecções
             bbox = None
             if detections:
                 best = max(detections, key=lambda d: d.get("confidence", d.get("score", 0))
@@ -661,7 +664,7 @@ class ClinicalWoundAnalyzer:
         return normalized, supported_mass
 
     def _predict_dl(self, image: np.ndarray) -> Optional[Dict]:
-        """PrediÃ§Ã£o com modelo DL PyTorch (se disponÃ­vel)."""
+        """Predição com modelo DL PyTorch (se disponível)."""
         if not self._dl_available or self._dl_model is None:
             return None
         try:
@@ -687,7 +690,7 @@ class ClinicalWoundAnalyzer:
             img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             img_tensor = transform(img_rgb).unsqueeze(0)  # [1, 3, H, W]
 
-            # TTA â€” Test Time Augmentation (4 flips)
+            # TTA — Test Time Augmentation (4 flips)
             with torch.no_grad():
                 predictions = []
                 # Original
@@ -703,7 +706,7 @@ class ClinicalWoundAnalyzer:
                 out = torch.softmax(self._dl_model(torch.flip(img_tensor, [2, 3])), dim=1)
                 predictions.append(out)
 
-                # MÃ©dia TTA
+                # Média TTA
                 avg_pred = torch.stack(predictions).mean(dim=0).squeeze(0).numpy()
 
             class_idx = int(np.argmax(avg_pred))
@@ -745,71 +748,71 @@ class ClinicalWoundAnalyzer:
 
     # -------------------------------------------------------
     def analyze(self, image: np.ndarray) -> ClinicalReport:
-        """Pipeline completo de anÃ¡lise clÃ­nica."""
+        """Pipeline completo de análise clínica."""
         t0 = time.perf_counter()
         report = ClinicalReport(is_valid_wound=True)
         if image is None or not isinstance(image, np.ndarray) or image.size == 0 or image.ndim != 3:
             report.is_valid_wound = False
-            report.rejection_reason = "Input InvÃ¡lido â€” imagem vazia ou malformada."
+            report.rejection_reason = "Input Inválido — imagem vazia ou malformada."
             report.processing_time_ms = (time.perf_counter() - t0) * 1000
             return report
         report.original = image.copy()
 
-        # 1. ValidaÃ§Ã£o â€” Ã© uma ferida?
+        # 1. Validação — é uma ferida?
         if not self._validate_wound_image(image):
             report.is_valid_wound = False
             report.rejection_reason = (
-                "Input InvÃ¡lido â€” A imagem fornecida nÃ£o apresenta caracterÃ­sticas "
-                "compatÃ­veis com ferida cutÃ¢nea humana."
+                "Input Inválido — A imagem fornecida não apresenta características "
+                "compatíveis com ferida cutânea humana."
             )
             report.processing_time_ms = (time.perf_counter() - t0) * 1000
             return report
 
-        # 2. Redimensiona se necessÃ¡rio
+        # 2. Redimensiona se necessário
         h, w = image.shape[:2]
         if max(h, w) > 1024:
             scale = 1024 / max(h, w)
             image = cv2.resize(image, (int(w * scale), int(h * scale)))
 
-        # 2.1 AnÃ¡lise de iluminaÃ§Ã£o e correÃ§Ã£o automÃ¡tica
+        # 2.1 Análise de iluminação e correção automática
         if self.image_enhancer is not None:
             try:
                 lighting = self.image_enhancer.analyze_lighting(image)
                 report.lighting_analysis = lighting.to_dict()
                 
-                # Aplica correÃ§Ãµes se necessÃ¡rio
+                # Aplica correções se necessário
                 if lighting.corrections_needed:
                     image, corrections = self.image_enhancer.auto_correct(image, lighting)
                     report.image_corrections = corrections
             except Exception as e:
-                print(f"[HEAL+] Erro anÃ¡lise de iluminaÃ§Ã£o: {e}")
+                print(f"[HEAL+] Erro análise de iluminação: {e}")
         
-        # 2.2 DetecÃ§Ã£o de parte do corpo
+        # 2.2 Detecção de parte do corpo
         if self.body_detector is not None:
             try:
                 body_part = self.body_detector.detect(image)
                 report.body_part = body_part.to_dict()
             except Exception as e:
-                print(f"[HEAL+] Erro detecÃ§Ã£o parte do corpo: {e}")
+                print(f"[HEAL+] Erro detecção parte do corpo: {e}")
 
-        # 3. DetecÃ§Ã£o de regiÃµes de ferida
+        # 3. Detecção de regiões de ferida
         detections = self.detector.detect(image)
 
-        # 3.1 Cria mÃ¡scara ROI precisa por contorno (nÃ£o mais bbox retangular)
+        # 3.1 Cria máscara ROI precisa por contorno (não mais bbox retangular)
         wound_mask = self._create_wound_roi_mask(image, detections)
 
-        # 3.2 Remove fundo cirÃºrgico (lenÃ§ol azul/verde/cinza) da mÃ¡scara
+        # 3.2 Remove fundo cirúrgico (lençol azul/verde/cinza) da máscara
         wound_mask = self._exclude_surgical_background(image, wound_mask)
 
-        # 3.3 ClassificaÃ§Ã£o espacial de background â€” separa fundo de cÃ¢mera
-        # de tecido necrÃ³tico usando variÃ¢ncia local, crominÃ¢ncia e conectividade
+        # 3.3 Classificação espacial de background — separa fundo de câmera
+        # de tecido necrótico usando variância local, crominância e conectividade
         background_mask = self._create_background_mask_spatial(image, wound_mask)
         wound_mask_clean = cv2.bitwise_and(wound_mask, cv2.bitwise_not(background_mask))
-        # Se a limpeza removeu quase tudo, ignora (provavelmente nÃ£o tem fundo)
+        # Se a limpeza removeu quase tudo, ignora (provavelmente não tem fundo)
         if np.sum(wound_mask_clean > 0) > 0.05 * np.sum(wound_mask > 0):
             wound_mask = wound_mask_clean
 
-        # 3.4 SeparaÃ§Ã£o em zonas espaciais (periferia, core, anel externo)
+        # 3.4 Separação em zonas espaciais (periferia, core, anel externo)
         peripheral_zone, core_zone, outer_ring = self._create_zone_masks(wound_mask)
         report.wound_zones = {
             "peripheral_area_px": int(np.sum(peripheral_zone > 0)),
@@ -818,7 +821,7 @@ class ClinicalWoundAnalyzer:
             "border_width_adaptive": True,
         }
 
-        # Desenha detecÃ§Ãµes
+        # Desenha detecções
         det_overlay = image.copy()
         for det in detections:
             x1, y1, x2, y2 = det.bbox
@@ -829,7 +832,7 @@ class ClinicalWoundAnalyzer:
         report.detection_overlay = det_overlay
         report.wound_area_px = int(np.sum(wound_mask > 0))
 
-        # 4. SegmentaÃ§Ã£o tecidual clÃ­nica v3 (HSV + LAB + zonas + gradiente)
+        # 4. Segmentação tecidual clínica v3 (HSV + LAB + zonas + gradiente)
         tissue_pcts, seg_map, tissue_overlay = self._segment_clinical_v3(
             image, wound_mask, peripheral_zone, core_zone, outer_ring
         )
@@ -851,18 +854,18 @@ class ClinicalWoundAnalyzer:
                 clinical_action=info["clinical_action"],
             ))
 
-        # 6. ClassificaÃ§Ã£o principal
+        # 6. Classificação principal
         dominant = max(report.tissues, key=lambda t: t.percentage)
         report.primary_tissue = dominant.name
         report.primary_justification = self._build_justification(dominant, tissue_pcts)
 
-        # 7. AnÃ¡lise de bordas
+        # 7. Análise de bordas
         report.border_analysis = self._analyze_borders(image, wound_mask)
 
-        # 8. Score de saÃºde
+        # 8. Score de saúde
         report.health_score = self._compute_health_score(tissue_pcts)
 
-        # 9. Escalas clÃ­nicas (PUSH e BWAT)
+        # 9. Escalas clínicas (PUSH e BWAT)
         if HAS_CLINICAL_SCALES:
             try:
                 # PUSH Score
@@ -880,7 +883,7 @@ class ClinicalWoundAnalyzer:
                 )
                 report.push_score = push.to_dict()
                 
-                # BWAT Score (itens auto-preenchÃ­veis)
+                # BWAT Score (itens auto-preenchíveis)
                 bwat = ScaleCalculator.calculate_bwat_from_analysis(
                     tissue_percentages=tissue_pcts,
                     wound_area_px=report.wound_area_px,
@@ -888,14 +891,14 @@ class ClinicalWoundAnalyzer:
                 )
                 report.bwat_score = bwat.to_dict()
             except Exception as e:
-                print(f"[HEAL+] Erro ao calcular escalas clÃ­nicas: {e}")
+                print(f"[HEAL+] Erro ao calcular escalas clínicas: {e}")
 
-        # 10. Deep Learning â€” classificaÃ§Ã£o etiolÃ³gica (se disponÃ­vel)
+        # 10. Deep Learning — classificação etiológica (se disponível)
         dl_result = self._predict_dl(image)
         if dl_result:
             report.dl_prediction = dl_result
 
-        # 11. ResNet50 Two-Stage â€” classificaÃ§Ã£o Normal/Ferida + Tipo
+        # 11. ResNet50 Two-Stage — classificação Normal/Ferida + Tipo
         resnet_result = self._predict_resnet(image)
         if resnet_result:
             report.resnet_prediction = resnet_result
@@ -903,8 +906,8 @@ class ClinicalWoundAnalyzer:
             if isinstance(resnet_result, dict) and resnet_result.get('grad_cam_overlay') is not None:
                 report.grad_cam_overlay = resnet_result.pop('grad_cam_overlay')
 
-        # 12. Ensemble Multi-Modelo â€” camada adicional de IA prÃ©-treinada
-        #     Passa probabilidades DL e mÃ¡scara de segmentaÃ§Ã£o para fusÃ£o cruzada
+        # 12. Ensemble Multi-Modelo — camada adicional de IA pré-treinada
+        #     Passa probabilidades DL e máscara de segmentação para fusão cruzada
         dl_probs = None
         if dl_result:
             mapped_probs = dl_result.get("redisus_probs")
@@ -926,7 +929,7 @@ class ClinicalWoundAnalyzer:
         return report
 
     def _predict_resnet(self, image: np.ndarray) -> Optional[Dict]:
-        """ClassificaÃ§Ã£o ResNet50 de dois estÃ¡gios com Grad-CAM."""
+        """Classificação ResNet50 de dois estágios com Grad-CAM."""
         if not self._resnet_available or self._resnet_classifier is None:
             return None
         try:
@@ -946,7 +949,7 @@ class ClinicalWoundAnalyzer:
             if result.stage2 and result.final_class in WOUND_TO_ETIOLOGY:
                 output['mapped_etiology'] = WOUND_TO_ETIOLOGY[result.final_class]
 
-            # AÃ§Ã£o clÃ­nica recomendada
+            # Ação clínica recomendada
             if result.final_class in WOUND_CLINICAL_ACTIONS:
                 output['clinical_action'] = WOUND_CLINICAL_ACTIONS[result.final_class]
 
@@ -961,81 +964,81 @@ class ClinicalWoundAnalyzer:
         image: np.ndarray, wound_mask: np.ndarray
     ) -> np.ndarray:
         """
-        Detecta e exclui fundo cirÃºrgico (lenÃ§ol azul, verde, cinza de maca)
-        da mÃ¡scara de ferida para evitar que o segmentador confunda sombras do
-        campo cirÃºrgico com necrose ou esfacelo.
+        Detecta e exclui fundo cirúrgico (lençol azul, verde, cinza de maca)
+        da máscara de ferida para evitar que o segmentador confunda sombras do
+        campo cirúrgico com necrose ou esfacelo.
 
         Detecta:
         - Azul hospitalar:  H 90-130, S > 30, V qualquer
-        - Verde cirÃºrgico:  H 35-85,  S > 30, V > 30
-        - Cinza de maca:    S < 25,   V 40-170 (acromÃ¡tico)
+        - Verde cirúrgico:  H 35-85,  S > 30, V > 30
+        - Cinza de maca:    S < 25,   V 40-170 (acromático)
         - Branco de gaze:   S < 20,   V > 200
         """
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         drape_mask = np.zeros(image.shape[:2], dtype=np.uint8)
 
-        # Azul hospitalar (lenÃ§ol, campo cirÃºrgico)
+        # Azul hospitalar (lençol, campo cirúrgico)
         drape_mask = cv2.bitwise_or(
             drape_mask,
             cv2.inRange(hsv, np.array([90, 30, 20]), np.array([130, 255, 255]))
         )
-        # Verde cirÃºrgico
+        # Verde cirúrgico
         drape_mask = cv2.bitwise_or(
             drape_mask,
             cv2.inRange(hsv, np.array([55, 60, 35]), np.array([95, 255, 255]))
         )
-        # Cinza acromÃ¡tico (maca, superfÃ­cie metÃ¡lica)
+        # Cinza acromático (maca, superfície metálica)
         drape_mask = cv2.bitwise_or(
             drape_mask,
             cv2.inRange(hsv, np.array([0, 0, 40]), np.array([180, 25, 170]))
         )
 
-        # SÃ³ exclui se a regiÃ£o de drape cobre uma fraÃ§Ã£o significativa
-        # (evita excluir pixels legÃ­timos em imagens sem campo cirÃºrgico)
+        # Só exclui se a região de drape cobre uma fração significativa
+        # (evita excluir pixels legítimos em imagens sem campo cirúrgico)
         drape_ratio = np.sum(drape_mask > 0) / max(drape_mask.size, 1)
         if drape_ratio < 0.05:
-            # Quase nada detectado â€” provavelmente nÃ£o tem campo cirÃºrgico
+            # Quase nada detectado — provavelmente não tem campo cirúrgico
             return wound_mask
 
-        # Dilata levemente para pegar bordas de transiÃ§Ã£o
+        # Dilata levemente para pegar bordas de transição
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
         drape_mask = cv2.dilate(drape_mask, kernel, iterations=1)
 
         # Remove do wound_mask
         cleaned = cv2.bitwise_and(wound_mask, cv2.bitwise_not(drape_mask))
 
-        # Garante que ainda resta Ã¡rea Ãºtil (nÃ£o remove tudo)
+        # Garante que ainda resta área útil (não remove tudo)
         if np.sum(cleaned > 0) < 0.02 * wound_mask.size:
-            # Se removeu quase tudo, ignora a exclusÃ£o
+            # Se removeu quase tudo, ignora a exclusão
             return wound_mask
 
         return cleaned
 
     # -------------------------------------------------------
     def _validate_wound_image(self, image: np.ndarray) -> bool:
-        """Verifica se a imagem provavelmente contÃ©m uma ferida."""
+        """Verifica se a imagem provavelmente contém uma ferida."""
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-        # Verifica se Ã© completamente monoton (tela preta, branca, etc.)
+        # Verifica se é completamente monoton (tela preta, branca, etc.)
         std_val = np.std(hsv[:, :, 2])
         if std_val < 8:
             return False
 
-        # Verifica se tem variaÃ§Ã£o de matiz suficiente
+        # Verifica se tem variação de matiz suficiente
         std_hue = np.std(hsv[:, :, 0])
         if std_hue < 3 and np.std(hsv[:, :, 1]) < 10:
             return False
 
-        # Verifica se Ã© uma foto (nÃ£o um diagrama/texto)
+        # Verifica se é uma foto (não um diagrama/texto)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
         edge_ratio = np.sum(edges > 0) / edges.size
-        # Textos/diagramas tÃªm muitas bordas finas
+        # Textos/diagramas têm muitas bordas finas
         if edge_ratio > 0.35:
             return False
 
-        # Busca por cores compatÃ­veis com ferida/pele
+        # Busca por cores compatíveis com ferida/pele
         # Vermelhos + rosados + amarelos + escuros + tons de pele
         wound_colors = np.zeros(image.shape[:2], dtype=np.uint8)
         ranges = [
@@ -1061,16 +1064,16 @@ class ClinicalWoundAnalyzer:
         self, image: np.ndarray, detections: list
     ) -> np.ndarray:
         """
-        Cria mÃ¡scara ROI precisa do leito da ferida usando contorno real
+        Cria máscara ROI precisa do leito da ferida usando contorno real
         em vez de bounding boxes retangulares.
 
         Pipeline:
-        1. Inicializa com bounding boxes das detecÃ§Ãµes
-        2. Segmenta por cor dentro de cada bbox (exclui pele sÃ£, fundo)
-        3. Extrai contorno externo (perÃ­metro da lesÃ£o)
-        4. Preenche contorno para criar mÃ¡scara binÃ¡ria precisa
+        1. Inicializa com bounding boxes das detecções
+        2. Segmenta por cor dentro de cada bbox (exclui pele sã, fundo)
+        3. Extrai contorno externo (perímetro da lesão)
+        4. Preenche contorno para criar máscara binária precisa
 
-        Resultado: mÃ¡scara onde 255 = leito da ferida, 0 = fora.
+        Resultado: máscara onde 255 = leito da ferida, 0 = fora.
         """
         h, w = image.shape[:2]
         wound_mask = np.zeros((h, w), dtype=np.uint8)
@@ -1127,7 +1130,7 @@ class ClinicalWoundAnalyzer:
 
         for det in detections:
             x1, y1, x2, y2 = det.bbox
-            # Margem de seguranÃ§a (5% do bbox)
+            # Margem de segurança (5% do bbox)
             margin_x = int((x2 - x1) * 0.05)
             margin_y = int((y2 - y1) * 0.05)
             rx1 = max(0, x1 - margin_x)
@@ -1137,7 +1140,7 @@ class ClinicalWoundAnalyzer:
 
             roi_filled = build_roi_mask(rx1, ry1, rx2, ry2)
 
-            # Se segmentaÃ§Ã£o capturou muito pouco, fallback para bbox
+            # Se segmentação capturou muito pouco, fallback para bbox
             roi_area = np.sum(roi_filled > 0)
             bbox_area = (rx2 - rx1) * (ry2 - ry1)
             if roi_area < bbox_area * 0.10:
@@ -1173,21 +1176,21 @@ class ClinicalWoundAnalyzer:
         border_width_px: int = 15
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        Separa a mÃ¡scara da ferida em zonas espaciais:
+        Separa a máscara da ferida em zonas espaciais:
 
-        - peripheral_zone: anel de borda interna (transiÃ§Ã£o ferida â†’ pele sÃ£)
+        - peripheral_zone: anel de borda interna (transição ferida → pele sã)
         - core_zone: centro/miolo do leito da ferida
-        - outer_ring: anel externo (para detectar epitelizaÃ§Ã£o avanÃ§ando)
+        - outer_ring: anel externo (para detectar epitelização avançando)
 
-        A largura do buffer Ã© adaptativa: usa min(border_width_px,
-        ~15% do raio equivalente) para nÃ£o engolir feridas pequenas.
+        A largura do buffer é adaptativa: usa min(border_width_px,
+        ~15% do raio equivalente) para não engolir feridas pequenas.
 
         Args:
-            wound_mask: MÃ¡scara binÃ¡ria da ferida (255 = ferida)
+            wound_mask: Máscara binária da ferida (255 = ferida)
             border_width_px: Largura base do anel de borda em pixels
 
         Returns:
-            (peripheral_zone, core_zone, outer_ring) â€” todas uint8, 0/255
+            (peripheral_zone, core_zone, outer_ring) — todas uint8, 0/255
         """
         h, w = wound_mask.shape[:2]
 
@@ -1195,10 +1198,10 @@ class ClinicalWoundAnalyzer:
         wound_area = np.sum(wound_mask > 0)
         equiv_radius = np.sqrt(wound_area / np.pi) if wound_area > 0 else 0
 
-        # Buffer adaptativo: mÃ¡x 15% do raio, mÃ­n 3px, mÃ¡x border_width_px
+        # Buffer adaptativo: máx 15% do raio, mín 3px, máx border_width_px
         adaptive_width = int(np.clip(equiv_radius * 0.15, 3, border_width_px))
 
-        # ErosÃ£o para criar zona central (core)
+        # Erosão para criar zona central (core)
         kernel = cv2.getStructuringElement(
             cv2.MORPH_ELLIPSE,
             (2 * adaptive_width + 1, 2 * adaptive_width + 1)
@@ -1213,7 +1216,7 @@ class ClinicalWoundAnalyzer:
             wound_mask, cv2.bitwise_not(core_zone)
         )
 
-        # outer_ring = dilataÃ§Ã£o - wound_mask (anel externo)
+        # outer_ring = dilatação - wound_mask (anel externo)
         dilated = cv2.dilate(wound_mask, kernel, iterations=1)
         outer_ring = cv2.bitwise_and(
             dilated, cv2.bitwise_not(wound_mask)
@@ -1234,33 +1237,33 @@ class ClinicalWoundAnalyzer:
         Classifica pixels escuros como 'background' vs 'necrose' usando
         contexto espacial em vez de apenas valor de pixel.
 
-        Racional clÃ­nico:
-          Fundo de cÃ¢mera fotogrÃ¡fica e necrose de coagulaÃ§Ã£o (escara) sÃ£o
-          ambos muito escuros (V â‰ˆ 0). PorÃ©m, diferem em:
-            1. VariÃ¢ncia local â€” fundo Ã© uniformemente preto (var â‰ˆ 0),
-               enquanto tecido necrÃ³tico tem micro-textura (var > 0).
-            2. CrominÃ¢ncia â€” fundo puro Ã© acromÃ¡tico (a*â‰ˆ128, b*â‰ˆ128),
+        Racional clínico:
+          Fundo de câmera fotográfica e necrose de coagulação (escara) são
+          ambos muito escuros (V ≈ 0). Porém, diferem em:
+            1. Variância local — fundo é uniformemente preto (var ≈ 0),
+               enquanto tecido necrótico tem micro-textura (var > 0).
+            2. Crominância — fundo puro é acromático (a*≈128, b*≈128),
                enquanto necrose geralmente tem tint marrom/vermelho.
-            3. Conectividade â€” fundo tende a formar regiÃµes grandes e
-               contÃ­guas que tocam as bordas da imagem; necrose forma
-               ilhas menores dentro do perÃ­metro anatÃ´mico.
-            4. PosiÃ§Ã£o relativa â€” fundo de cÃ¢mera frequentemente toca
-               as bordas da imagem; necrose estÃ¡ centrada no leito.
+            3. Conectividade — fundo tende a formar regiões grandes e
+               contíguas que tocam as bordas da imagem; necrose forma
+               ilhas menores dentro do perímetro anatômico.
+            4. Posição relativa — fundo de câmera frequentemente toca
+               as bordas da imagem; necrose está centrada no leito.
 
         Pipeline:
           1) Identifica pixels muito escuros (V < 20) dentro do wound_mask
-          2) Calcula variÃ¢ncia local (5Ã—5) â€” background: var < threshold
-          3) Calcula desvio cromÃ¡tico (chroma) â€” background: chroma â‰ˆ 0
-          4) Conectividade: regiÃµes escuras > 30% do wound_mask E tocando
-             borda da imagem â†’ provÃ¡vel background leaking
-          5) Score combinado â†’ mÃ¡scara de background
+          2) Calcula variância local (5×5) — background: var < threshold
+          3) Calcula desvio cromático (chroma) — background: chroma ≈ 0
+          4) Conectividade: regiões escuras > 30% do wound_mask E tocando
+             borda da imagem → provável background leaking
+          5) Score combinado → máscara de background
 
         Args:
             image: Imagem BGR original
-            wound_mask: MÃ¡scara binÃ¡ria da ferida (255 = ferida)
+            wound_mask: Máscara binária da ferida (255 = ferida)
 
         Returns:
-            background_mask: MÃ¡scara onde 255 = pixel de background, 0 = tecido
+            background_mask: Máscara onde 255 = pixel de background, 0 = tecido
         """
         h, w = image.shape[:2]
         background_mask = np.zeros((h, w), dtype=np.uint8)
@@ -1270,37 +1273,37 @@ class ClinicalWoundAnalyzer:
         very_dark = (gray < 20).astype(np.uint8) * 255
         dark_in_roi = cv2.bitwise_and(very_dark, wound_mask)
 
-        # Se quase nÃ£o tem pixels escuros no ROI, retorna vazio
+        # Se quase não tem pixels escuros no ROI, retorna vazio
         dark_count = np.sum(dark_in_roi > 0)
         roi_count = max(np.sum(wound_mask > 0), 1)
         if dark_count < roi_count * 0.02:
-            return background_mask  # < 2% escuro â†’ nÃ£o tem background significativo
+            return background_mask  # < 2% escuro → não tem background significativo
 
-        # 2. VariÃ¢ncia local (5Ã—5) â€” background tem variÃ¢ncia â‰ˆ 0
+        # 2. Variância local (5×5) — background tem variância ≈ 0
         gray_f = gray.astype(np.float32)
         local_mean = cv2.blur(gray_f, (5, 5))
         local_sqmean = cv2.blur(gray_f ** 2, (5, 5))
         local_var = local_sqmean - local_mean ** 2
         local_var = np.clip(local_var, 0, None)
 
-        # Background: variÃ¢ncia muito baixa (superfÃ­cie uniforme)
+        # Background: variância muito baixa (superfície uniforme)
         low_var = (local_var < 8.0).astype(np.uint8) * 255
 
-        # 3. CrominÃ¢ncia â€” background Ã© acromÃ¡tico puro
+        # 3. Crominância — background é acromático puro
         lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
         a_ch = lab[:, :, 1].astype(np.float32)
         b_ch = lab[:, :, 2].astype(np.float32)
         chroma_deviation = np.sqrt((a_ch - 128.0) ** 2 + (b_ch - 128.0) ** 2)
 
-        # AcromÃ¡tico = desvio cromÃ¡tico < 5 (praticamente neutro)
+        # Acromático = desvio cromático < 5 (praticamente neutro)
         achromatic = (chroma_deviation < 5.0).astype(np.uint8) * 255
 
-        # 4. Candidato a background: escuro + variÃ¢ncia baixa + acromÃ¡tico
+        # 4. Candidato a background: escuro + variância baixa + acromático
         bg_candidate = cv2.bitwise_and(dark_in_roi, low_var)
         bg_candidate = cv2.bitwise_and(bg_candidate, achromatic)
 
-        # 5. AnÃ¡lise de conectividade â€” regiÃµes grandes e/ou tocando borda
-        # sÃ£o mais provÃ¡veis de ser background
+        # 5. Análise de conectividade — regiões grandes e/ou tocando borda
+        # são mais prováveis de ser background
         contours, _ = cv2.findContours(
             bg_candidate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
@@ -1309,12 +1312,12 @@ class ClinicalWoundAnalyzer:
         for cnt in contours:
             area = cv2.contourArea(cnt)
 
-            # CritÃ©rio 1: regiÃ£o muito grande (> 15% do wound_mask) â†’ background
+            # Critério 1: região muito grande (> 15% do wound_mask) → background
             if area > roi_count * 0.15:
                 cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
                 continue
 
-            # CritÃ©rio 2: toca borda da imagem â†’ provÃ¡vel background de cÃ¢mera
+            # Critério 2: toca borda da imagem → provável background de câmera
             x, y, cw, ch = cv2.boundingRect(cnt)
             touches_border = (
                 x <= border_margin or
@@ -1326,15 +1329,15 @@ class ClinicalWoundAnalyzer:
                 cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
                 continue
 
-            # CritÃ©rio 3: regiÃ£o pequena mas extremamente uniforme
-            # (variÃ¢ncia mÃ©dia dentro da regiÃ£o < 2) â†’ background
+            # Critério 3: região pequena mas extremamente uniforme
+            # (variância média dentro da região < 2) → background
             cnt_mask = np.zeros((h, w), dtype=np.uint8)
             cv2.drawContours(cnt_mask, [cnt], -1, 255, cv2.FILLED)
             region_var = local_var[cnt_mask > 0]
             if len(region_var) > 10 and np.mean(region_var) < 2.0:
                 cv2.drawContours(background_mask, [cnt], -1, 255, cv2.FILLED)
 
-        # 6. Dilata levemente para fechar bordas de transiÃ§Ã£o
+        # 6. Dilata levemente para fechar bordas de transição
         if np.sum(background_mask > 0) > 0:
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             background_mask = cv2.dilate(background_mask, kernel, iterations=1)
@@ -1350,28 +1353,28 @@ class ClinicalWoundAnalyzer:
         outer_ring: np.ndarray,
     ) -> np.ndarray:
         """
-        Detecta tecido epitelial usando anÃ¡lise de gradiente na zona de borda.
+        Detecta tecido epitelial usando análise de gradiente na zona de borda.
 
-        A epitelizaÃ§Ã£o ocorre especificamente na transiÃ§Ã£o ferida â†’ pele sÃ£:
-        - Cor rosa claro / translÃºcido
-        - Gradiente suave (superfÃ­cie lisa, sem textura granulada)
-        - Proximidade com pele Ã­ntegra (zona perifÃ©rica)
+        A epitelização ocorre especificamente na transição ferida → pele sã:
+        - Cor rosa claro / translúcido
+        - Gradiente suave (superfície lisa, sem textura granulada)
+        - Proximidade com pele íntegra (zona periférica)
         - Baixo contraste local (tecido uniforme)
 
         Combina:
-        1. DetecÃ§Ã£o por cor HSV/LAB restrita Ã  zona perifÃ©rica
-        2. AnÃ¡lise de gradiente (Scharr) â€” epitelizaÃ§Ã£o tem gradiente baixo
+        1. Detecção por cor HSV/LAB restrita à zona periférica
+        2. Análise de gradiente (Scharr) — epitelização tem gradiente baixo
         3. Proximidade com borda (weighted distance transform)
 
         Returns:
-            epithelial_mask: mÃ¡scara binÃ¡ria dos pixels epiteliais (0/255)
+            epithelial_mask: máscara binária dos pixels epiteliais (0/255)
         """
         h, w = image.shape[:2]
 
         # Zona de interesse: periferia interna + anel externo
         epi_roi = cv2.bitwise_or(peripheral_zone, outer_ring)
 
-        # 1. DetecÃ§Ã£o por cor na zona perifÃ©rica (HSV + LAB)
+        # 1. Detecção por cor na zona periférica (HSV + LAB)
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
 
@@ -1384,10 +1387,10 @@ class ClinicalWoundAnalyzer:
             color_mask = cv2.bitwise_or(
                 color_mask, cv2.inRange(lab, lower, upper)
             )
-        # Restringe estritamente Ã  zona perifÃ©rica + anel externo
+        # Restringe estritamente à zona periférica + anel externo
         color_mask = cv2.bitwise_and(color_mask, epi_roi)
 
-        # 2. AnÃ¡lise de gradiente â€” Scharr (mais preciso que Sobel)
+        # 2. Análise de gradiente — Scharr (mais preciso que Sobel)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         gray_smooth = cv2.GaussianBlur(gray, (5, 5), 0)
 
@@ -1400,8 +1403,8 @@ class ClinicalWoundAnalyzer:
             gradient_mag, None, 0, 255, cv2.NORM_MINMAX
         ).astype(np.uint8)
 
-        # EpitelizaÃ§Ã£o = gradiente BAIXO (superfÃ­cie lisa/translÃºcida)
-        # Threshold adaptativo: 40Âº percentil na zona de interesse
+        # Epitelização = gradiente BAIXO (superfície lisa/translúcida)
+        # Threshold adaptativo: 40º percentil na zona de interesse
         peri_grads = grad_norm[epi_roi > 0]
         if len(peri_grads) > 50:
             grad_threshold = np.percentile(peri_grads, 40)
@@ -1411,31 +1414,31 @@ class ClinicalWoundAnalyzer:
         low_gradient = (grad_norm < grad_threshold).astype(np.uint8) * 255
         low_gradient = cv2.bitwise_and(low_gradient, epi_roi)
 
-        # 3. Distance transform â€” peso por proximidade da borda
+        # 3. Distance transform — peso por proximidade da borda
         dist = cv2.distanceTransform(wound_mask, cv2.DIST_L2, 5)
         max_dist = np.max(dist) if np.max(dist) > 0 else 1.0
 
-        # Peso maior para pixels prÃ³ximos Ã  borda (inverso da distÃ¢ncia)
+        # Peso maior para pixels próximos à borda (inverso da distância)
         border_weight = 1.0 - (dist / max_dist)
         border_weight_u8 = (border_weight * 255).astype(np.uint8)
 
-        # Peso alto na borda (>= 80% de peso â†’ V > 200) â€” mais restrito
+        # Peso alto na borda (>= 80% de peso → V > 200) — mais restrito
         border_strong = (border_weight_u8 > 200).astype(np.uint8) * 255
 
-        # 4. CombinaÃ§Ã£o ponderada:
+        # 4. Combinação ponderada:
         #    Cor rosa: 50% (mais peso para cor) | Gradiente baixo: 25% | Borda: 25%
         epi_score = np.zeros((h, w), dtype=np.float32)
         epi_score += (color_mask.astype(np.float32) / 255.0) * 0.50
         epi_score += (low_gradient.astype(np.float32) / 255.0) * 0.25
         epi_score += (border_strong.astype(np.float32) / 255.0) * 0.25
 
-        # Threshold alto: cor Ã© obrigatÃ³ria + pelo menos 1 outro critÃ©rio (> 0.70)
+        # Threshold alto: cor é obrigatória + pelo menos 1 outro critério (> 0.70)
         epithelial_mask = np.where(epi_score > 0.70, 255, 0).astype(np.uint8)
 
-        # Restringe estritamente Ã  zona perifÃ©rica + outer ring
+        # Restringe estritamente à zona periférica + outer ring
         epithelial_mask = cv2.bitwise_and(epithelial_mask, epi_roi)
 
-        # Limpeza morfolÃ³gica â€” open maior para remover ruÃ­do
+        # Limpeza morfológica — open maior para remover ruído
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
         epithelial_mask = cv2.morphologyEx(epithelial_mask, cv2.MORPH_OPEN, kernel)
         epithelial_mask = cv2.morphologyEx(epithelial_mask, cv2.MORPH_CLOSE, kernel)
@@ -1449,7 +1452,7 @@ class ClinicalWoundAnalyzer:
     def _segment_clinical(
         self, image: np.ndarray, wound_mask: np.ndarray
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
-        """Segmenta a ferida segundo taxonomia clÃ­nica (v1/v2 â€” legado)."""
+        """Segmenta a ferida segundo taxonomia clínica (v1/v2 — legado)."""
         peripheral, core, outer = self._create_zone_masks(wound_mask)
         return self._segment_clinical_v3(image, wound_mask, peripheral, core, outer)
 
@@ -1466,16 +1469,16 @@ class ClinicalWoundAnalyzer:
         wound_mask: np.ndarray,
     ) -> Tuple[float, float, float, str]:
         """
-        Estima o tom de pele do paciente amostrand pixel da regiÃ£o perilesional.
+        Estima o tom de pele do paciente amostrand pixel da região perilesional.
 
-        Amostra pixels no anel de 15-40px ao redor da wound_mask que nÃ£o sejam
-        fundo cirÃºrgico (azul/verde/cinza) nem partes da ferida.
+        Amostra pixels no anel de 15-40px ao redor da wound_mask que não sejam
+        fundo cirúrgico (azul/verde/cinza) nem partes da ferida.
 
         Returns:
             (L_mean, a_mean, b_mean, fitzpatrick_approx)
-            L_mean: luminosidade mÃ©dia LAB do periwound
-            a_mean: canal a* mÃ©dio
-            b_mean: canal b* mÃ©dio
+            L_mean: luminosidade média LAB do periwound
+            a_mean: canal a* médio
+            b_mean: canal b* médio
             fitzpatrick_approx: "I-II", "III", "IV", "V", "VI"
         """
         h, w = image.shape[:2]
@@ -1487,16 +1490,16 @@ class ClinicalWoundAnalyzer:
         outer_ring = cv2.dilate(wound_mask, kernel_outer)
         periwound = cv2.bitwise_and(outer_ring, cv2.bitwise_not(inner_ring))
 
-        # Exclui fundo cirÃºrgico do periwound
+        # Exclui fundo cirúrgico do periwound
         hsv_raw = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         drape = np.zeros((h, w), dtype=np.uint8)
         # Azul hospitalar
         drape = cv2.bitwise_or(drape, cv2.inRange(
             hsv_raw, np.array([90, 30, 20]), np.array([130, 255, 255])))
-        # Verde cirÃºrgico
+        # Verde cirúrgico
         drape = cv2.bitwise_or(drape, cv2.inRange(
             hsv_raw, np.array([55, 60, 35]), np.array([95, 255, 255])))
-        # Cinza acromÃ¡tico (maca/fundo)
+        # Cinza acromático (maca/fundo)
         drape = cv2.bitwise_or(drape, cv2.inRange(
             hsv_raw, np.array([0, 0, 0]), np.array([180, 20, 100])))
 
@@ -1507,14 +1510,14 @@ class ClinicalWoundAnalyzer:
         skin_pixels = lab[skin_sample > 0]
 
         if len(skin_pixels) < 50:
-            # Fallback: sem dados suficientes, assume pele mÃ©dia
+            # Fallback: sem dados suficientes, assume pele média
             return 140.0, 128.0, 128.0, "III"
 
         L_mean = float(np.median(skin_pixels[:, 0]))
         a_mean = float(np.median(skin_pixels[:, 1]))
         b_mean = float(np.median(skin_pixels[:, 2]))
 
-        # ClassificaÃ§Ã£o Fitzpatrick aproximada
+        # Classificação Fitzpatrick aproximada
         if L_mean > 180:
             fitz = "I-II"
         elif L_mean > 150:
@@ -1729,23 +1732,23 @@ class ClinicalWoundAnalyzer:
         outer_ring: np.ndarray,
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
         """
-        SegmentaÃ§Ã£o clÃ­nica v3 â€” multi-espaÃ§o de cor + zonas espaciais + gradiente.
+        Segmentação clínica v3 — multi-espaço de cor + zonas espaciais + gradiente.
 
         Pipeline:
-        1. EstimaÃ§Ã£o do tom de pele (Fitzpatrick) via periwound
+        1. Estimação do tom de pele (Fitzpatrick) via periwound
         2. Denoise bilateral (preserva bordas)
         3. CLAHE adaptativo (L + canal a*)
-        4. ConversÃ£o HSV + LAB
-        5. SegmentaÃ§Ã£o por cor restrita estritamente Ã  wound_mask (ROI)
-        6. FusÃ£o ponderada HSV (60%) + LAB (40%)
-        7. CRIAÃ‡ÃƒO DE MÃSCARA DE PELE SAUDÃVEL para excluir da necrose
-        8. RestriÃ§Ã£o espacial por zonas
-        9. DetecÃ§Ã£o de epitelizaÃ§Ã£o por gradiente de borda (Scharr)
-        10. VerificaÃ§Ã£o de textura para necrose (necrose real tem textura diferente de pele)
-        11. ExclusÃ£o de fundo cirÃºrgico
-        12. ResoluÃ§Ã£o de sobreposiÃ§Ãµes com prioridade clÃ­nica
+        4. Conversão HSV + LAB
+        5. Segmentação por cor restrita estritamente à wound_mask (ROI)
+        6. Fusão ponderada HSV (60%) + LAB (40%)
+        7. CRIAÃ‡ÃƒO DE MÁSCARA DE PELE SAUDÁVEL para excluir da necrose
+        8. Restrição espacial por zonas
+        9. Detecção de epitelização por gradiente de borda (Scharr)
+        10. Verificação de textura para necrose (necrose real tem textura diferente de pele)
+        11. Exclusão de fundo cirúrgico
+        12. Resolução de sobreposições com prioridade clínica
         """
-        # â”€â”€ 0. EstimaÃ§Ã£o do tom de pele do paciente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # â”€â”€ 0. Estimação do tom de pele do paciente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         skin_L, skin_a, skin_b, fitzpatrick = self._estimate_skin_tone(image, wound_mask)
         is_dark_skin = fitzpatrick in ("V", "VI")
         is_medium_skin = fitzpatrick in ("IV", "V")
@@ -1754,7 +1757,7 @@ class ClinicalWoundAnalyzer:
             f"(L={skin_L:.0f}, a*={skin_a:.0f}, b*={skin_b:.0f})"
         )
 
-        # â”€â”€ 1. PrÃ©-processamento: denoise + CLAHE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # â”€â”€ 1. Pré-processamento: denoise + CLAHE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         denoised = cv2.bilateralFilter(image, d=9, sigmaColor=50, sigmaSpace=50)
         lab_clahe = cv2.cvtColor(denoised, cv2.COLOR_BGR2LAB)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
@@ -1774,19 +1777,19 @@ class ClinicalWoundAnalyzer:
         kernel_m = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         kernel_l = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
 
-        # â”€â”€ 2. SegmentaÃ§Ã£o HSV â€” restrita estritamente Ã  wound_mask â”€â”€â”€
+        # â”€â”€ 2. Segmentação HSV — restrita estritamente à wound_mask â”€â”€â”€
         hsv_masks = {}
         for tissue_key, ranges in CLINICAL_HSV_RANGES.items():
             mask = np.zeros((h, w), dtype=np.uint8)
             for lower, upper in ranges:
                 mask = cv2.bitwise_or(mask, cv2.inRange(hsv, lower, upper))
-            # OBRIGATÃ“RIO: restringe Ã  ROI â€” ignora todo pixel fora do perÃ­metro
+            # OBRIGATÃ“RIO: restringe à ROI — ignora todo pixel fora do perímetro
             mask = cv2.bitwise_and(mask, wound_mask)
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_m)
             hsv_masks[tissue_key] = mask
 
-        # â”€â”€ 3. SegmentaÃ§Ã£o LAB â€” restrita Ã  wound_mask â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # â”€â”€ 3. Segmentação LAB — restrita à wound_mask â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         lab_masks = {}
         for tissue_key, ranges in CLINICAL_LAB_RANGES.items():
             mask = np.zeros((h, w), dtype=np.uint8)
@@ -1797,7 +1800,7 @@ class ClinicalWoundAnalyzer:
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_m)
             lab_masks[tissue_key] = mask
 
-        # â”€â”€ 4. FusÃ£o ponderada HSV (60%) + LAB (40%) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # â”€â”€ 4. Fusão ponderada HSV (60%) + LAB (40%) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         masks = {}
         for tissue_key in CLINICAL_HSV_RANGES.keys():
             hsv_m = hsv_masks.get(tissue_key, np.zeros((h, w), dtype=np.uint8))
@@ -1811,16 +1814,16 @@ class ClinicalWoundAnalyzer:
 
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_s)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_l)
-            # RestriÃ§Ã£o final Ã  ROI (nenhum pixel fora do perÃ­metro)
+            # Restrição final à ROI (nenhum pixel fora do perímetro)
             mask = cv2.bitwise_and(mask, wound_mask)
             masks[tissue_key] = mask
 
-        # â”€â”€ 5. CriaÃ§Ã£o de mÃ¡scara de pele saudÃ¡vel (skin exclusion) â”€â”€â”€â”€
-        # Gera uma mÃ¡scara PRECISA de pixels que se parecem com pele saudÃ¡vel
-        # do paciente (tolerÃ¢ncias ESTREITAS para nÃ£o excluir necrose real).
+        # â”€â”€ 5. Criação de máscara de pele saudável (skin exclusion) â”€â”€â”€â”€
+        # Gera uma máscara PRECISA de pixels que se parecem com pele saudável
+        # do paciente (tolerâncias ESTREITAS para não excluir necrose real).
         lab_for_skin = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2LAB)
 
-        # TolerÃ¢ncias ESTREITAS: sÃ³ exclui pixels MUITO prÃ³ximos da pele
+        # Tolerâncias ESTREITAS: só exclui pixels MUITO próximos da pele
         # perilesional. Necrose tem cores diferentes mesmo em pele escura.
         if is_dark_skin:
             L_tol, a_tol, b_tol = 18, 10, 10
@@ -1842,7 +1845,7 @@ class ClinicalWoundAnalyzer:
         skin_exclude_mask = cv2.inRange(lab_for_skin, skin_lower, skin_upper)
         skin_exclude_mask = cv2.bitwise_and(skin_exclude_mask, wound_mask)
 
-        # VerificaÃ§Ã£o de textura: pele saudÃ¡vel Ã© UNIFORME (variÃ¢ncia 50-400)
+        # Verificação de textura: pele saudável é UNIFORME (variância 50-400)
         # Necrose tem textura irregular OU muito lisa (escara)
         gray_tex = cv2.cvtColor(denoised_norm, cv2.COLOR_BGR2GRAY)
         local_variance = cv2.GaussianBlur(
@@ -1850,58 +1853,58 @@ class ClinicalWoundAnalyzer:
         ) - cv2.GaussianBlur(gray_tex.astype(np.float32), (11, 11), 0) ** 2
         local_variance = np.clip(local_variance, 0, None)
 
-        # Somente textura tÃ­pica de pele saudÃ¡vel (moderadamente uniforme)
+        # Somente textura típica de pele saudável (moderadamente uniforme)
         smooth_skin = ((local_variance > 50) & (local_variance < 400)).astype(np.uint8) * 255
         skin_exclude_mask = cv2.bitwise_and(skin_exclude_mask, smooth_skin)
 
-        # Limpeza morfolÃ³gica
+        # Limpeza morfológica
         kernel_skin = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         skin_exclude_mask = cv2.morphologyEx(skin_exclude_mask, cv2.MORPH_CLOSE, kernel_skin)
         skin_exclude_mask = cv2.morphologyEx(skin_exclude_mask, cv2.MORPH_OPEN, kernel_skin)
 
-        # Remove pixels de pele saudÃ¡vel da mÃ¡scara de necrose
+        # Remove pixels de pele saudável da máscara de necrose
         masks["necrosis"] = cv2.bitwise_and(
             masks["necrosis"], cv2.bitwise_not(skin_exclude_mask)
         )
 
         logger.debug(
-            f"Skin exclusion: {np.sum(skin_exclude_mask > 0)} px excluÃ­dos da necrose "
+            f"Skin exclusion: {np.sum(skin_exclude_mask > 0)} px excluídos da necrose "
             f"(Fitzpatrick {fitzpatrick})"
         )
 
-        # â”€â”€ 5b. RestriÃ§Ã£o espacial por zonas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        # Necrose: viÃ©s espacial moderado. Em peles escuras, requer
-        # confirmaÃ§Ã£o por textura, mas NÃƒO restringimos excessivamente.
+        # â”€â”€ 5b. Restrição espacial por zonas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Necrose: viés espacial moderado. Em peles escuras, requer
+        # confirmação por textura, mas NÃƒO restringimos excessivamente.
         necro_spatial = np.zeros((h, w), dtype=np.float32)
         necro_spatial[core_zone > 0] = 1.0
         if is_dark_skin:
-            # Pele escura: periferia com peso moderado (nÃ£o bloquear)
+            # Pele escura: periferia com peso moderado (não bloquear)
             necro_spatial[peripheral_zone > 0] = 0.45
         elif is_medium_skin:
             necro_spatial[peripheral_zone > 0] = 0.5
         else:
             necro_spatial[peripheral_zone > 0] = 0.6
 
-        # Boost por luminÃ¢ncia CONDICIONAL: somente pixels escuros
-        # que NÃƒO sÃ£o pele saudÃ¡vel do paciente (anti-bias)
+        # Boost por luminância CONDICIONAL: somente pixels escuros
+        # que NÃƒO são pele saudável do paciente (anti-bias)
         gray_roi = cv2.cvtColor(
             cv2.bitwise_and(denoised_norm, denoised_norm, mask=wound_mask),
             cv2.COLOR_BGR2GRAY
         )
         low_lum = (gray_roi < 45).astype(np.float32)
         not_skin_f = (cv2.bitwise_not(skin_exclude_mask) / 255.0).astype(np.float32)
-        # Pixels escuros + nÃ£o-pele dentro da ROI recebem boost espacial
+        # Pixels escuros + não-pele dentro da ROI recebem boost espacial
         lum_boost = low_lum * not_skin_f * (wound_mask.astype(np.float32) / 255.0)
         necro_spatial = np.maximum(necro_spatial, lum_boost * 0.8)
 
         m_necro = masks["necrosis"].astype(np.float32)
         m_necro_biased = m_necro * necro_spatial
-        # Threshold moderado (mesmo para pele escura â€” a skin exclusion jÃ¡ protege)
+        # Threshold moderado (mesmo para pele escura — a skin exclusion já protege)
         necro_threshold = 100 if is_dark_skin else (90 if is_medium_skin else 80)
         masks["necrosis"] = np.where(m_necro_biased > necro_threshold, 255, 0).astype(np.uint8)
         masks["necrosis"] = cv2.bitwise_and(masks["necrosis"], wound_mask)
 
-        # --- Esfacelo: viÃ©s moderado para core + periferia interna ---
+        # --- Esfacelo: viés moderado para core + periferia interna ---
         core_bias_slough = np.zeros((h, w), dtype=np.float32)
         core_bias_slough[core_zone > 0] = 1.0
         core_bias_slough[peripheral_zone > 0] = 0.5  # esfacelo pode estar na periferia
@@ -1911,12 +1914,12 @@ class ClinicalWoundAnalyzer:
         masks["slough"] = np.where(m_slough_biased > 100, 255, 0).astype(np.uint8)
         masks["slough"] = cv2.bitwise_and(masks["slough"], wound_mask)
 
-        # GranulaÃ§Ã£o: presente no leito inteiro (core + periferia)
-        # Sem viÃ©s espacial adicional â€” jÃ¡ restrita Ã  wound_mask
+        # Granulação: presente no leito inteiro (core + periferia)
+        # Sem viés espacial adicional — já restrita à wound_mask
 
-        # EpitelizaÃ§Ã£o: EXCLUSIVAMENTE perifÃ©rica.
-        # Substitui a mÃ¡scara de cor pura pelo detector de gradiente
-        # que combina cor + suavidade + proximidade Ã  borda.
+        # Epitelização: EXCLUSIVAMENTE periférica.
+        # Substitui a máscara de cor pura pelo detector de gradiente
+        # que combina cor + suavidade + proximidade à borda.
         epi_gradient = self._detect_epithelialization_gradient(
             denoised_norm, wound_mask, peripheral_zone, outer_ring
         )
@@ -1939,7 +1942,7 @@ class ClinicalWoundAnalyzer:
         low_texture = (local_var < 200).astype(np.uint8)
         high_texture = (local_var > 500).astype(np.uint8)
 
-        # â”€â”€ 7. ExclusÃ£o de fundo cirÃºrgico â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # â”€â”€ 7. Exclusão de fundo cirúrgico â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         hsv_raw = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         _drape = np.zeros((h, w), dtype=np.uint8)
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
@@ -1969,16 +1972,16 @@ class ClinicalWoundAnalyzer:
         for _tk in masks:
             masks[_tk] = cv2.bitwise_and(masks[_tk], _not_drape)
 
-        # â”€â”€ 8. ReforÃ§o por textura + luminÃ¢ncia (com proteÃ§Ã£o anti-bias) â”€
-        # Combina luminÃ¢ncia + textura para reforÃ§ar necrose, mas EXCLUI
+        # â”€â”€ 8. Reforço por textura + luminância (com proteção anti-bias) â”€
+        # Combina luminância + textura para reforçar necrose, mas EXCLUI
         # pixels que correspondem ao tom de pele do paciente.
 
-        # 8a. Pixels escuros dentro da ROI que NÃƒO sÃ£o pele saudÃ¡vel
+        # 8a. Pixels escuros dentro da ROI que NÃƒO são pele saudável
         dark_px = (gray < 55).astype(np.uint8) * 255
         dark_px = cv2.bitwise_and(dark_px, _not_drape)
         dark_px = cv2.bitwise_and(dark_px, cv2.bitwise_not(skin_exclude_mask))
 
-        # ProteÃ§Ã£o background residual
+        # Proteção background residual
         lab_check = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
         a_ch = lab_check[:, :, 1].astype(np.float32)
         b_ch = lab_check[:, :, 2].astype(np.float32)
@@ -1992,7 +1995,7 @@ class ClinicalWoundAnalyzer:
             ((gray < 15).astype(np.uint8) * 255)
         )
 
-        # 8b. Necrose por luminÃ¢ncia: V < 45, dentro do ROI, nÃ£o-pele, nÃ£o-bg
+        # 8b. Necrose por luminância: V < 45, dentro do ROI, não-pele, não-bg
         very_dark_roi = (gray < 45).astype(np.uint8) * 255
         very_dark_roi = cv2.bitwise_and(very_dark_roi, wound_mask)
         very_dark_roi = cv2.bitwise_and(very_dark_roi, _not_drape)
@@ -2000,7 +2003,7 @@ class ClinicalWoundAnalyzer:
         very_dark_roi = cv2.bitwise_and(very_dark_roi, cv2.bitwise_not(possible_bg_residual))
         masks["necrosis"] = cv2.bitwise_or(masks["necrosis"], very_dark_roi)
 
-        # 8c. Necrose por textura: baixa textura + escuro + nÃ£o-pele
+        # 8c. Necrose por textura: baixa textura + escuro + não-pele
         necro_texture_boost = cv2.bitwise_and(
             cv2.bitwise_and(dark_px, wound_mask),
             (low_texture * 255).astype(np.uint8)
@@ -2011,34 +2014,34 @@ class ClinicalWoundAnalyzer:
         necro_texture_boost = cv2.bitwise_and(
             necro_texture_boost, cv2.bitwise_not(skin_exclude_mask)
         )
-        # ViÃ©s para core + periferia (necrose pode cobrir toda a ferida)
+        # Viés para core + periferia (necrose pode cobrir toda a ferida)
         necro_texture_zone = cv2.bitwise_or(core_zone, peripheral_zone)
         necro_texture_boost = cv2.bitwise_and(necro_texture_boost, necro_texture_zone)
         masks["necrosis"] = cv2.bitwise_or(masks["necrosis"], necro_texture_boost)
 
-        # GranulaÃ§Ã£o: textura alta + vermelho dominante (mais restrito)
-        red_channel = denoised_norm[:, :, 2]  # BGR â†’ canal R
+        # Granulação: textura alta + vermelho dominante (mais restrito)
+        red_channel = denoised_norm[:, :, 2]  # BGR → canal R
         green_channel = denoised_norm[:, :, 1]
         red_dominant = (
             (red_channel.astype(np.int16) - green_channel.astype(np.int16)) > 40
         ).astype(np.uint8) * 255
-        # GranulaÃ§Ã£o requer ALTA textura + vermelho forte
+        # Granulação requer ALTA textura + vermelho forte
         gran_boost = cv2.bitwise_and(
             cv2.bitwise_and(red_dominant, wound_mask),
             (high_texture * 255).astype(np.uint8)
         )
-        # NÃ£o adicionar granulaÃ§Ã£o onde jÃ¡ tem necrose
+        # Não adicionar granulação onde já tem necrose
         gran_boost = cv2.bitwise_and(gran_boost, cv2.bitwise_not(masks["necrosis"]))
         masks["granulation"] = cv2.bitwise_or(masks["granulation"], gran_boost)
 
-        # â”€â”€ 9. ResoluÃ§Ã£o de sobreposiÃ§Ãµes â€” prioridade clÃ­nica â”€â”€â”€â”€â”€â”€â”€
+        # â”€â”€ 9. Resolução de sobreposições — prioridade clínica â”€â”€â”€â”€â”€â”€â”€
         priority = ["necrosis", "slough", "granulation", "epithelialization"]
         used = np.zeros((h, w), dtype=np.uint8)
         for key in priority:
             masks[key] = cv2.bitwise_and(masks[key], cv2.bitwise_not(used))
             used = cv2.bitwise_or(used, masks[key])
 
-        # â”€â”€ 10. MÃ©tricas e visualizaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # â”€â”€ 10. Métricas e visualização â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         total = max(np.sum(wound_mask > 0), 1)
         pcts = {}
         for key in priority:
@@ -2054,7 +2057,7 @@ class ClinicalWoundAnalyzer:
             **adaptive_trace,
         }
 
-        # Mapa de segmentaÃ§Ã£o colorido
+        # Mapa de segmentação colorido
         seg_map = np.full((h, w, 3), 80, dtype=np.uint8)
         colors = {
             "necrosis": (30, 30, 60),
@@ -2065,17 +2068,17 @@ class ClinicalWoundAnalyzer:
         for key, mask in masks.items():
             seg_map[mask > 0] = colors[key]
 
-        # Desenha contorno da wound_mask (perÃ­metro da ROI) no overlay
+        # Desenha contorno da wound_mask (perímetro da ROI) no overlay
         overlay = image.copy()
         cv2.addWeighted(seg_map, 0.45, overlay, 0.55, 0, overlay)
 
-        # Contorno do perÃ­metro da ferida (verde, 2px)
+        # Contorno do perímetro da ferida (verde, 2px)
         contours_roi, _ = cv2.findContours(
             wound_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
         cv2.drawContours(overlay, contours_roi, -1, (0, 255, 0), 2)
 
-        # Contorno da zona perifÃ©rica (azul claro, 1px) para referÃªncia
+        # Contorno da zona periférica (azul claro, 1px) para referência
         contours_peri, _ = cv2.findContours(
             core_zone, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
@@ -2087,17 +2090,17 @@ class ClinicalWoundAnalyzer:
     def _analyze_borders(
         self, image: np.ndarray, wound_mask: np.ndarray
     ) -> BorderAnalysis:
-        """Analisa bordas e perilesÃ£o."""
+        """Analisa bordas e perilesão."""
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-        # ExpansÃ£o da mÃ¡scara para pegar borda perilesional
+        # Expansão da máscara para pegar borda perilesional
         kernel_big = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25))
         expanded = cv2.dilate(wound_mask, kernel_big)
         peri_mask = cv2.bitwise_and(expanded, cv2.bitwise_not(wound_mask))
 
         peri_region = hsv[peri_mask > 0]
 
-        # MaceraÃ§Ã£o: pele esbranquiÃ§ada/amolecida ao redor (S baixo, V alto)
+        # Maceração: pele esbranquiçada/amolecida ao redor (S baixo, V alto)
         maceration = False
         if len(peri_region) > 100:
             mean_s = np.mean(peri_region[:, 1])
@@ -2105,7 +2108,7 @@ class ClinicalWoundAnalyzer:
             if mean_s < 40 and mean_v > 180:
                 maceration = True
 
-        # InflamaÃ§Ã£o: vermelhidÃ£o/calor ao redor (H baixo, S moderada+, V moderado+)
+        # Inflamação: vermelhidão/calor ao redor (H baixo, S moderada+, V moderado+)
         inflammation = False
         if len(peri_region) > 100:
             red_mask = (peri_region[:, 0] < 15) | (peri_region[:, 0] > 165)
@@ -2127,13 +2130,13 @@ class ClinicalWoundAnalyzer:
 
         desc_parts = []
         if maceration:
-            desc_parts.append("MaceraÃ§Ã£o perilesional presente (pele esbranquiÃ§ada)")
+            desc_parts.append("Maceração perilesional presente (pele esbranquiçada)")
         if inflammation:
-            desc_parts.append("Sinais de inflamaÃ§Ã£o perilesional (eritema)")
+            desc_parts.append("Sinais de inflamação perilesional (eritema)")
         if not regular:
             desc_parts.append("Bordas irregulares/anfractuosas")
         if not desc_parts:
-            desc_parts.append("Bordas sem alteraÃ§Ãµes significativas")
+            desc_parts.append("Bordas sem alterações significativas")
 
         return BorderAnalysis(
             maceration=maceration,
@@ -2146,63 +2149,63 @@ class ClinicalWoundAnalyzer:
     def _build_justification(
         self, dominant: TissueClassification, pcts: Dict[str, float]
     ) -> str:
-        """ConstrÃ³i justificativa clÃ­nica baseada no tecido predominante."""
-        parts = [f"ClassificaÃ§Ã£o principal: {dominant.name} ({dominant.percentage:.1f}%)."]
+        """Constrói justificativa clínica baseada no tecido predominante."""
+        parts = [f"Classificação principal: {dominant.name} ({dominant.percentage:.1f}%)."]
 
         key_map = {
-            "Necrose de CoagulaÃ§Ã£o (Escara)": "necrosis",
+            "Necrose de Coagulação (Escara)": "necrosis",
             "Esfacelo (Fibrina)": "slough",
-            "Tecido de GranulaÃ§Ã£o": "granulation",
-            "EpitelizaÃ§Ã£o": "epithelialization",
+            "Tecido de Granulação": "granulation",
+            "Epitelização": "epithelialization",
         }
         key = key_map.get(dominant.name, "")
 
         if key == "necrosis":
             parts.append(
-                "PresenÃ§a predominante de tecido escurecido (preto/marrom) aderido ao leito, "
-                "consistente com necrose de coagulaÃ§Ã£o. A coloraÃ§Ã£o escura e a textura "
-                "endurecida sÃ£o caracterÃ­sticas de morte celular por isquemia."
+                "Presença predominante de tecido escurecido (preto/marrom) aderido ao leito, "
+                "consistente com necrose de coagulação. A coloração escura e a textura "
+                "endurecida são características de morte celular por isquemia."
             )
         elif key == "slough":
             parts.append(
-                "PresenÃ§a predominante de tecido amarelado/esbranquiÃ§ado aderido ao leito, "
-                "caracterÃ­stico de esfacelo (fibrina). A consistÃªncia viscosa e a coloraÃ§Ã£o "
-                "indicam acÃºmulo de fibrina, leucÃ³citos e restos celulares."
+                "Presença predominante de tecido amarelado/esbranquiçado aderido ao leito, "
+                "característico de esfacelo (fibrina). A consistência viscosa e a coloração "
+                "indicam acúmulo de fibrina, leucócitos e restos celulares."
             )
         elif key == "granulation":
             parts.append(
-                "PresenÃ§a predominante de tecido vermelho vivo/brilhante com aspecto granulado, "
-                "indicando processo de cicatrizaÃ§Ã£o ativo (fase proliferativa). "
-                "O leito apresenta neovascularizaÃ§Ã£o compatÃ­vel com tecido de granulaÃ§Ã£o saudÃ¡vel."
+                "Presença predominante de tecido vermelho vivo/brilhante com aspecto granulado, "
+                "indicando processo de cicatrização ativo (fase proliferativa). "
+                "O leito apresenta neovascularização compatível com tecido de granulação saudável."
             )
         elif key == "epithelialization":
             parts.append(
-                "PresenÃ§a predominante de tecido rosa claro/translÃºcido avanÃ§ando das bordas, "
-                "indicando epitelizaÃ§Ã£o em curso (fase de maturaÃ§Ã£o). A migraÃ§Ã£o de "
-                "queratinÃ³citos sugere evoluÃ§Ã£o favorÃ¡vel da cicatrizaÃ§Ã£o."
+                "Presença predominante de tecido rosa claro/translúcido avançando das bordas, "
+                "indicando epitelização em curso (fase de maturação). A migração de "
+                "queratinócitos sugere evolução favorável da cicatrização."
             )
 
-        # Menciona tecidos secundÃ¡rios relevantes
+        # Menciona tecidos secundários relevantes
         secondaries = []
         for k, v in sorted(pcts.items(), key=lambda x: -x[1]):
             if k != key and v > 5:
                 name = CLINICAL_TISSUES[k]["name"]
                 secondaries.append(f"{name} ({v:.1f}%)")
         if secondaries:
-            parts.append(f"Tecidos secundÃ¡rios: {', '.join(secondaries)}.")
+            parts.append(f"Tecidos secundários: {', '.join(secondaries)}.")
 
         return " ".join(parts)
 
     # -------------------------------------------------------
     @staticmethod
     def _compute_health_score(pcts: Dict[str, float]) -> float:
-        """Score de saÃºde baseado na composiÃ§Ã£o tecidual.
+        """Score de saúde baseado na composição tecidual.
 
-        CritÃ©rios clÃ­nicos:
-        - GranulaÃ§Ã£o e epitelizaÃ§Ã£o sÃ£o tecidos saudÃ¡veis (positivo)
-        - Necrose Ã© o pior indicador (penalidade forte)
-        - Esfacelo indica desvitalizaÃ§Ã£o moderada
-        - Tecido nÃ£o classificado na ferida nÃ£o conta como saudÃ¡vel
+        Critérios clínicos:
+        - Granulação e epitelização são tecidos saudáveis (positivo)
+        - Necrose é o pior indicador (penalidade forte)
+        - Esfacelo indica desvitalização moderada
+        - Tecido não classificado na ferida não conta como saudável
         """
         gran = max(0.0, float(pcts.get("granulation", 0.0)))
         epit = max(0.0, float(pcts.get("epithelialization", 0.0)))
@@ -2225,6 +2228,5 @@ class ClinicalWoundAnalyzer:
 
 
 # ============================================================
-# THREAD DE ANÃLISE (nÃ£o trava a UI)
+# THREAD DE ANÁLISE (não trava a UI)
 # ============================================================
-
