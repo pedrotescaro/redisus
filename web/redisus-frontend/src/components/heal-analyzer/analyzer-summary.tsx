@@ -42,8 +42,8 @@ export function AnalyzerSummary({
   const confidence = analysis ? getConfidencePercent(analysis.inference.confidence) : 0;
 
   return (
-    <aside className="lg:sticky lg:top-28">
-      <div className="rounded-[28px] border border-white/10 bg-surface-container-lowest/80 p-5 shadow-ambient">
+    <aside className="2xl:sticky 2xl:top-28 2xl:self-start">
+      <div className="rounded-[28px] border border-outline-variant/20 bg-surface-container-lowest/88 p-5 shadow-ambient dark:border-white/10 dark:bg-surface-container-lowest/80">
         <div
           className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${status.tone}`}
         >
@@ -59,16 +59,16 @@ export function AnalyzerSummary({
 
         {analysis ? (
           <>
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-[linear-gradient(160deg,rgba(14,165,233,0.12),rgba(15,23,42,0.2))] p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
+            <div className="mt-6 rounded-[24px] border border-primary/10 bg-[linear-gradient(160deg,rgba(33,150,243,0.12),rgba(255,255,255,0.82))] p-5 dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(14,165,233,0.12),rgba(15,23,42,0.2))]">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
                 Resultado clinico
               </p>
-              <h2 className="mt-3 text-3xl font-extrabold text-white">
+              <h2 className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-white">
                 {analysis.is_valid_wound
                   ? presentClinicalLabel(analysis.primary_tissue)
                   : "Imagem precisa de revisao"}
               </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-200">
+              <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-200">
                 {getSimpleExplanation(analysis)}
               </p>
 
@@ -88,7 +88,7 @@ export function AnalyzerSummary({
               </div>
             </div>
 
-            <div className="mt-5 rounded-[24px] border border-white/10 bg-surface-container p-5">
+            <div className="mt-5 rounded-[24px] border border-outline-variant/20 bg-surface-container p-5 dark:border-white/10">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-on-surface">Confianca da IA</p>
@@ -98,7 +98,7 @@ export function AnalyzerSummary({
                 </div>
                 <span className="text-lg font-bold text-on-surface">{confidence}%</span>
               </div>
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/8">
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-outline-variant/20 dark:bg-white/8">
                 <div
                   className="h-full rounded-full bg-[linear-gradient(90deg,#14b8a6_0%,#38bdf8_50%,#6366f1_100%)] transition-all"
                   style={{ width: `${confidence}%` }}
@@ -107,7 +107,7 @@ export function AnalyzerSummary({
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <div className="rounded-[22px] border border-white/10 bg-surface-container p-4">
+              <div className="rounded-[22px] border border-outline-variant/20 bg-surface-container p-4 dark:border-white/10">
                 <p className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
                   Modelo
                 </p>
@@ -115,7 +115,7 @@ export function AnalyzerSummary({
                   {presentModelLabel(analysis.model_version)}
                 </p>
               </div>
-              <div className="rounded-[22px] border border-white/10 bg-surface-container p-4">
+              <div className="rounded-[22px] border border-outline-variant/20 bg-surface-container p-4 dark:border-white/10">
                 <p className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
                   Tempo
                 </p>
@@ -125,7 +125,7 @@ export function AnalyzerSummary({
               </div>
             </div>
 
-            <div className="mt-5 rounded-[24px] border border-white/10 bg-surface-container p-5">
+            <div className="mt-5 rounded-[24px] border border-outline-variant/20 bg-surface-container p-5 dark:border-white/10">
               <div className="flex items-center gap-2 text-on-surface">
                 <BrainCircuit className="h-4 w-4" />
                 <p className="text-sm font-semibold">Resumo em linguagem simples</p>
@@ -137,7 +137,7 @@ export function AnalyzerSummary({
             </div>
 
             {analysis.interpretation.recommendations?.length ? (
-              <div className="mt-5 rounded-[24px] border border-white/10 bg-surface-container p-5">
+              <div className="mt-5 rounded-[24px] border border-outline-variant/20 bg-surface-container p-5 dark:border-white/10">
                 <p className="text-sm font-semibold text-on-surface">
                   Proximos cuidados sugeridos
                 </p>
@@ -145,7 +145,7 @@ export function AnalyzerSummary({
                   {analysis.interpretation.recommendations.slice(0, 3).map((item) => (
                     <li
                       key={item}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3"
+                      className="rounded-2xl border border-outline-variant/20 bg-surface-container-high px-3 py-3 dark:border-white/10 dark:bg-white/5"
                     >
                       {item}
                     </li>
@@ -172,9 +172,9 @@ export function AnalyzerSummary({
             </div>
           </>
         ) : (
-          <div className="mt-6 rounded-[24px] border border-dashed border-white/10 bg-surface-container p-5">
+          <div className="mt-6 rounded-[24px] border border-dashed border-outline-variant/20 bg-surface-container p-5 dark:border-white/10">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-1 h-5 w-5 text-amber-300" />
+              <AlertTriangle className="mt-1 h-5 w-5 text-amber-600 dark:text-amber-300" />
               <div>
                 <p className="text-lg font-bold text-on-surface">
                   Nenhum resultado em exibicao
@@ -184,7 +184,7 @@ export function AnalyzerSummary({
                   o resumo clinico e o acesso rapido aos detalhes tecnicos.
                 </p>
                 {error ? (
-                  <p className="mt-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-3 text-sm text-red-200">
+                  <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200">
                     {error}
                   </p>
                 ) : null}

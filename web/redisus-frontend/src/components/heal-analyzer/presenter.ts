@@ -146,15 +146,15 @@ export function presentModelDetails(modelVersion: string) {
 export function getRiskTone(riskLevel: string) {
   const normalized = normalizeText(riskLevel);
   if (normalized === "critico" || normalized === "urgent") {
-    return "bg-red-500/15 text-red-300 border-red-500/30";
+    return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300";
   }
   if (normalized === "alto" || normalized === "high") {
-    return "bg-amber-500/15 text-amber-300 border-amber-500/30";
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300";
   }
   if (normalized === "moderado" || normalized === "moderate") {
-    return "bg-sky-500/15 text-sky-300 border-sky-500/30";
+    return "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-300";
   }
-  return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300";
 }
 
 export function getStatusCopy(state: WorkflowState, hasImage: boolean) {
@@ -162,7 +162,7 @@ export function getStatusCopy(state: WorkflowState, hasImage: boolean) {
     return {
       label: "Processando",
       caption: "A IA esta lendo a imagem e montando as visualizacoes.",
-      tone: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+      tone: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-300",
     };
   }
 
@@ -170,7 +170,7 @@ export function getStatusCopy(state: WorkflowState, hasImage: boolean) {
     return {
       label: "Analise concluida",
       caption: "Resultado clinico pronto com explicacao visual.",
-      tone: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
     };
   }
 
@@ -178,7 +178,7 @@ export function getStatusCopy(state: WorkflowState, hasImage: boolean) {
     return {
       label: "Falha na analise",
       caption: "Revise a imagem ou a conexao com a API clinica.",
-      tone: "bg-red-500/15 text-red-300 border-red-500/30",
+      tone: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300",
     };
   }
 
@@ -186,13 +186,13 @@ export function getStatusCopy(state: WorkflowState, hasImage: boolean) {
     return {
       label: "Imagem pronta",
       caption: "Voce ja pode iniciar a analise.",
-      tone: "bg-violet-500/15 text-violet-300 border-violet-500/30",
+      tone: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/15 dark:text-violet-300",
     };
   }
 
   return {
     label: "Aguardando imagem",
     caption: "Envie uma foto para liberar a leitura da IA.",
-    tone: "bg-white/5 text-slate-300 border-white/10",
+    tone: "border-outline-variant/30 bg-surface-container text-on-surface-variant dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
   };
 }
