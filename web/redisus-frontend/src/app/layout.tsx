@@ -49,7 +49,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
           }}
         />
       </head>
-      <body className="font-body antialiased bg-background text-on-surface">
+      <body
+        suppressHydrationWarning
+        className="font-body antialiased bg-background text-on-surface"
+      >
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

@@ -19,8 +19,10 @@ from PIL import Image
 from packages.clinical_domain.workflow import build_headless_analyzer_result
 from packages.clinical_domain.validation import (
     AIChatPayload,
+    AnalyzeRoiPayload,
     assert_allowed_form_fields,
     validate_and_sanitize_image_upload,
+    validate_roi_form_value,
     validate_json_request,
 )
 from packages.shared.runtime import load_project_env
@@ -186,6 +188,94 @@ def _rule_based_response(message: str) -> str:
     )
 
 
+def _serialize_roi_payloads(payloads: list[AnalyzeRoiPayload]) -> list[dict[str, Any]]:
+    serialized_payloads: list[dict[str, Any]] = []
+    for index, payload in enumerate(payloads, start=1):
+        serialized = payload.model_dump(mode="python")
+        serialized["source"] = "manual"
+        serialized["confirmed"] = True
+        serialized["selection_index"] = index
+        serialized_payloads.append(serialized)
+    return serialized_payloads
+
+
+def _build_manual_roi_mask(
+    payload: AnalyzeRoiPayload | None,
+    *,
+    width: int,
+    height: int,
+):
+    if payload is None:
+        return None
+
+    import cv2
+    import numpy as np
+
+    mask = np.zeros((height, width), dtype=np.uint8)
+    max_x = max(width - 1, 0)
+    max_y = max(height - 1, 0)
+    polygon = np.array(
+        [
+            [
+                int(round(min(max(point.x, 0.0), 1.0) * max_x)),
+                int(round(min(max(point.y, 0.0), 1.0) * max_y)),
+            ]
+            for point in payload.points
+        ],
+        dtype=np.int32,
+    )
+
+    if polygon.shape[0] < 3:
+        return None
+
+    cv2.fillPoly(mask, [polygon], 255)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    return mask
+
+
+def _build_manual_roi_masks(
+    payloads: list[AnalyzeRoiPayload],
+    *,
+    width: int,
+    height: int,
+):
+    masks = []
+    for payload in payloads:
+        mask = _build_manual_roi_mask(payload, width=width, height=height)
+        if mask is not None:
+            masks.append(mask)
+    return masks
+
+
+def _combine_manual_roi_masks(masks):
+    if not masks:
+        return None
+
+    import cv2
+    import numpy as np
+
+    combined = np.zeros_like(masks[0], dtype=np.uint8)
+    for mask in masks:
+        combined = cv2.bitwise_or(combined, mask)
+    return combined if np.any(combined > 0) else None
+
+
+def _mask_to_png_bytes(mask) -> bytes:
+    import cv2
+    import numpy as np
+
+    mask_image = np.asarray(mask)
+    if mask_image.dtype != np.uint8:
+        mask_image = np.clip(mask_image, 0, 255).astype(np.uint8)
+
+    success, buffer = cv2.imencode(".png", mask_image)
+    if not success:
+        return b""
+    return buffer.tobytes()
+
+
 @integration_api.route("/analyze", methods=["POST"])
 def analyze_image():
     user = current_user_required()
@@ -194,8 +284,12 @@ def analyze_image():
         return jsonify({"error": "missing_image", "detail": "Campo 'image' obrigatorio"}), 400
 
     image_file = request.files["image"]
-    assert_allowed_form_fields(request.form, allowed={"patient_id"})
+    assert_allowed_form_fields(request.form, allowed={"patient_id", "roi_payload"})
     patient_id = (request.form.get("patient_id") or "").strip()
+    roi_payloads = validate_roi_form_value(
+        request.form.get("roi_payload"),
+        field_name="roi_payload",
+    )
 
     try:
         import cv2
@@ -254,6 +348,29 @@ def analyze_image():
 
         validated_image = validate_and_sanitize_image_upload(image_file)
         image = cv2.cvtColor(np.array(Image.open(io.BytesIO(validated_image.content)).convert("RGB")), cv2.COLOR_RGB2BGR)
+        manual_roi_masks = _build_manual_roi_masks(
+            roi_payloads,
+            width=validated_image.width,
+            height=validated_image.height,
+        )
+        manual_roi_mask = _combine_manual_roi_masks(manual_roi_masks)
+        manual_roi_metadata_list = _serialize_roi_payloads(roi_payloads)
+        manual_roi_summary = None
+        if manual_roi_metadata_list:
+            if len(manual_roi_metadata_list) == 1:
+                manual_roi_summary = dict(manual_roi_metadata_list[0])
+            else:
+                manual_roi_summary = {
+                    "confirmed": True,
+                    "selection_count": len(manual_roi_metadata_list),
+                    "source": "manual",
+                    "tools": [
+                        str(item.get("tool"))
+                        for item in manual_roi_metadata_list
+                        if item.get("tool")
+                    ],
+                    "version": str(manual_roi_metadata_list[0].get("version") or ""),
+                }
 
         analyzer = _get_wound_analyzer()
         if analyzer is None:
@@ -269,7 +386,13 @@ def analyze_image():
             patient = ensure_patient_access(database, patient_id, user=user)
             linked_patient_id = patient.id
 
-        report = analyzer.analyze(image)
+        report = analyzer.analyze(
+            image,
+            manual_roi_mask=manual_roi_mask,
+            manual_roi_masks=manual_roi_masks,
+            roi_metadata=manual_roi_summary,
+            roi_metadata_list=manual_roi_metadata_list,
+        )
         generated_at = datetime.now(timezone.utc).isoformat()
         result = build_headless_analyzer_result(
             report,
@@ -279,11 +402,29 @@ def analyze_image():
             image_content_type=validated_image.mime_type,
             generated_at=generated_at,
         )
+        if manual_roi_summary and not result.get("roi"):
+            result["roi"] = manual_roi_summary
+        if manual_roi_metadata_list and not result.get("rois"):
+            result["rois"] = manual_roi_metadata_list
+
+        if len(manual_roi_metadata_list) > 1:
+            detection_label = f"{len(manual_roi_metadata_list)} ROIs manuais confirmadas"
+            detection_description = (
+                "Multiplas delimitacoes manuais foram confirmadas e unidas como filtro principal da analise."
+            )
+        elif manual_roi_summary:
+            detection_label = "ROI manual confirmada"
+            detection_description = (
+                "Delimitacao manual confirmada pelo usuario e aplicada como filtro principal da analise."
+            )
+        else:
+            detection_label = "Regiao analisada"
+            detection_description = "Contorno e area considerada pela IA para a leitura clinica."
         result["visuals"] = {
             "detection": encode_visual_payload(
                 getattr(report, "detection_overlay", None),
-                label="Regiao analisada",
-                description="Contorno e area considerada pela IA para a leitura clinica.",
+                label=detection_label,
+                description=detection_description,
             ),
             "segmentation": encode_visual_payload(
                 getattr(report, "segmentation_map", None),
@@ -306,6 +447,33 @@ def analyze_image():
 
         try:
             db = get_firestore_db()
+            roi_mask_storage_path = None
+            mask_bytes = _mask_to_png_bytes(manual_roi_mask) if manual_roi_mask is not None else b""
+            bucket = None
+            if mask_bytes or validated_image.content:
+                try:
+                    bucket = get_storage_bucket()
+                except Exception:
+                    bucket = None
+
+            if bucket is not None:
+                try:
+                    blob = bucket.blob(f"analyses/{analysis_id}/image{validated_image.extension}")
+                    blob.upload_from_string(validated_image.content, content_type=validated_image.mime_type)
+                except Exception:
+                    pass
+
+                if mask_bytes:
+                    try:
+                        roi_mask_storage_path = f"analyses/{analysis_id}/roi_mask.png"
+                        mask_blob = bucket.blob(roi_mask_storage_path)
+                        mask_blob.upload_from_string(mask_bytes, content_type="image/png")
+                    except Exception:
+                        roi_mask_storage_path = None
+
+            if roi_mask_storage_path and isinstance(result.get("roi"), dict):
+                result["roi"]["storage_path"] = roi_mask_storage_path
+
             doc_data = {
                 **result,
                 "id": analysis_id,
@@ -315,12 +483,6 @@ def analyze_image():
                 "image_filename": validated_image.original_name or "unknown",
             }
             db.collection("analyses").document(analysis_id).set(doc_data)
-            try:
-                bucket = get_storage_bucket()
-                blob = bucket.blob(f"analyses/{analysis_id}/image{validated_image.extension}")
-                blob.upload_from_string(validated_image.content, content_type=validated_image.mime_type)
-            except Exception:
-                pass
         except Exception:
             pass
 

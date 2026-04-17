@@ -10,13 +10,19 @@ import {
   ImagePlus,
   Layers3,
   LoaderCircle,
+  PenTool,
+  PencilLine,
+  Plus,
+  RefreshCcw,
   ScanSearch,
   ShieldAlert,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AnalyzerRoiEditor } from "@/components/heal-analyzer/roi-editor";
 import { AnalyzerSummary } from "@/components/heal-analyzer/analyzer-summary";
 import { AnalyzerTechnicalDrawer } from "@/components/heal-analyzer/analyzer-technical-drawer";
 import { AnalyzerViewer } from "@/components/heal-analyzer/analyzer-viewer";
@@ -26,6 +32,11 @@ import {
   type AnalyzerTabId,
   type WorkflowState,
 } from "@/components/heal-analyzer/presenter";
+import {
+  isHealAnalyzerRoiSelection,
+  roiToolLabel,
+  type HealAnalyzerRoiSelection,
+} from "@/lib/heal-analyzer-roi";
 import {
   analyzeWithHealAnalyzer,
   type HealAnalyzerResult,
@@ -39,20 +50,26 @@ const stepCards = [
     icon: Upload,
   },
   {
+    key: "roi",
+    title: "2. Delimitacao manual",
+    caption: "Marque uma ou mais feridas antes de rodar a IA.",
+    icon: PenTool,
+  },
+  {
     key: "processing",
-    title: "2. Processamento da IA",
-    caption: "O pipeline monta segmentacao, resumo e mapa de atencao.",
+    title: "3. Processamento da IA",
+    caption: "A pipeline usa todas as ROIs confirmadas como filtro principal.",
     icon: BrainCircuit,
   },
   {
     key: "result",
-    title: "3. Resultado clinico",
+    title: "4. Resultado clinico",
     caption: "A tela destaca o tecido predominante e a confianca.",
     icon: CheckCircle2,
   },
   {
     key: "technical",
-    title: "4. Detalhes tecnicos",
+    title: "5. Detalhes tecnicos",
     caption: "A gaveta lateral guarda o conteudo tecnico sem atrapalhar o principal.",
     icon: Layers3,
   },
@@ -63,6 +80,18 @@ function getNextVisualTab(result: HealAnalyzerResult): AnalyzerTabId {
   if (result.visuals?.segmentation?.data_url) return "segmentation";
   if (result.visuals?.attention?.data_url) return "attention";
   return "original";
+}
+
+function getResultRoiSelections(result: HealAnalyzerResult) {
+  if (result.rois?.length) {
+    return result.rois.filter(isHealAnalyzerRoiSelection);
+  }
+
+  if (isHealAnalyzerRoiSelection(result.roi)) {
+    return [result.roi];
+  }
+
+  return [];
 }
 
 export function AnalyzerWorkbench() {
@@ -76,6 +105,9 @@ export function AnalyzerWorkbench() {
   );
   const [patientId, setPatientId] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [editingRoiIndex, setEditingRoiIndex] = useState<number | null>(null);
+  const [roiSelections, setRoiSelections] = useState<HealAnalyzerRoiSelection[]>([]);
+  const [roiEditorKey, setRoiEditorKey] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [workflowState, setWorkflowState] = useState<WorkflowState>("idle");
 
@@ -105,7 +137,10 @@ export function AnalyzerWorkbench() {
 
   const loading = workflowState === "loading";
   const hasImage = Boolean(previewUrl);
-  const status = getStatusCopy(workflowState, hasImage);
+  const hasConfirmedRoi = roiSelections.length > 0;
+  const activeEditorSelection =
+    editingRoiIndex !== null ? roiSelections[editingRoiIndex] ?? null : null;
+  const status = getStatusCopy(workflowState, hasImage, hasConfirmedRoi);
   const tissueLegend = getTissueBreakdown(analysis).slice(0, 4);
 
   const viewerTabs = [
@@ -139,6 +174,80 @@ export function AnalyzerWorkbench() {
     fileInputRef.current?.click();
   };
 
+  const resetAnalysisPreview = () => {
+    setAnalysis(null);
+    setError(null);
+    setActiveTab("original");
+    setDrawerOpen(false);
+  };
+
+  const handleRoiCleared = () => {
+    resetAnalysisPreview();
+    setEditingRoiIndex(null);
+    setRoiEditorKey((current) => current + 1);
+    setWorkflowState(previewUrl ? (roiSelections.length ? "ready" : "marking") : "idle");
+  };
+
+  const handleRoiConfirmed = (selection: HealAnalyzerRoiSelection) => {
+    resetAnalysisPreview();
+    setEditingRoiIndex(null);
+    setRoiSelections((current) => {
+      if (editingRoiIndex === null) {
+        return [...current, selection];
+      }
+
+      return current.map((currentSelection, index) =>
+        index === editingRoiIndex ? selection : currentSelection,
+      );
+    });
+    setRoiEditorKey((current) => current + 1);
+    setWorkflowState("ready");
+  };
+
+  const handleResetRoi = () => {
+    resetAnalysisPreview();
+    setError(null);
+    setEditingRoiIndex(null);
+    setRoiSelections([]);
+    setWorkflowState(previewUrl ? "marking" : "idle");
+    setRoiEditorKey((current) => current + 1);
+  };
+
+  const handleStartNewRoi = () => {
+    resetAnalysisPreview();
+    setEditingRoiIndex(null);
+    setError(null);
+    setRoiEditorKey((current) => current + 1);
+    setWorkflowState(previewUrl ? (roiSelections.length ? "ready" : "marking") : "idle");
+  };
+
+  const handleEditSavedRoi = (index: number) => {
+    if (!roiSelections[index]) return;
+    resetAnalysisPreview();
+    setError(null);
+    setEditingRoiIndex(index);
+    setRoiEditorKey((current) => current + 1);
+    setWorkflowState("ready");
+  };
+
+  const handleRemoveSavedRoi = (index: number) => {
+    resetAnalysisPreview();
+    let remainingSelections = 0;
+    setRoiSelections((current) => {
+      const nextSelections = current.filter((_, currentIndex) => currentIndex !== index);
+      remainingSelections = nextSelections.length;
+      return nextSelections;
+    });
+    setEditingRoiIndex((current) => {
+      if (current === null) return null;
+      if (current === index) return null;
+      if (current > index) return current - 1;
+      return current;
+    });
+    setRoiEditorKey((current) => current + 1);
+    setWorkflowState(previewUrl ? (remainingSelections > 0 ? "ready" : "marking") : "idle");
+  };
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.currentTarget.value = "";
@@ -148,22 +257,33 @@ export function AnalyzerWorkbench() {
 
     setSelectedFile(file);
     setPreviewUrl(nextPreview);
-    setAnalysis(null);
-    setError(null);
-    setActiveTab("original");
-    setDrawerOpen(false);
-    setWorkflowState("ready");
+    setEditingRoiIndex(null);
+    setRoiSelections([]);
+    resetAnalysisPreview();
+    setRoiEditorKey((current) => current + 1);
+    setWorkflowState("marking");
   };
 
   const handleAnalyze = async () => {
     if (!selectedFile) return;
 
+    if (!roiSelections.length) {
+      setError("Confirme pelo menos uma area marcada da ferida antes de iniciar a analise.");
+      setWorkflowState("marking");
+      return;
+    }
+
     setWorkflowState("loading");
     setError(null);
 
     try {
-      const result = await analyzeWithHealAnalyzer(selectedFile, { patientId });
+      const result = await analyzeWithHealAnalyzer(selectedFile, {
+        patientId,
+        roiSelections,
+      });
       setAnalysis(result);
+      setEditingRoiIndex(null);
+      setRoiSelections(getResultRoiSelections(result));
       setWorkflowState("complete");
       setActiveTab(getNextVisualTab(result));
     } catch (analysisError) {
@@ -189,9 +309,9 @@ export function AnalyzerWorkbench() {
                 Analise de feridas com foco em imagem, clareza e explicabilidade
               </h1>
               <p className="mt-4 text-sm leading-7 text-slate-700 dark:text-slate-300 sm:text-base sm:leading-8">
-                Esta tela foi desenhada para mostrar primeiro o que importa e esconder
-                a parte tecnica ate o usuario pedir. O fluxo principal fica simples;
-                a auditoria visual fica a um clique.
+                O fluxo agora inclui uma delimitacao manual obrigatoria de uma ou
+                mais lesoes para reduzir falsos positivos perifericos antes da
+                segmentacao automatica.
               </p>
             </div>
 
@@ -207,13 +327,14 @@ export function AnalyzerWorkbench() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-            {stepCards.map((item, index) => {
+          <div className="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-5">
+            {stepCards.map((item) => {
               const Icon = item.icon;
               const active =
-                (index === 0 && hasImage) ||
-                (index === 1 && loading) ||
-                (index >= 2 && analysis);
+                (item.key === "upload" && hasImage) ||
+                (item.key === "roi" && (hasImage || hasConfirmedRoi || loading || Boolean(analysis))) ||
+                (item.key === "processing" && (loading || Boolean(analysis))) ||
+                ((item.key === "result" || item.key === "technical") && Boolean(analysis));
 
               return (
                 <div
@@ -253,8 +374,8 @@ export function AnalyzerWorkbench() {
                 Upload da imagem
               </h2>
               <p className="mt-2 text-sm leading-7 text-on-surface-variant">
-                Escolha uma foto da ferida para iniciar a leitura visual do HEAL analyzer.
-                O preview aparece imediatamente.
+                Escolha uma foto da ferida, confirme manualmente cada area de lesao
+                no painel central e so entao libere a pipeline automatica.
               </p>
 
               <input
@@ -300,14 +421,16 @@ export function AnalyzerWorkbench() {
                     variant="outline"
                     className="w-full justify-center"
                     onClick={() => void handleAnalyze()}
-                    disabled={!selectedFile || loading}
+                    disabled={!selectedFile || !roiSelections.length || loading}
                   >
                     {loading ? (
                       <LoaderCircle className="h-4 w-4 animate-spin" />
                     ) : (
                       <ScanSearch className="h-4 w-4" />
                     )}
-                    Iniciar analise
+                    {roiSelections.length
+                      ? `Iniciar analise (${roiSelections.length} ROI${roiSelections.length > 1 ? "s" : ""})`
+                      : "Confirme ao menos uma ROI para analisar"}
                   </Button>
                 </div>
               </div>
@@ -341,6 +464,99 @@ export function AnalyzerWorkbench() {
                 </div>
               ) : null}
 
+              {hasImage ? (
+                <div className="mt-5 rounded-[20px] border border-outline-variant/20 bg-surface-container p-4 dark:border-white/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
+                        Delimitacao manual
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-on-surface">
+                        {hasConfirmedRoi
+                          ? `${roiSelections.length} ROI${roiSelections.length > 1 ? "s" : ""} confirmada${roiSelections.length > 1 ? "s" : ""}`
+                          : "Nenhuma ROI confirmada"}
+                      </p>
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        {editingRoiIndex !== null
+                          ? `Editando a ROI ${editingRoiIndex + 1}. Confirme novamente para atualizar essa lesao.`
+                          : hasConfirmedRoi
+                            ? "Voce pode adicionar outras ROIs, editar uma existente ou limpar tudo antes da analise."
+                            : "Use o painel central para desenhar cada area real da lesao."}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {hasConfirmedRoi ? (
+                        <button
+                          type="button"
+                          onClick={handleStartNewRoi}
+                          className="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container-high px-3 py-2 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-lowest dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Nova ROI
+                        </button>
+                      ) : null}
+                      {hasConfirmedRoi ? (
+                        <button
+                          type="button"
+                          onClick={handleResetRoi}
+                          className="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container-high px-3 py-2 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-lowest dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                        >
+                          <RefreshCcw className="h-4 w-4" />
+                          Limpar tudo
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {roiSelections.length ? (
+                    <div className="mt-4 space-y-3">
+                      {roiSelections.map((selection, index) => {
+                        const isEditing = editingRoiIndex === index;
+                        return (
+                          <div
+                            key={`roi-card-${index}-${selection.points.length}`}
+                            className={`rounded-[18px] border px-4 py-3 ${
+                              isEditing
+                                ? "border-primary/30 bg-primary/10 dark:border-sky-400/30 dark:bg-sky-400/10"
+                                : "border-outline-variant/20 bg-surface-container-high dark:border-white/10 dark:bg-white/5"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-on-surface">
+                                  ROI {index + 1} • {roiToolLabel(selection.tool)}
+                                </p>
+                                <p className="mt-1 text-xs text-on-surface-variant">
+                                  Area aproximada: {Math.round((selection.area_ratio || 0) * 100)}% da imagem.
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditSavedRoi(index)}
+                                  className="inline-flex items-center gap-1 rounded-full border border-outline-variant/20 bg-surface-container px-3 py-1.5 text-[11px] font-semibold text-on-surface transition-colors hover:bg-surface-container-lowest dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                                >
+                                  <PencilLine className="h-3.5 w-3.5" />
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSavedRoi(index)}
+                                  className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/15"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Remover
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {error ? (
                 <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
                   {error}
@@ -358,7 +574,7 @@ export function AnalyzerWorkbench() {
                   Aproxime a camera o suficiente para mostrar textura e cor.
                 </li>
                 <li className="rounded-2xl border border-outline-variant/20 bg-surface-container px-4 py-3 dark:border-white/10 dark:bg-white/5">
-                  Use o painel central para alternar entre original, segmentacao e atencao.
+                  Se houver mais de uma lesao, adicione uma ROI para cada ferida e mantenha pele sadia e fundo fora das marcacoes.
                 </li>
               </ul>
             </section>
@@ -379,19 +595,50 @@ export function AnalyzerWorkbench() {
             </section>
           </div>
 
-          <AnalyzerViewer
-            activeTab={activeTab}
-            detectionImage={analysis?.visuals?.detection?.data_url ?? null}
-            loading={loading}
-            onOpenLightbox={(src, label) => setLightbox({ src, label })}
-            onTabChange={setActiveTab}
-            tabs={viewerTabs}
-            tissueLegend={tissueLegend}
-          />
+          {analysis ? (
+            <AnalyzerViewer
+              activeTab={activeTab}
+              detectionImage={analysis?.visuals?.detection?.data_url ?? null}
+              loading={loading}
+              onOpenLightbox={(src, label) => setLightbox({ src, label })}
+              onTabChange={setActiveTab}
+              tabs={viewerTabs}
+              tissueLegend={tissueLegend}
+            />
+          ) : hasImage && previewUrl ? (
+            <AnalyzerRoiEditor
+              key={`${previewUrl}-${roiEditorKey}-${editingRoiIndex ?? "new"}`}
+              activeSavedSelectionIndex={editingRoiIndex}
+              confirmLabel={
+                editingRoiIndex !== null
+                  ? `Atualizar ROI ${editingRoiIndex + 1}`
+                  : hasConfirmedRoi
+                    ? `Adicionar ROI ${roiSelections.length + 1}`
+                    : "Confirmar primeira ROI"
+              }
+              disabled={loading}
+              imageSrc={previewUrl}
+              initialSelection={activeEditorSelection}
+              savedSelections={roiSelections}
+              onConfirm={handleRoiConfirmed}
+              onSelectionCleared={handleRoiCleared}
+            />
+          ) : (
+            <AnalyzerViewer
+              activeTab={activeTab}
+              detectionImage={null}
+              loading={loading}
+              onOpenLightbox={(src, label) => setLightbox({ src, label })}
+              onTabChange={setActiveTab}
+              tabs={viewerTabs}
+              tissueLegend={tissueLegend}
+            />
+          )}
 
           <AnalyzerSummary
             analysis={analysis}
             error={error}
+            hasConfirmedRoi={hasConfirmedRoi}
             hasImage={hasImage}
             loading={loading}
             onOpenTechnical={() => setDrawerOpen(true)}

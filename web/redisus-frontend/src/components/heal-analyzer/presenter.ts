@@ -8,7 +8,13 @@ import {
   repairMojibakeText,
 } from "@/lib/text-normalization";
 
-export type WorkflowState = "idle" | "ready" | "loading" | "complete" | "error";
+export type WorkflowState =
+  | "idle"
+  | "marking"
+  | "ready"
+  | "loading"
+  | "complete"
+  | "error";
 export type AnalyzerTabId = "original" | "segmentation" | "combined" | "attention";
 
 type TissueBreakdown = {
@@ -157,7 +163,11 @@ export function getRiskTone(riskLevel: string) {
   return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300";
 }
 
-export function getStatusCopy(state: WorkflowState, hasImage: boolean) {
+export function getStatusCopy(
+  state: WorkflowState,
+  hasImage: boolean,
+  hasConfirmedRoi = false,
+) {
   if (state === "loading") {
     return {
       label: "Processando",
@@ -182,10 +192,26 @@ export function getStatusCopy(state: WorkflowState, hasImage: boolean) {
     };
   }
 
+  if (state === "marking" || (hasImage && !hasConfirmedRoi)) {
+    return {
+      label: "Delimite a ferida",
+      caption: "Confirme uma ou mais ROIs manuais para liberar a pipeline automatica.",
+      tone: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300",
+    };
+  }
+
+  if (hasConfirmedRoi) {
+    return {
+      label: "ROIs prontas",
+      caption: "A analise ja pode ser iniciada usando somente as areas marcadas.",
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
+    };
+  }
+
   if (hasImage) {
     return {
       label: "Imagem pronta",
-      caption: "Voce ja pode iniciar a analise.",
+      caption: "Voce ja pode seguir para a delimitacao manual da ferida.",
       tone: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/15 dark:text-violet-300",
     };
   }

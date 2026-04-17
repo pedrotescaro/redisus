@@ -1,0 +1,19 @@
+224: HE, Kaiming; ZHANG, Xiangyu; REN, Shaoqing; SUN, Jian. Spatial pyramid pooling in deep convolutional networks for visual recognition. IEEE Transactions on Pattern Analysis and Machine Intelligence, v. 37, n. 9, p. 1904–1916, 2015. DOI: https://doi.org/10.1109/TPAMI.2015.2389824. Disponível em: https://pubmed.ncbi.nlm.nih.gov/26353135/. Acesso em: 15 abr. 2026.
+226: LEI, Changbin; JIANG, Yan; XU, Ke; LIU, Shanshan; CAO, Hua; WANG, Cong. Convolutional neural network models for visual classification of pressure ulcer stages: cross-sectional study. JMIR Medical Informatics, v. 13, e62774, 2025. DOI: https://doi.org/10.2196/62774. Disponível em: https://medinform.jmir.org/2025/1/e62774/. Acesso em: 15 abr. 2026.
+228: REDISUS. Metadados do classificador especializado de lesão por pressão. [S. l.], 2026. Arquivo local: models/pressure_injury_stage_classifier/model_metadata.json. Acesso em: 15 abr. 2026.
+230: REDISUS. Módulo de análise tecidual. [S. l.], 2026. Arquivo local:
+231: src/processing/tissue_analyzer.py. Acesso em: 15 abr. 2026.
+233: REDISUS. Módulo de detecção da ferida. [S. l.], 2026. Arquivo local:
+234: src/processing/wound_detector_cv.py. Acesso em: 15 abr. 2026.
+236: REDISUS. Módulo de segmentação da ROI. [S. l.], 2026. Arquivo local:
+237: src/processing/roi_segmentation.py. Acesso em: 15 abr. 2026.
+239: REDISUS. PIID Pressure Injury Staging: manifesto do conjunto de dados. [S. l.], 2026. Arquivo local:
+240: dataset/piid/manifests/piid_lp_split.json. Acesso em: 15 abr. 2026.
+242: REDISUS. Resultado consolidado do experimento de resolução espacial. [S. l.], 2026. Arquivo local:
+243: output/reports/piid_spatial_resolution_experiment.json. Acesso em: 15 abr. 2026.
+245: REDISUS. Script de avaliação de resolução espacial. [S. l.], 2026. Arquivo local:
+246: scripts/evaluate_spatial_resolution_piid.py. Acesso em: 15 abr. 2026.
+248: TALEBI, Hossein; MILANFAR, Peyman. Learning to resize images for computer vision tasks. In:
+249: IEEE/CVF International Conference on Computer Vision (ICCV). Proceedings [...]. [S. l.]: IEEE, 2021.
+250: p. 497–506. DOI: https://doi.org/10.1109/ICCV48922.2021.00055. Disponível em: https://openaccess.thecvf.com/content/ICCV2021/html/Talebi_Learning_To_Resize_Images_for_C  omputer_Vision_Tasks_ICCV_2021_paper.html. Acesso em: 15 abr. 2026.
+251: _for_Computer_Vision_Tasks_ICCV_2021_paper.html. Acesso em: 15 abr. 2026

@@ -1,0 +1,313 @@
+\documentclass[
+    12pt,
+    openright,
+    oneside,
+    a4paper,
+    chapter=TITLE,
+    section=TITLE,
+    brazil,
+    sumario=tradicional,
+    hidelinks
+]{abntex2}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{iftex}
+\ifPDFTeX
+\usepackage[scaled]{helvet}
+\renewcommand\familydefault{\sfdefault}
+\else
+\usepackage{fontspec}
+\setmainfont{Arial}
+\setsansfont{Arial}
+\fi
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xurl}
+
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0.2cm}
+\OnehalfSpacing
+\setlist[itemize]{leftmargin=1.2cm}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\urlstyle{same}
+\newenvironment{abntrefs}{
+    \begingroup
+    \SingleSpacing
+    \small
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{\baselineskip}
+    \raggedright
+}{
+    \par
+    \endgroup
+}
+
+\titulo{Relatório Técnico: Sensibilidade à Resolução Espacial em Imagens de Feridas Crônicas}
+\autor{Equipe HEAL+ / REDISUS}
+\local{Suzano - SP}
+\data{15 de abril de 2026}
+\instituicao{%
+    Faculdade de Tecnologia de Ferraz de Vasconcelos\\
+    Projeto REDISUS
+}
+\tipotrabalho{Relatório técnico}
+\preambulo{Documento interno para apoiar a definição de uma resolução espacial mínima que não comprometa o reconhecimento dos objetos de interesse no pipeline clássico de análise de feridas crônicas.}
+
+\begin{document}
+
+\imprimircapa
+\imprimirfolhaderosto*
+
+\pdfbookmark[0]{Lista de Abreviaturas, Siglas e Termos Técnicos}{abreviaturas}
+\chapter*{Lista de Abreviaturas, Siglas e Termos Técnicos}
+
+\section*{Siglas e abreviaturas}
+\begin{itemize}
+    \item \textbf{ABNT}: Associação Brasileira de Normas Técnicas.
+    \item \textbf{CNN}: \textit{Convolutional Neural Network}, ou rede neural convolucional.
+    \item \textbf{DL}: \textit{Deep Learning}, ou aprendizado profundo.
+    \item \textbf{HEAL+}: nome da plataforma de apoio ao diagnóstico e acompanhamento de feridas no projeto.
+    \item \textbf{IoU}: \textit{Intersection over Union}, medida de sobreposição entre duas máscaras.
+    \item \textbf{JPG}: formato de imagem raster comprimida.
+    \item \textbf{MAE}: \textit{Mean Absolute Error}, ou erro médio absoluto.
+    \item \textbf{PI}: \textit{Pressure Injury}, ou lesão por pressão.
+    \item \textbf{PIID}: \textit{Pressure Injury Image Dataset}, conjunto de imagens de lesão por pressão usado neste relatório.
+    \item \textbf{p.p.}: pontos percentuais.
+    \item \textbf{PyTorch}: biblioteca de aprendizado profundo usada por parte dos modelos do projeto.
+    \item \textbf{REDISUS}: projeto e repositório técnico onde o experimento foi executado.
+    \item \textbf{ResNet}: família de redes neurais residuais amplamente usada em classificação de imagens.
+    \item \textbf{RGB}: padrão de cor baseado nos canais vermelho, verde e azul.
+    \item \textbf{ROI}: \textit{Region of Interest}, ou região de interesse.
+\end{itemize}
+
+\section*{Termos técnicos}
+\begin{itemize}
+    \item \textbf{Dice}: coeficiente que mede o quanto duas segmentações coincidem.
+    \item \textbf{\textit{Downsampling}}: redução da resolução espacial da imagem.
+    \item \textbf{\textit{Health score}}: indicador interno do pipeline que sintetiza a condição da ferida a partir da composição tecidual.
+    \item \textbf{Inferência}: etapa em que um modelo ou pipeline já definido processa uma imagem e produz saída.
+    \item \textbf{Máscara}: imagem binária que delimita pixels pertencentes a uma estrutura de interesse.
+    \item \textbf{Reamostragem}: processo de redimensionar a imagem para outra grade de pixels.
+    \item \textbf{Segmentação tecidual}: separação dos tecidos visíveis da ferida em classes clínicas como granulação, esfacelo e necrose.
+    \item \textbf{\textit{Upsampling}}: aumento da resolução espacial após uma etapa de redução.
+\end{itemize}
+
+\cleardoublepage
+
+\begin{resumo}
+Este relatório apresenta um teste de sensibilidade à resolução espacial executado sobre o conjunto PIID (\textit{Pressure Injury Image Dataset}) usando o pipeline clássico do projeto para detecção de ROI da ferida e segmentação tecidual. O objetivo foi estimar a menor resolução quadrada (\(N \times N\)) que ainda preserva, com estabilidade prática, o reconhecimento dos objetos de interesse. O experimento foi executado no split de teste do PIID (\(n = 165\)) com degradação sintética da imagem para diferentes resoluções e posterior reamostragem para \(224 \times 224\), que é a resolução nativa do acervo local. Como critério de aceitação, foi adotado: Dice médio da ROI \(\geq 0{,}95\), erro médio absoluto da composição tecidual \(\leq 1{,}0\) ponto percentual, concordância de tecido dominante \(\geq 0{,}98\) e variação média do \textit{health score} \(\leq 1{,}5\) pontos. O menor valor que satisfez simultaneamente todos os critérios no pipeline clássico foi \(80 \times 80\). Entretanto, considerando a literatura recente em classificação de lesão por pressão com CNNs, a convenção arquitetural de entrada fixa em \(224 \times 224\) e o fato de os modelos profundos do repositório também registrarem \texttt{image\_size = 224}, recomenda-se adotar \(224 \times 224\) como resolução mínima operacional unificada do sistema.
+
+\textbf{Palavras-chave}: feridas crônicas, resolução espacial, ROI, segmentação tecidual, PIID.
+\end{resumo}
+
+\pdfbookmark[0]{\contentsname}{toc}
+\tableofcontents*
+\cleardoublepage
+
+\textual
+
+\section{Objetivo}
+Verificar se a redução da resolução espacial impacta negativamente o reconhecimento dos objetos de interesse presentes nas imagens de ferida crônica e, com base nisso, definir uma resolução mínima aceitável para uso no pipeline atual.
+
+\section{Recorte experimental}
+O teste foi executado sobre o dataset \textit{PIID Pressure Injury Staging}, split de teste (\(n = 165\) imagens), com a seguinte distribuição:
+\begin{itemize}
+    \item estágio 1: 35 imagens;
+    \item estágio 2: 47 imagens;
+    \item estágio 3: 42 imagens;
+    \item estágio 4: 41 imagens.
+\end{itemize}
+
+O recorte foi escolhido por ser um conjunto de feridas crônicas rotulado e já organizado no repositório. Todas as imagens do acervo local estão em \(224 \times 224\) pixels, portanto a variação de resolução foi simulada por \textit{downsampling} para \(N \times N\) seguido de reamostragem para \(224 \times 224\).
+
+\section{Pipeline avaliado}
+O experimento avaliou a parte clássica e explicável do sistema, composta por:
+\begin{itemize}
+    \item \texttt{WoundDetectorCV} para detecção inicial da região da ferida;
+    \item \texttt{ROISegmenter} para refinamento da máscara da ferida e exclusão de fundo;
+    \item \texttt{TissueAnalyzerCV} para estimativa da composição tecidual e do \textit{health score}.
+\end{itemize}
+
+Esse recorte é adequado para a pergunta de negócio porque os objetos de interesse do fluxo atual são, principalmente, a ROI da ferida e os tecidos clinicamente relevantes dentro dela.
+
+\section{Metodologia}
+Para cada imagem de referência em \(224 \times 224\), foi executado o seguinte protocolo:
+\begin{enumerate}
+    \item rodar o pipeline na imagem original e armazenar a ROI de referência, a composição tecidual, o tecido dominante e o \textit{health score};
+    \item degradar a imagem para uma resolução quadrada \(N \times N\); os valores testados foram 224, 192, 160, 128, 112, 96, 80, 64, 48, 32, 24 e 16 pixels;
+    \item reamostrar a imagem degradada de volta para \(224 \times 224\);
+    \item rodar novamente o pipeline;
+    \item comparar a saída degradada com a saída de referência da mesma imagem.
+\end{enumerate}
+
+Foram medidas as seguintes métricas:
+\begin{itemize}
+    \item Dice médio da ROI da ferida;
+    \item IoU média da ROI;
+    \item erro médio absoluto da composição tecidual (em pontos percentuais);
+    \item concordância do tecido dominante;
+    \item variação absoluta do \textit{health score};
+    \item erro relativo da área da ferida.
+\end{itemize}
+
+\section{Critério para definir a resolução mínima}
+Como não há máscara de verdade-terreno pixel a pixel para esse experimento no repositório local, a definição de impacto negativo foi feita por consistência relativa em relação à saída de referência do próprio pipeline. Adotou-se o seguinte critério conservador:
+\begin{itemize}
+    \item Dice médio da ROI \(\geq 0{,}95\);
+    \item erro médio absoluto da composição tecidual \(\leq 1{,}0\) p.p.;
+    \item concordância do tecido dominante \(\geq 0{,}98\);
+    \item variação média do \textit{health score} \(\leq 1{,}5\).
+\end{itemize}
+
+\section{Fundamentação bibliográfica para 224 x 224 pixels}
+Além do experimento interno, foi incorporada uma referência bibliográfica externa para justificar o uso de \(224 \times 224\) como resolução mínima operacional quando se deseja manter compatibilidade com classificadores profundos.
+
+Lei et al. (2025), em estudo de classificação visual de estágios de lesão por pressão com CNNs, informam que as imagens aumentadas foram novamente fixadas em \(224 \times 224 \times 3\) antes da entrada nas redes e que, no fluxo de treinamento e teste, a imagem principal da lesão foi tratada em 224 pixels. Em paralelo, He et al. (2015) registram que CNNs profundas tradicionais exigiam entrada fixa, exemplificando \(224 \times 224\), e Talebi e Milanfar (2021) observam que, por eficiência, a prática típica em visão computacional é redimensionar imagens para resoluções relativamente pequenas, como \(224 \times 224\), tanto em treinamento quanto em inferência.
+
+No contexto do próprio repositório, o classificador especializado de lesão por pressão também registra \texttt{image\_size = 224} em sua \textit{metadata}. Assim, neste relatório, \(224 \times 224\) é tratado como \textbf{mínimo operacional unificado} para o sistema como um todo, enquanto valores menores permanecem apenas como limite técnico interno do pipeline clássico testado.
+
+\section{Resultados consolidados}
+\begin{table}[h]
+\centering
+\caption{Resultados médios por resolução simulada}
+\begin{tabular}{L{2.1cm}L{2.4cm}L{2.9cm}L{3.1cm}L{2.7cm}}
+\toprule
+\textbf{Resolução} & \textbf{Dice ROI} & \textbf{MAE tecidos (p.p.)} & \textbf{Concordância tecido dominante} & \textbf{Delta health} \\
+\midrule
+\(224 \times 224\) & 1.0000 & 0.0000 & 1.0000 & 0.0000 \\
+\(128 \times 128\) & 0.9714 & 0.4375 & 1.0000 & 0.7314 \\
+\(96 \times 96\) & 0.9639 & 0.5583 & 0.9939 & 0.9178 \\
+\(80 \times 80\) & 0.9534 & 0.7097 & 0.9879 & 1.1285 \\
+\(64 \times 64\) & 0.9433 & 0.8031 & 0.9818 & 1.2956 \\
+\(48 \times 48\) & 0.9243 & 1.0821 & 0.9758 & 1.6531 \\
+\(32 \times 32\) & 0.9000 & 1.4673 & 0.9333 & 2.3430 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Os resultados mostram três faixas de comportamento:
+\begin{itemize}
+    \item \textbf{Faixa estável} (\(224\) a \(96\) px): degradação pequena, sem mudança prática relevante no comportamento do pipeline;
+    \item \textbf{Faixa limiar} (\(80\) a \(64\) px): o sistema ainda responde bem, mas a ROI começa a perder sobreposição e o erro tecidual cresce;
+    \item \textbf{Faixa de degradação clara} (\(48\) px ou menos): o erro tecidual ultrapassa 1 p.p., o Dice da ROI cai com mais evidência e a concordância do tecido dominante deixa de ser confortável.
+\end{itemize}
+
+\section{Análise por estágio}
+Na leitura por classe, o comportamento foi relativamente uniforme, mas alguns pontos merecem registro:
+\begin{itemize}
+    \item em \(80 \times 80\), o estágio 2 apresentou o menor Dice médio de ROI (0.9359), ainda dentro de um patamar utilizável;
+    \item em \(64 \times 64\), os estágios 1 e 2 passaram a mostrar maior sensibilidade na ROI e no erro tecidual;
+    \item os casos de estágio 4 foram os mais estáveis em praticamente todas as resoluções, provavelmente por exibirem sinais visuais mais evidentes e áreas de interesse maiores;
+    \item abaixo de \(48 \times 48\), a piora deixa de ser localizada e passa a afetar o conjunto como um todo.
+\end{itemize}
+
+\section{Conclusão e recomendação}
+Com base nos critérios adotados, o menor valor que manteve o reconhecimento sem impacto negativo relevante no \textbf{pipeline clássico interno} foi \(\mathbf{80 \times 80}\) pixels. Esse foi o menor ponto que ainda satisfez simultaneamente:
+\begin{itemize}
+    \item Dice médio da ROI acima de 0.95;
+    \item erro médio absoluto dos tecidos abaixo de 1 p.p.;
+    \item concordância de tecido dominante acima de 0.98;
+    \item variação média do \textit{health score} abaixo de 1.5.
+\end{itemize}
+
+Entretanto, para \textbf{uso operacional em conformidade com a literatura e com os classificadores profundos do projeto}, recomenda-se adotar \(\mathbf{224 \times 224}\) pixels como resolução mínima. Essa escolha é a mais consistente com:
+\begin{itemize}
+    \item a literatura recente de classificação de lesão por pressão com CNNs;
+    \item a convenção clássica de entrada fixa em arquiteturas profundas;
+    \item a configuração já registrada nos modelos profundos do próprio repositório.
+\end{itemize}
+
+Assim, a interpretação final deste relatório é a seguinte:
+\begin{itemize}
+    \item \textbf{mínimo técnico interno do pipeline clássico}: \(80 \times 80\);
+    \item \textbf{mínimo operacional recomendado para o sistema unificado}: \(224 \times 224\);
+    \item \textbf{não recomendado}: abaixo de \(64 \times 64\), com rejeição forte abaixo de \(48 \times 48\).
+\end{itemize}
+
+\section{Limitações}
+Este resultado deve ser interpretado com as seguintes ressalvas:
+\begin{itemize}
+    \item o experimento mediu \textbf{consistência relativa} do pipeline clássico em relação a uma referência interna, não acurácia absoluta contra máscara anotada por especialista;
+    \item o recorte foi feito sobre PIID, que contém lesões por pressão; outras etiologias crônicas podem exigir nova verificação;
+    \item o ambiente local bloqueou DLLs do PyTorch por política de controle de aplicativo, portanto o teste não foi executado diretamente sobre os classificadores profundos baseados em \texttt{torch};
+    \item por esse motivo, a recomendação de \(224 \times 224\) como mínimo operacional para o ramo profundo foi sustentada por literatura externa e pela configuração registrada nos artefatos locais, e não por inferência direta do modelo profundo neste ambiente.
+\end{itemize}
+
+\section{Reprodutibilidade}
+O experimento pode ser reproduzido pelo script:
+\begin{itemize}
+    \item \texttt{scripts/evaluate\_spatial\_resolution\_piid.py}
+\end{itemize}
+
+O resumo numérico foi salvo em:
+\begin{itemize}
+    \item \texttt{output/reports/piid\_spatial\_resolution\_experiment.json}
+\end{itemize}
+
+\section{Encaminhamento prático}
+Para decisão de produto e coleta, sugere-se adotar imediatamente:
+\begin{itemize}
+    \item \textbf{mínimo técnico aceitável no pipeline clássico}: \(80 \times 80\);
+    \item \textbf{mínimo operacional recomendado para o sistema}: \(224 \times 224\);
+    \item \textbf{faixa ainda estável apenas para análise clássica}: de \(96 \times 96\) até \(224 \times 224\);
+    \item \textbf{não recomendado}: abaixo de \(64 \times 64\), com rejeição forte abaixo de \(48 \times 48\).
+\end{itemize}
+
+\section{Exemplos e Simulações Visuais}
+A fim de materializar qualitativamente o impacto discutido nos dados paramétricos, a Figura \ref{fig:exemplos_resolucao} apresenta uma simulação da degradação espacial (simulando a captura por diferentes capacidades óticas, ou recortes profundos - downsampling - e posterior uniformização da entrada).
+
+O processo mostra o limite de reconhecimento tecidual e estabilidade da segmentação por ROI:
+\begin{itemize}
+    \item \textbf{Em 224x224 (Padrão e Limite Operacional)}: Texturas complexas finas, iluminação e delimitações irregulares dos tecidos esfacelados se mantêm visíveis.
+    \item \textbf{Em 80x80 (Limiar Estável - Mínimo Pipeline Clássico)}: Começa a ocorrer o arredondamento ou pixelização das bordas, todavia o modelo do sistema (WoundDetectorCV e TissueAnalyzerCV) não perde coesão central nem classifica excesso de espaço viável como falso neutro.
+    \item \textbf{Em 32x32 (Degradação Crítica)}: A diluição severa de pixels mescla o leito da ferida ao tom da pele externa e distorce gravemente focos de descoloração e brilho. A confiança dos contornos teciduais (Dice) despenca.
+\end{itemize}
+
+\textit{Nota de Uso: Devido à licença estritamente voltada para fins pedagógicos e de validação em pesquisa acadêmica do conjunto PIID (Pressure Injury Image Dataset), estas imagens encontram-se restritas à composição metodológica deste relatório e vedadas a usos comerciais.}
+
+\begin{figure}[h]
+    \centering
+    % Nota: Substitua 'caminho_para_imagem' pelos outputs tmp_images/roi_*.png
+    \begin{tabular}{cc}
+         \textbf{Imagem Original Reamostrada} & \textbf{ROI Processada} \\
+         \rule{4cm}{3cm} & \rule{4cm}{3cm} \\
+         \(224 \times 224\) (Referência Inicial) & \\
+         \rule{4cm}{3cm} & \rule{4cm}{3cm} \\
+         \(80 \times 80\) (Alargamento Gradual) & \\
+         \rule{4cm}{3cm} & \rule{4cm}{3cm} \\
+         \(32 \times 32\) (Distorção Completa) & \\
+    \end{tabular}
+    \caption{Processo simulado do projeto HEAL+. Imagens originárias de PIID Dataset (USO RESTRITO PESQUISA E ACADÊMICO).}
+    \label{fig:exemplos_resolucao}
+\end{figure}
+
+\postextual
+
+\chapter*{Referências}
+\begin{abntrefs}
+HE, Kaiming; ZHANG, Xiangyu; REN, Shaoqing; SUN, Jian. Spatial pyramid pooling in deep convolutional networks for visual recognition. \textit{IEEE Transactions on Pattern Analysis and Machine Intelligence}, v. 37, n. 9, p. 1904--1916, 2015. DOI: \url{https://doi.org/10.1109/TPAMI.2015.2389824}. Disponível em: \url{https://pubmed.ncbi.nlm.nih.gov/26353135/}. Acesso em: 15 abr. 2026.
+
+LEI, Changbin; JIANG, Yan; XU, Ke; LIU, Shanshan; CAO, Hua; WANG, Cong. Convolutional neural network models for visual classification of pressure ulcer stages: cross-sectional study. \textit{JMIR Medical Informatics}, v. 13, e62774, 2025. DOI: \url{https://doi.org/10.2196/62774}. Disponível em: \url{https://medinform.jmir.org/2025/1/e62774/}. Acesso em: 15 abr. 2026.
+
+REDISUS. \textit{Metadados do classificador especializado de lesão por pressão}. [S. l.], 2026. Arquivo local: \path{models/pressure_injury_stage_classifier/model_metadata.json}. Acesso em: 15 abr. 2026.
+
+REDISUS. \textit{Módulo de análise tecidual}. [S. l.], 2026. Arquivo local: \path{src/processing/tissue_analyzer.py}. Acesso em: 15 abr. 2026.
+
+REDISUS. \textit{Módulo de detecção da ferida}. [S. l.], 2026. Arquivo local: \path{src/processing/wound_detector_cv.py}. Acesso em: 15 abr. 2026.
+
+REDISUS. \textit{Módulo de segmentação da ROI}. [S. l.], 2026. Arquivo local: \path{src/processing/roi_segmentation.py}. Acesso em: 15 abr. 2026.
+
+REDISUS. \textit{PIID Pressure Injury Staging: manifesto do conjunto de dados}. [S. l.], 2026. Arquivo local: \path{dataset/piid/manifests/piid_lp_split.json}. Acesso em: 15 abr. 2026.
+
+REDISUS. \textit{Resultado consolidado do experimento de resolução espacial}. [S. l.], 2026. Arquivo local: \path{output/reports/piid_spatial_resolution_experiment.json}. Acesso em: 15 abr. 2026.
+
+REDISUS. \textit{Script de avaliação de resolução espacial}. [S. l.], 2026. Arquivo local: \path{scripts/evaluate_spatial_resolution_piid.py}. Acesso em: 15 abr. 2026.
+
+TALEBI, Hossein; MILANFAR, Peyman. Learning to resize images for computer vision tasks. In: \textit{IEEE/CVF International Conference on Computer Vision (ICCV)}. Proceedings [...]. [S. l.]: IEEE, 2021. p. 497--506. DOI: \url{https://doi.org/10.1109/ICCV48922.2021.00055}. Disponível em: \url{https://openaccess.thecvf.com/content/ICCV2021/html/Talebi_Learning_To_Resize_Images_for_Computer_Vision_Tasks_ICCV_2021_paper.html}. Acesso em: 15 abr. 2026.
+\end{abntrefs}
+
+\end{document}

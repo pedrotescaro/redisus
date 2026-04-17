@@ -1,4 +1,10 @@
 import { auth } from "@/lib/firebase";
+import {
+  toHealAnalyzerRoiRequestPayloads,
+  type HealAnalyzerRoiSummary,
+  toHealAnalyzerRoiRequestPayload,
+  type HealAnalyzerRoiSelection,
+} from "@/lib/heal-analyzer-roi";
 import { deepRepairMojibake } from "@/lib/text-normalization";
 import { waitForAuthenticatedUser } from "@/services/firebase/auth-service";
 
@@ -71,6 +77,8 @@ export type HealAnalyzerResult = {
     combined?: HealAnalyzerVisualAsset | null;
     attention?: HealAnalyzerVisualAsset | null;
   };
+  roi?: HealAnalyzerRoiSummary | null;
+  rois?: HealAnalyzerRoiSelection[] | null;
 };
 
 async function buildAuthorizedHeaders(): Promise<HeadersInit> {
@@ -95,7 +103,11 @@ async function buildAuthorizedHeaders(): Promise<HeadersInit> {
 
 export async function analyzeWithHealAnalyzer(
   image: File,
-  options?: { patientId?: string },
+  options?: {
+    patientId?: string;
+    roiSelection?: HealAnalyzerRoiSelection | null;
+    roiSelections?: HealAnalyzerRoiSelection[] | null;
+  },
 ): Promise<HealAnalyzerResult> {
   const formData = new FormData();
   formData.append("image", image);
@@ -103,6 +115,22 @@ export async function analyzeWithHealAnalyzer(
   const patientId = options?.patientId?.trim();
   if (patientId) {
     formData.append("patient_id", patientId);
+  }
+
+  const roiSelections =
+    options?.roiSelections?.filter(Boolean) ||
+    (options?.roiSelection ? [options.roiSelection] : []);
+
+  if (roiSelections.length === 1) {
+    formData.append(
+      "roi_payload",
+      JSON.stringify(toHealAnalyzerRoiRequestPayload(roiSelections[0])),
+    );
+  } else if (roiSelections.length > 1) {
+    formData.append(
+      "roi_payload",
+      JSON.stringify(toHealAnalyzerRoiRequestPayloads(roiSelections)),
+    );
   }
 
   const headers = await buildAuthorizedHeaders();

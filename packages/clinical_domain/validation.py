@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +11,7 @@ from typing import Any, Literal
 
 from flask import abort, current_app, request
 from PIL import Image, ImageOps, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator, model_validator
 from werkzeug.datastructures import FileStorage
 
 ALLOWED_IMAGE_FORMATS = {
@@ -89,6 +90,42 @@ class CreateEvaluationPayload(StrictPayloadModel):
 
 class AnalyzeEvaluationPayload(StrictPayloadModel):
     forceFallback: bool = False
+
+
+class NormalizedPointPayload(StrictPayloadModel):
+    x: float = Field(ge=0.0, le=1.0)
+    y: float = Field(ge=0.0, le=1.0)
+
+
+class RoiBoundingBoxPayload(StrictPayloadModel):
+    x: float = Field(ge=0.0, le=1.0)
+    y: float = Field(ge=0.0, le=1.0)
+    width: float = Field(gt=0.0, le=1.0)
+    height: float = Field(gt=0.0, le=1.0)
+
+
+class AnalyzeRoiPayload(StrictPayloadModel):
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    version: str = Field(min_length=1, max_length=40)
+    tool: Literal["polygon", "freehand", "circle"]
+    points: list[NormalizedPointPayload] = Field(min_length=3, max_length=4096)
+    bounding_box: RoiBoundingBoxPayload | None = None
+    area_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
+    confirmed: bool = True
+    image_width: int = Field(ge=1, le=20_000)
+    image_height: int = Field(ge=1, le=20_000)
+
+    @field_validator("points")
+    @classmethod
+    def validate_points(cls, value: list[NormalizedPointPayload]) -> list[NormalizedPointPayload]:
+        unique_points = {(round(point.x, 5), round(point.y, 5)) for point in value}
+        if len(unique_points) < 3:
+            raise ValueError("roi points must contain at least three unique coordinates")
+        return value
+
+
+_ANALYZE_ROI_LIST_ADAPTER = TypeAdapter(list[AnalyzeRoiPayload])
 
 
 class GenerateReportPayload(StrictPayloadModel):
@@ -262,6 +299,46 @@ def validate_json_request(model_cls: type[StrictPayloadModel]) -> StrictPayloadM
         return model_cls.model_validate(payload)
     except ValidationError as exc:
         abort(400, description=_validation_error_message(exc))
+
+
+def validate_form_json_value(
+    raw_value: str | None,
+    model_cls: type[StrictPayloadModel],
+    *,
+    field_name: str,
+) -> StrictPayloadModel | None:
+    if raw_value is None or raw_value == "":
+        return None
+
+    try:
+        return model_cls.model_validate_json(raw_value)
+    except ValidationError as exc:
+        abort(400, description=f"{field_name}: {_validation_error_message(exc)}")
+    except ValueError:
+        abort(400, description=f"{field_name}: invalid json payload")
+
+
+def validate_roi_form_value(
+    raw_value: str | None,
+    *,
+    field_name: str,
+) -> list[AnalyzeRoiPayload]:
+    if raw_value is None or raw_value == "":
+        return []
+
+    try:
+        parsed = json.loads(raw_value)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        abort(400, description=f"{field_name}: invalid json payload")
+
+    try:
+        if isinstance(parsed, list):
+            if not parsed:
+                abort(400, description=f"{field_name}: provide at least one roi selection")
+            return _ANALYZE_ROI_LIST_ADAPTER.validate_python(parsed)
+        return [AnalyzeRoiPayload.model_validate(parsed)]
+    except ValidationError as exc:
+        abort(400, description=f"{field_name}: {_validation_error_message(exc)}")
 
 
 def assert_allowed_form_fields(form_data: dict[str, Any] | Any, allowed: set[str]) -> None:

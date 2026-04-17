@@ -29,6 +29,7 @@ Hoje o repositório já entrega:
 
 - cadastro e avaliação clínica;
 - upload e validação real de imagens;
+- delimitação manual interativa da ferida antes da IA, com suporte a uma ou mais ROIs por imagem;
 - inferência com contrato padronizado de saída;
 - timeline clínica por lesão;
 - geração de `care plan`, `follow-up` e alertas;
@@ -88,6 +89,9 @@ Essa é a trilha mais importante do projeto neste momento. Novas features devem 
 ### IA e Análise de Imagem
 
 - pipeline de inferência clínica em Python
+- etapa manual obrigatória de ROI no analisador web, com polígono, desenho livre e círculo
+- suporte a múltiplas ROIs confirmadas na mesma imagem antes da execução da pipeline
+- uso da ROI manual como filtro principal para validação, segmentação, tecidos e overlays visuais
 - saída padronizada com `contract_version`, `model_version` e `confidence`
 - fallback para cenários sem modelo principal disponível
 - suporte a experimentação com detecção, segmentação e classificação
@@ -214,20 +218,22 @@ flowchart LR
 ### Como o Código Decide Hoje
 
 1. O runtime principal da análise de imagem está em [`src/processing/clinical_wound_analyzer_core.py`](src/processing/clinical_wound_analyzer_core.py). O desktop em [`heal_analyzer.py`](heal_analyzer.py) reutiliza esse comportamento.
-2. A imagem passa por validação, correção opcional e detecção da região de interesse. O sistema remove fundo cirúrgico, tenta separar a ferida do entorno e cria zonas espaciais (`periferia`, `core`, `anel externo`).
-3. A composição tecidual principal hoje é calculada por um pipeline clínico explicável, não por uma CNN pura. Ele considera:
+2. No fluxo web atual, a imagem pode passar primeiro por uma etapa manual de delimitação de uma ou mais feridas. Essas ROIs são serializadas no frontend, validadas pela API e convertidas em máscaras binárias reutilizáveis.
+3. Quando existe ROI manual, a pipeline passa a usar a união dessas máscaras como foco principal de validação e segmentação. Isso reduz leitura de pele saudável, bordas periféricas e fundo que não pertencem à lesão.
+4. A imagem passa por validação, correção opcional e detecção da região de interesse. O sistema remove fundo cirúrgico, tenta separar a ferida do entorno e cria zonas espaciais (`periferia`, `core`, `anel externo`).
+5. A composição tecidual principal hoje é calculada por um pipeline clínico explicável, não por uma CNN pura. Ele considera:
    - cor em HSV e LAB;
    - textura local;
    - gradiente de borda para epitelização;
    - posição do pixel dentro da ferida;
    - tom de pele perilesional para reduzir viés na necrose;
    - exclusão de fundo cirúrgico e de pele saudável.
-4. O `health_score` e as escalas PUSH/BWAT são derivados da composição tecidual e da área da ferida, servindo como apoio de triagem e monitoramento.
-5. Se os pesos locais estiverem presentes, o classificador base `EfficientNet-B0` adiciona uma leitura de classes experimentais do acervo de feridas.
-6. Em paralelo, o classificador `ResNet50 two-stage` gera uma leitura etiológica mais focada e produz Grad-CAM para mostrar quais regiões sustentaram a decisão.
-7. Se o caso parecer lesão por pressão, o sistema pode acionar o especialista LP-only baseado em PIID para estadiamento I-IV e anexar os sinais visuais medidos.
-8. Se as dependências externas e checkpoints estiverem disponíveis, o ensemble combina o modelo local com DermaIntel, BiomedCLIP e MedSAM.
-9. No acompanhamento longitudinal, o sistema compara duas ou mais fotos da mesma ferida para medir mudança de área, variação da composição tecidual e estimativa de fechamento.
+6. O `health_score` e as escalas PUSH/BWAT são derivados da composição tecidual e da área da ferida, servindo como apoio de triagem e monitoramento.
+7. Se os pesos locais estiverem presentes, o classificador base `EfficientNet-B0` adiciona uma leitura de classes experimentais do acervo de feridas.
+8. Em paralelo, o classificador `ResNet50 two-stage` gera uma leitura etiológica mais focada e produz Grad-CAM para mostrar quais regiões sustentaram a decisão.
+9. Se o caso parecer lesão por pressão, o sistema pode acionar o especialista LP-only baseado em PIID para estadiamento I-IV e anexar os sinais visuais medidos.
+10. Se as dependências externas e checkpoints estiverem disponíveis, o ensemble combina o modelo local com DermaIntel, BiomedCLIP e MedSAM.
+11. No acompanhamento longitudinal, o sistema compara duas ou mais fotos da mesma ferida para medir mudança de área, variação da composição tecidual e estimativa de fechamento.
 
 ### O Que a IA Explica para o Usuário
 
@@ -364,6 +370,19 @@ artifacts/               legados, saídas e logs históricos
 
 ## Como Rodar Localmente
 
+Fluxo recomendado para testar o analisador web com a etapa manual de ROI:
+
+```powershell
+python -c "from heal_web_launcher import launch_heal_analyzer_web; raise SystemExit(launch_heal_analyzer_web())"
+```
+
+Esse launcher sobe:
+
+- backend clínico em `http://127.0.0.1:5000`
+- frontend Next.js em `http://127.0.0.1:3000`
+- tela do analisador em `http://127.0.0.1:3000/analyzer`
+- modo local do analisador com `CLINICAL_API_REQUIRE_AUTH=0` e `NEXT_PUBLIC_HEAL_ANALYZER_LOCAL_MODE=true`
+
 ### 1. Backend oficial
 
 ```powershell
@@ -387,6 +406,12 @@ copy .env.local.example .env.local
 npm install
 npm run dev
 ```
+
+Observações para o analisador web:
+
+- a etapa de delimitação manual é obrigatória antes da análise automática
+- o editor suporta uma ou mais ROIs na mesma imagem
+- a rota principal de teste local do fluxo atual é `/analyzer`
 
 ### 3. Variáveis de ambiente
 

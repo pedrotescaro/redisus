@@ -22,6 +22,7 @@ import {
 type AnalyzerSummaryProps = {
   analysis: HealAnalyzerResult | null;
   error: string | null;
+  hasConfirmedRoi: boolean;
   hasImage: boolean;
   loading: boolean;
   onOpenTechnical: () => void;
@@ -32,13 +33,14 @@ type AnalyzerSummaryProps = {
 export function AnalyzerSummary({
   analysis,
   error,
+  hasConfirmedRoi,
   hasImage,
   loading,
   onOpenTechnical,
   onRunAnalysis,
   workflowState,
 }: AnalyzerSummaryProps) {
-  const status = getStatusCopy(workflowState, hasImage);
+  const status = getStatusCopy(workflowState, hasImage, hasConfirmedRoi);
   const confidence = analysis ? getConfidencePercent(analysis.inference.confidence) : 0;
 
   return (
@@ -182,6 +184,9 @@ export function AnalyzerSummary({
                 <p className="mt-2 text-sm leading-7 text-on-surface-variant">
                   Esta coluna fica reservada para o tecido destacado, a confianca da IA,
                   o resumo clinico e o acesso rapido aos detalhes tecnicos.
+                  {!hasConfirmedRoi && hasImage
+                    ? " Antes disso, confirme uma ou mais delimitacoes manuais da ferida no painel central."
+                    : ""}
                 </p>
                 {error ? (
                   <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200">

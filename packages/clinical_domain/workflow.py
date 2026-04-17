@@ -263,6 +263,10 @@ def _serialize_headless_report_legacy(report: Any) -> dict[str, Any]:
         "body_part",
         "push_score",
         "lighting_analysis",
+        "wound_zones",
+        "tissue_analysis_trace",
+        "roi",
+        "rois",
     ):
         value = getattr(report, field, None)
         if value:

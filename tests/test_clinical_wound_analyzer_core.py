@@ -107,3 +107,97 @@ def test_analyze_fragments_roi_and_still_recovers_pressure_injury_like_slough():
     tissue_map = {t.name_en: t.percentage for t in report.tissues}
     assert tissue_map["Slough (Fibrin)"] > tissue_map["Granulation Tissue"]
     assert tissue_map["Coagulation Necrosis (Eschar)"] > 2.0
+
+
+def test_analyze_uses_manual_roi_as_primary_filter():
+    analyzer = ClinicalWoundAnalyzer()
+    analyzer._validate_wound_image = lambda _image: True
+    analyzer._predict_dl = lambda _image: None
+    analyzer._predict_resnet = lambda _image: None
+    analyzer._predict_ensemble = lambda _image, _detections, dl_probs=None, wound_mask=None: None
+
+    image = np.full((240, 240, 3), (180, 200, 220), dtype=np.uint8)
+    cv2.circle(image, (80, 120), 46, (50, 60, 190), -1)
+    cv2.circle(image, (170, 120), 44, (120, 200, 210), -1)
+
+    analyzer.detector.detect = lambda _image: [SimpleNamespace(bbox=(20, 40, 220, 200), confidence=0.95)]
+
+    manual_mask = np.zeros((240, 240), dtype=np.uint8)
+    cv2.circle(manual_mask, (80, 120), 50, 255, -1)
+
+    report = analyzer.analyze(
+        image,
+        manual_roi_mask=manual_mask,
+        roi_metadata={
+            "tool": "polygon",
+            "confirmed": True,
+            "points": [
+                {"x": 0.12, "y": 0.28},
+                {"x": 0.42, "y": 0.28},
+                {"x": 0.42, "y": 0.72},
+                {"x": 0.12, "y": 0.72},
+            ],
+        },
+    )
+
+    assert report.is_valid_wound is True
+    assert report.roi["source"] == "manual"
+    assert report.roi["tool"] == "polygon"
+    assert abs(report.wound_area_px - int(np.sum(manual_mask > 0))) < 200
+    assert report.roi["area_px"] == report.wound_area_px
+
+
+def test_analyze_supports_multiple_manual_rois():
+    analyzer = ClinicalWoundAnalyzer()
+    analyzer._validate_wound_image = lambda _image: True
+    analyzer._predict_dl = lambda _image: None
+    analyzer._predict_resnet = lambda _image: None
+    analyzer._predict_ensemble = lambda _image, _detections, dl_probs=None, wound_mask=None: None
+
+    image = np.full((260, 260, 3), (180, 200, 220), dtype=np.uint8)
+    cv2.circle(image, (82, 130), 42, (50, 60, 190), -1)
+    cv2.circle(image, (182, 128), 38, (120, 200, 210), -1)
+
+    left_mask = np.zeros((260, 260), dtype=np.uint8)
+    right_mask = np.zeros((260, 260), dtype=np.uint8)
+    cv2.circle(left_mask, (82, 130), 48, 255, -1)
+    cv2.circle(right_mask, (182, 128), 44, 255, -1)
+
+    report = analyzer.analyze(
+        image,
+        manual_roi_masks=[left_mask, right_mask],
+        roi_metadata={"selection_count": 2},
+        roi_metadata_list=[
+            {
+                "tool": "polygon",
+                "confirmed": True,
+                "points": [
+                    {"x": 0.1, "y": 0.32},
+                    {"x": 0.36, "y": 0.32},
+                    {"x": 0.36, "y": 0.72},
+                    {"x": 0.1, "y": 0.72},
+                ],
+            },
+            {
+                "tool": "polygon",
+                "confirmed": True,
+                "points": [
+                    {"x": 0.54, "y": 0.3},
+                    {"x": 0.86, "y": 0.3},
+                    {"x": 0.86, "y": 0.7},
+                    {"x": 0.54, "y": 0.7},
+                ],
+            },
+        ],
+    )
+
+    combined_area = int(np.sum(cv2.bitwise_or(left_mask, right_mask) > 0))
+
+    assert report.is_valid_wound is True
+    assert report.roi["source"] == "manual"
+    assert report.roi["selection_count"] == 2
+    assert report.rois is not None
+    assert len(report.rois) == 2
+    assert report.rois[0]["tool"] == "polygon"
+    assert report.rois[1]["tool"] == "polygon"
+    assert abs(report.wound_area_px - combined_area) < 250

@@ -1,0 +1,94 @@
+093 [Body Text] Este documento substitui a interpretação anterior baseada em degradação sintética por uma descrição fiel do pipeline real HEAL+ / REDISUS executado sobre o PIID nativo. A análise considera como a imagem é lida em BGR pelo OpenCV, como passa por controle de iluminação e contraste, como a ROI é extraída por textura, cor e contorno, e como a segmentação clínica v3 combina HSV, LAB, textura, luminância, skin exclusion e gradiente Scharr. Na validação real atual do split de teste do PIID, o sistema processou 165 de 165 imagens com sucesso, aceitou 98.18% (0.9818) das imagens como ferida válida e operou com tempo médio de 1429.78 ms por imagem. O classificador de estágio atingiu acurácia global de 70.91% (0.7091), com melhor desempenho no estágio 4 e maior dificuldade no estágio 3. O acervo local não contém capturas nativas em múltiplas resoluções, portanto o repositório atual não sustenta afirmar um limiar mínimo real inferior a 224 x 224 com base em aquisição nativa.
+094 [Body Text] Palavras-chave: HEAL+, processamento de imagem, ROI, contraste, PIID, resolução.
+098 [Heading 1] 1 OBJETIVO
+099 [Body Text] Documentar o funcionamento real do pipeline HEAL+ / REDISUS sobre imagens nativas do PIID, explicando leitura, contraste, ROI, segmentação, classificação e os pontos do código em que há ou não há distorção geométrica por redimensionamento.
+100 [Heading 1] 2 RECORTE EXPERIMENTAL
+101 [Normal] O recorte foi executado sobre o dataset PIID Pressure Injury Staging, split de teste (n = 165 imagens), com a seguinte distribuição:
+102 [List Paragraph] estágio 1: 35 imagens;
+103 [List Paragraph] estágio 2: 47 imagens;
+104 [List Paragraph] estágio 3: 42 imagens;
+105 [List Paragraph] estágio 4: 41 imagens.
+107 [Body Text] A inspeção automática do diretório dataset/piid/raw encontrou 1091 arquivos JPG com tamanho nativo único de 224 x 224. Assim, o acervo local permite validação real do pipeline em imagens nativas 224 x 224, mas não permite inferir comportamento de captura nativa em resoluções maiores ou menores sem um novo conjunto de aquisição controlada.
+108 [Heading 1] 3 PIPELINE AVALIADO
+109 [Body Text] A validação real considerou o fluxo efetivamente executado hoje pelo HEAL+.
+111 [List Paragraph] ClinicalWoundAnalyzer e heal_analyzer.py como orquestradores do pipeline clínico real;
+113 [List Paragraph] ImageEnhancer, WoundDetectorCV e ROISegmenter para qualidade, detecção inicial, máscara por contorno e zonas espaciais;
+115 [List Paragraph] _segment_clinical_v3, TwoStageWoundClassifier e PressureInjuryStageClassifier para tecidos, classificação profunda e explicabilidade.
+117 [Body Text] O preparo de datasets para treinamento segue scripts separados, principalmente scripts/preprocess_dataset.py e scripts/prepare_yolo_dataset.py.
+119 [Heading 1] 4 METODOLOGIA
+120 [Body Text] A validação real foi executada sobre o split de teste descrito no manifesto dataset/piid/manifests/piid_lp_split.json.
+121 [List Paragraph] ler cada JPEG com cv2.imread, portanto a entrada do pipeline é BGR em 8 bits e, neste acervo, 224 x 224;
+123 [List Paragraph] rodar ClinicalWoundAnalyzer.analyze em cada imagem nativa, incluindo _prepare_input, detecção da ROI, zonas e segmentação clínica v3;
+125 [List Paragraph] rodar PressureInjuryStageClassifier sobre a mesma imagem para medir o comportamento do ramo profundo disponível;
+127 [List Paragraph] registrar validade da imagem, tecido primário, área da ferida, health score, tempo de processamento e estágio previsto;
+129 [List Paragraph] selecionar casos reais do PIID para documentar visualmente a leitura, a ROI e o overlay tecidual final.
+131 [Body Text] Foram consolidados os seguintes indicadores:
+132 [List Paragraph] taxa de leitura e processamento das imagens;
+133 [List Paragraph] taxa de imagens aceitas como ferida pelo analisador;
+134 [List Paragraph] área da ROI, tecido primário e health score gerados pelo pipeline clínico;
+135 [List Paragraph] tempo médio de processamento por imagem;
+136 [List Paragraph] acurácia global e por estágio do classificador de lesão por pressão;
+137 [List Paragraph] locais do código em que a resolução é preservada e locais em que há resize quadrado com potencial de distorção.
+138 [Heading 1] 5 TRATAMENTO DE RESOLUÇÃO E RISCO DE DISTORÇÃO
+139 [Body Text] No código atual, resolução e geometria são tratadas de formas diferentes conforme o ramo do sistema.
+140 [List Paragraph] ClinicalWoundAnalyzer._prepare_input reduz apenas imagens cujo maior lado excede 1024 px, escalando proporcionalmente; isso preserva a razão de aspecto e não distorce a anatomia.
+141 [List Paragraph] ImageEnhancer.prepare_for_cnn usa resize com padding e preserva proporção, mas esse helper não é o caminho usado por todos os modelos do projeto.
+142 [List Paragraph] TwoStageWoundClassifier aplica transforms.Resize((224, 224)) e UNetSegmenter aplica cv2.resize para 512 x 512; nesses pontos, uma imagem não quadrada pode sofrer distorção geométrica.
+143 [List Paragraph] Nos datasets de treino, scripts/preprocess_dataset.py faz resize direto para 640 x 640 (YOLO) e 256/512 x 512 (U-Net); as imagens usam interpolação cúbica ou area, e as máscaras usam INTER_NEAREST para não misturar classes.
+144 [Heading 1] 6 CONTEXTO PARA 224 x 224 E PARA ENTRADAS MAIORES
+145 [Body Text] O valor 224 x 224 aparece no repositório porque vários ramos profundos foram treinados com entrada fixa nessa escala, o que explica a compatibilidade de modelos, mas não deve ser confundido com limite de captura nativa.
+148 [Body Text] No código atual, o classificador ResNet50 de dois estágios registra entrada 224 x 224 com normalização ImageNet, enquanto a segmentação U-Net usa 512 x 512. A literatura citada ajuda a justificar esse desenho arquitetural, mas não substitui um estudo com imagens originalmente capturadas em múltiplas resoluções.
+149 [Body Text] Para imagens de qualidade maior, o ramo clínico principal tende a ser mais robusto porque primeiro limita o maior lado a 1024 px mantendo proporção. O risco de distorção aparece principalmente quando a imagem entra em modelos que fazem resize quadrado direto.
+150 [Heading 1] 7 RESULTADOS CONSOLIDADOS
+151 [Body Text] Tabela 1 - Resumo técnico do pipeline real utilizado na validação atual
+153 [Normal] Fonte: elaboração própria com base em clinical_wound_analyzer_core.py, image_enhancer.py, resnet_wound_classifier.py e output/validation/piid_heal_analyzer_validation_test_current.json.
+154 [Body Text] Na validação real do split de teste do PIID, o comportamento consolidado foi o seguinte:
+155 [List Paragraph] 165 de 165 imagens foram lidas e processadas com sucesso pelo analisador;
+156 [List Paragraph] 98.18% (0.9818) das imagens foram aceitas como compatíveis com ferida, com tempo médio de 1429.78 ms por imagem no ambiente atual;
+157 [List Paragraph] o classificador de estágio atingiu acurácia global de 70.91% (0.7091), com melhor desempenho no estágio 4 e maior dificuldade no estágio 3.
+159 [Heading 2] 7.1 Estudos de caso reais do pipeline HEAL+
+160 [Normal] A seção abaixo substitui as antigas simulações de downsampling por estudos de caso reais do pipeline HEAL+ sobre imagens nativas do PIID (224 x 224). Em cada caso, a primeira linha mostra a entrada, a segunda mostra a ROI derivada do detector e do segmentador por contorno, e a terceira mostra o resultado tecidual final.
+162 [Heading 3] Caso de Estudo 1: imagem real do estágio 1
+164 [Normal] Arquivo: stage_1_99197.jpg. Estágio verdadeiro: estágio 1. Estágio previsto: estágio 1. Tecido primário atual: Esfacelo (Fibrina). Área da ROI: 11206 px. Health score: 36.89. Tempo de processamento: 2513.37 ms.
+169 [Heading 3] Caso de Estudo 2: imagem real do estágio 2
+171 [Normal] Arquivo: stage_2_97606.jpg. Estágio verdadeiro: estágio 2. Estágio previsto: estágio 2. Tecido primário atual: Esfacelo (Fibrina). Área da ROI: 13154 px. Health score: 30.12. Tempo de processamento: 761.34 ms.
+174 [Heading 3] Caso de Estudo 3: imagem real do estágio 4
+176 [Normal] Arquivo: stage_4_96922.jpg. Estágio verdadeiro: estágio 4. Estágio previsto: estágio 4. Tecido primário atual: Tecido de Granulação. Área da ROI: 13270 px. Health score: 54.99. Tempo de processamento: 1494.44 ms.
+177 [Heading 1] 8 ANÁLISE POR ESTÁGIO
+178 [Body Text] Na leitura por estágio do classificador de lesão por pressão, os principais achados foram:
+180 [List Paragraph] estágio 4 foi o mais estável (36/41 corretos, acurácia 87.80% (0.8780));
+181 [List Paragraph] estágio 3 foi o mais difícil (23/42 corretos, acurácia 54.76% (0.5476)) e foi confundido com estágio 4 em 15 casos;
+182 [List Paragraph] estágios 1 e 2 ficaram próximos (71.43% (0.7143) e 70.21% (0.7021)), com confusão mútua de 7 casos em cada direção;
+183 [List Paragraph] esse padrão sugere que a ambiguidade clínica entre estágios vizinhos continua sendo mais crítica que a simples leitura da imagem 224 x 224 disponível no acervo local.
+185 [Heading 1] 9 CONCLUSÃO E RECOMENDAÇÃO
+186 [Body Text] Com base na validação real hoje disponível no repositório, é correto afirmar que o HEAL+ processa com estabilidade o PIID nativo em 224 x 224 e gera ROI, tecidos, health score e classificação de estágio de forma reprodutível. Não é correto, porém, afirmar a partir deste acervo que 80 x 80 seja um limite mínimo real de captura nativa, porque o PIID local não contém imagens originalmente adquiridas em múltiplas resoluções.
+188 [List Paragraph] o pipeline clínico atual leu e processou 165/165 imagens;
+190 [List Paragraph] 98.18% (0.9818) foram aceitas como compatíveis com ferida;
+192 [List Paragraph] o tempo médio foi de 1429.78 ms por imagem no ambiente atual;
+194 [List Paragraph] a acurácia de estágio ficou em 70.91% (0.7091), com melhor resultado no estágio 4.
+196 [Normal] Para imagens de qualidade maior, o comportamento precisa ser interpretado por ramo do sistema. No motor clínico principal, o código reduz proporcionalmente apenas quando o maior lado supera 1024 px, portanto a geometria é preservada. Já nos ramos profundos que fazem resize quadrado direto para 224 x 224 ou 512 x 512, imagens não quadradas podem sofrer distorção geométrica.
+197 [List Paragraph] capturar e armazenar a maior resolução nativa possível continua sendo desejável;
+198 [List Paragraph] evitar pre-esticar manualmente a foto para quadrados antes de entrar no pipeline;
+199 [List Paragraph] priorizar futura adoção de letterbox ou padding também nos modelos profundos.
+201 [Body Text] Assim, a interpretação final deste relatório é a seguinte:
+203 [List Paragraph] evidência real atual do repositório: funcionamento validado em PIID nativo 224 x 224;
+204 [List Paragraph] evidência ainda ausente: estudo com imagens originalmente capturadas em múltiplas resoluções;
+205 [List Paragraph] principal risco técnico a revisar: resize quadrado direto nos ramos profundos e nos scripts de preparo de dataset.
+206 [Heading 1] 10 LIMITAÇÕES
+207 [Body Text] Este resultado deve ser interpretado com as seguintes ressalvas:
+208 [List Paragraph] o PIID local contém apenas imagens 224 x 224; não há base interna para inferir efeito de captura nativa em 80 x 80, 512 x 512 ou outras escalas;
+209 [List Paragraph] o recorte continua restrito a lesões por pressão; outras etiologias crônicas podem exigir novas validações;
+210 [List Paragraph] o ensemble adicional baseado em DermaIntel, MedSAM e BiomedCLIP permaneceu indisponível no ambiente atual por dependências ausentes;
+211 [List Paragraph] o resultado de estágio ainda mostra confusão relevante entre estágios vizinhos, especialmente 3 versus 4.
+212 [Heading 1] 11 REPRODUTIBILIDADE
+213 [Body Text] A validação real descrita neste documento pode ser reproduzida pelo script:
+214 [Normal] scripts/validate_heal_analyzer_piid.py
+215 [Body Text] O resultado consolidado usado nesta revisão foi salvo em:
+216 [Normal] output/validation/piid_heal_analyzer_validation_test_current.json
+217 [Heading 1] 12 ENCAMINHAMENTO PRÁTICO
+218 [Body Text] Para produto, coleta e treinamento, recomenda-se adotar imediatamente:
+219 [List Paragraph] manter a captura nativa no maior tamanho disponível e deixar o pipeline reduzir apenas quando necessário;
+220 [List Paragraph] usar 224 x 224 apenas como requisito de compatibilidade dos modelos profundos existentes, não como limite clínico universal de captura;
+221 [List Paragraph] revisar TwoStageWoundClassifier, UNetSegmenter e os scripts de preprocessamento para introduzir padding ou letterbox quando a origem não for quadrada;
+222 [List Paragraph] tratar qualquer conclusão sobre resolução mínima real como pendente até existir um dataset com múltiplas resoluções nativas ou uma nova campanha de aquisição controlada.
+223 [Heading 1] REFERÊNCIAS

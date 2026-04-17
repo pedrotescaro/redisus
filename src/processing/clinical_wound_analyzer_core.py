@@ -11,7 +11,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from types import SimpleNamespace
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -239,6 +240,8 @@ class ClinicalReport:
 
     # Zonas espaciais da ferida (periferia, core, anel externo)
     wound_zones: Optional[Dict] = None
+    roi: Optional[Dict] = None
+    rois: Optional[List[Dict]] = None
 
     # Ensemble Multi-Modelo (camada adicional de IA pré-treinada)
     ensemble_classification: Optional[Dict] = None
@@ -747,7 +750,188 @@ class ClinicalWoundAnalyzer:
             return None
 
     # -------------------------------------------------------
-    def analyze(self, image: np.ndarray) -> ClinicalReport:
+    @staticmethod
+    def _normalize_manual_roi_mask(
+        manual_roi_mask: Optional[np.ndarray],
+        *,
+        target_shape: Tuple[int, int],
+    ) -> Optional[np.ndarray]:
+        if manual_roi_mask is None:
+            return None
+
+        mask = np.asarray(manual_roi_mask)
+        if mask.size == 0:
+            return None
+
+        if mask.ndim == 3:
+            mask = mask[:, :, 0]
+
+        target_h, target_w = target_shape
+        if mask.shape != (target_h, target_w):
+            mask = cv2.resize(mask, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
+
+        if mask.dtype != np.uint8:
+            mask = np.clip(mask, 0, 255).astype(np.uint8)
+
+        mask = np.where(mask > 0, 255, 0).astype(np.uint8)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+        return mask if np.any(mask > 0) else None
+
+    @classmethod
+    def _normalize_manual_roi_masks(
+        cls,
+        manual_roi_masks: Optional[List[np.ndarray]],
+        *,
+        target_shape: Tuple[int, int],
+    ) -> List[np.ndarray]:
+        normalized_masks: List[np.ndarray] = []
+        for manual_roi_mask in manual_roi_masks or []:
+            normalized = cls._normalize_manual_roi_mask(
+                manual_roi_mask,
+                target_shape=target_shape,
+            )
+            if normalized is not None:
+                normalized_masks.append(normalized)
+        return normalized_masks
+
+    @staticmethod
+    def _combine_manual_roi_masks(
+        manual_roi_masks: List[np.ndarray],
+    ) -> Optional[np.ndarray]:
+        if not manual_roi_masks:
+            return None
+
+        combined = np.zeros_like(manual_roi_masks[0], dtype=np.uint8)
+        for manual_roi_mask in manual_roi_masks:
+            combined = cv2.bitwise_or(combined, manual_roi_mask)
+
+        return combined if np.any(combined > 0) else None
+
+    @staticmethod
+    def _mask_bbox(wound_mask: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+        points = cv2.findNonZero(wound_mask)
+        if points is None:
+            return None
+
+        x, y, w, h = cv2.boundingRect(points)
+        return x, y, x + w, y + h
+
+    @classmethod
+    def _detections_from_mask(cls, wound_mask: np.ndarray):
+        bbox = cls._mask_bbox(wound_mask)
+        if bbox is None:
+            return []
+        return [SimpleNamespace(bbox=bbox, confidence=1.0)]
+
+    @classmethod
+    def _detections_from_masks(cls, wound_masks: List[np.ndarray]):
+        detections = []
+        for index, wound_mask in enumerate(wound_masks, start=1):
+            bbox = cls._mask_bbox(wound_mask)
+            if bbox is None:
+                continue
+            detections.append(
+                SimpleNamespace(
+                    bbox=bbox,
+                    confidence=1.0,
+                    roi_index=index,
+                )
+            )
+        return detections
+
+    @staticmethod
+    def _apply_focus_mask(image: np.ndarray, wound_mask: Optional[np.ndarray]) -> np.ndarray:
+        if wound_mask is None or not np.any(wound_mask > 0):
+            return image
+
+        mask = (wound_mask > 0).astype(np.uint8)
+        mask_3 = mask[:, :, None]
+        blurred = cv2.GaussianBlur(image, (0, 0), sigmaX=7, sigmaY=7)
+        darkened = np.clip(blurred.astype(np.float32) * 0.18, 0, 255).astype(np.uint8)
+        return np.where(mask_3 > 0, image, darkened)
+
+    @classmethod
+    def _build_roi_report_entry(
+        cls,
+        *,
+        source: str,
+        wound_mask: np.ndarray,
+        image_shape: Tuple[int, int, int] | Tuple[int, int],
+        roi_metadata: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        height, width = image_shape[:2]
+        area_px = int(np.sum(wound_mask > 0))
+        area_ratio = float(area_px / max(height * width, 1))
+        bbox = cls._mask_bbox(wound_mask)
+
+        roi_entry: Dict[str, Any] = dict(roi_metadata or {})
+        roi_entry["source"] = source
+        roi_entry["confirmed"] = bool(roi_entry.get("confirmed", source == "manual"))
+        roi_entry["analysis_width"] = int(width)
+        roi_entry["analysis_height"] = int(height)
+        roi_entry["area_px"] = area_px
+        roi_entry["area_ratio"] = round(area_ratio, 6)
+
+        if bbox is not None:
+            x1, y1, x2, y2 = bbox
+            max_x = max(width - 1, 1)
+            max_y = max(height - 1, 1)
+            roi_entry["analysis_bounding_box"] = {
+                "x": round(x1 / max_x, 6),
+                "y": round(y1 / max_y, 6),
+                "width": round((x2 - x1) / max(width, 1), 6),
+                "height": round((y2 - y1) / max(height, 1), 6),
+            }
+
+        return roi_entry
+
+    @classmethod
+    def _build_detection_overlay(
+        cls,
+        image: np.ndarray,
+        *,
+        wound_mask: np.ndarray,
+        detections: list,
+        manual_roi: bool,
+    ) -> np.ndarray:
+        overlay = image.copy()
+        contour_color = (16, 185, 129) if manual_roi else (0, 255, 0)
+
+        contours, _ = cv2.findContours(wound_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            cv2.drawContours(overlay, contours, -1, contour_color, 2)
+
+        for index, det in enumerate(detections, start=1):
+            x1, y1, x2, y2 = det.bbox
+            roi_index = getattr(det, "roi_index", index)
+            if manual_roi and len(detections) > 1:
+                label = f"ROI {roi_index}"
+            else:
+                label = "ROI manual" if manual_roi else "Ferida"
+            cv2.rectangle(overlay, (x1, y1), (x2, y2), contour_color, 2)
+            cv2.putText(
+                overlay,
+                f"{label} {det.confidence:.0%}",
+                (x1, max(18, y1 - 6)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                contour_color,
+                1,
+            )
+
+        return overlay
+
+    def analyze(
+        self,
+        image: np.ndarray,
+        *,
+        manual_roi_mask: Optional[np.ndarray] = None,
+        manual_roi_masks: Optional[List[np.ndarray]] = None,
+        roi_metadata: Optional[Mapping[str, Any]] = None,
+        roi_metadata_list: Optional[List[Mapping[str, Any]]] = None,
+    ) -> ClinicalReport:
         """Pipeline completo de análise clínica."""
         t0 = time.perf_counter()
         report = ClinicalReport(is_valid_wound=True)
@@ -757,9 +941,20 @@ class ClinicalWoundAnalyzer:
             report.processing_time_ms = (time.perf_counter() - t0) * 1000
             return report
         report.original = image.copy()
+        manual_roi_sources = list(manual_roi_masks or [])
+        if not manual_roi_sources and manual_roi_mask is not None:
+            manual_roi_sources = [manual_roi_mask]
+        normalized_manual_roi_masks = self._normalize_manual_roi_masks(
+            manual_roi_sources,
+            target_shape=image.shape[:2],
+        )
+        combined_manual_roi_mask = self._combine_manual_roi_masks(
+            normalized_manual_roi_masks,
+        )
+        validation_image = self._apply_focus_mask(image, combined_manual_roi_mask)
 
         # 1. Validação — é uma ferida?
-        if not self._validate_wound_image(image):
+        if not self._validate_wound_image(validation_image):
             report.is_valid_wound = False
             report.rejection_reason = (
                 "Input Inválido — A imagem fornecida não apresenta características "
@@ -773,6 +968,13 @@ class ClinicalWoundAnalyzer:
         if max(h, w) > 1024:
             scale = 1024 / max(h, w)
             image = cv2.resize(image, (int(w * scale), int(h * scale)))
+            normalized_manual_roi_masks = self._normalize_manual_roi_masks(
+                normalized_manual_roi_masks,
+                target_shape=image.shape[:2],
+            )
+            combined_manual_roi_mask = self._combine_manual_roi_masks(
+                normalized_manual_roi_masks,
+            )
 
         # 2.1 Análise de iluminação e correção automática
         if self.image_enhancer is not None:
@@ -795,11 +997,17 @@ class ClinicalWoundAnalyzer:
             except Exception as e:
                 print(f"[HEAL+] Erro detecção parte do corpo: {e}")
 
-        # 3. Detecção de regiões de ferida
-        detections = self.detector.detect(image)
-
-        # 3.1 Cria máscara ROI precisa por contorno (não mais bbox retangular)
-        wound_mask = self._create_wound_roi_mask(image, detections)
+        # 3. Delimitação principal da região de ferida
+        manual_roi_applied = combined_manual_roi_mask is not None
+        if manual_roi_applied:
+            wound_mask = combined_manual_roi_mask.copy()
+            detections = self._detections_from_masks(normalized_manual_roi_masks)
+            if not detections:
+                detections = self._detections_from_mask(wound_mask)
+        else:
+            detections = self.detector.detect(image)
+            # 3.1 Cria máscara ROI precisa por contorno (não mais bbox retangular)
+            wound_mask = self._create_wound_roi_mask(image, detections)
 
         # 3.2 Remove fundo cirúrgico (lençol azul/verde/cinza) da máscara
         wound_mask = self._exclude_surgical_background(image, wound_mask)
@@ -820,17 +1028,61 @@ class ClinicalWoundAnalyzer:
             "outer_ring_area_px": int(np.sum(outer_ring > 0)),
             "border_width_adaptive": True,
         }
+        if manual_roi_applied:
+            roi_entries: List[Dict[str, Any]] = []
+            for index, manual_mask in enumerate(normalized_manual_roi_masks):
+                entry_metadata = None
+                if roi_metadata_list and index < len(roi_metadata_list):
+                    entry_metadata = roi_metadata_list[index]
+                elif index == 0 and roi_metadata:
+                    entry_metadata = roi_metadata
+                roi_entries.append(
+                    self._build_roi_report_entry(
+                        source="manual",
+                        wound_mask=manual_mask,
+                        image_shape=image.shape,
+                        roi_metadata=entry_metadata,
+                    )
+                )
+            report.rois = roi_entries
+            if len(roi_entries) == 1:
+                report.roi = dict(roi_entries[0])
+            else:
+                roi_summary = dict(roi_metadata or {})
+                roi_summary["selection_count"] = len(roi_entries)
+                roi_summary["tools"] = [
+                    str(entry.get("tool"))
+                    for entry in roi_entries
+                    if entry.get("tool")
+                ]
+                report.roi = self._build_roi_report_entry(
+                    source="manual",
+                    wound_mask=wound_mask,
+                    image_shape=image.shape,
+                    roi_metadata=roi_summary,
+                )
+        else:
+            report.roi = self._build_roi_report_entry(
+                source="automatic",
+                wound_mask=wound_mask,
+                image_shape=image.shape,
+                roi_metadata=roi_metadata,
+            )
 
-        # Desenha detecções
-        det_overlay = image.copy()
-        for det in detections:
-            x1, y1, x2, y2 = det.bbox
-            cv2.rectangle(det_overlay, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(det_overlay,
-                        f"Ferida {det.confidence:.0%}",
-                        (x1, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
-        report.detection_overlay = det_overlay
+        report.detection_overlay = self._build_detection_overlay(
+            image,
+            wound_mask=wound_mask,
+            detections=detections,
+            manual_roi=manual_roi_applied,
+        )
         report.wound_area_px = int(np.sum(wound_mask > 0))
+        if report.wound_area_px <= 0:
+            report.is_valid_wound = False
+            report.rejection_reason = (
+                "A delimitacao da ferida nao gerou uma area valida para analise."
+            )
+            report.processing_time_ms = (time.perf_counter() - t0) * 1000
+            return report
 
         # 4. Segmentação tecidual clínica v3 (HSV + LAB + zonas + gradiente)
         tissue_pcts, seg_map, tissue_overlay = self._segment_clinical_v3(
@@ -893,13 +1145,15 @@ class ClinicalWoundAnalyzer:
             except Exception as e:
                 print(f"[HEAL+] Erro ao calcular escalas clínicas: {e}")
 
+        analysis_focus_image = self._apply_focus_mask(image, wound_mask)
+
         # 10. Deep Learning — classificação etiológica (se disponível)
-        dl_result = self._predict_dl(image)
+        dl_result = self._predict_dl(analysis_focus_image)
         if dl_result:
             report.dl_prediction = dl_result
 
         # 11. ResNet50 Two-Stage — classificação Normal/Ferida + Tipo
-        resnet_result = self._predict_resnet(image)
+        resnet_result = self._predict_resnet(analysis_focus_image)
         if resnet_result:
             report.resnet_prediction = resnet_result
             # Se Grad-CAM foi gerado, inclui no report
@@ -915,7 +1169,7 @@ class ClinicalWoundAnalyzer:
             if isinstance(mapped_probs, dict) and supported_mass >= 0.40:
                 dl_probs = mapped_probs
         ensemble_result = self._predict_ensemble(
-            image, detections, dl_probs=dl_probs, wound_mask=wound_mask,
+            analysis_focus_image, detections, dl_probs=dl_probs, wound_mask=wound_mask,
         )
         if ensemble_result:
             ens = ensemble_result.get("ensemble", {})
