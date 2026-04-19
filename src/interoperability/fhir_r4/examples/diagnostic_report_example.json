@@ -1,0 +1,76 @@
+{
+  "resourceType": "DiagnosticReport",
+  "id": "evaluation-2026-04-19-001",
+  "meta": {
+    "lastUpdated": "2026-04-19T18:38:07-03:00"
+  },
+  "status": "final",
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+          "code": "IMG",
+          "display": "Diagnostic Imaging"
+        }
+      ]
+    }
+  ],
+  "code": {
+    "coding": [
+      {
+        "system": "http://loinc.org",
+        "code": "72170-4",
+        "display": "Wound assessment panel"
+      }
+    ],
+    "text": "REDISUS wound diagnostic report"
+  },
+  "subject": {
+    "reference": "Patient/patient-redisus-001"
+  },
+  "effectiveDateTime": "2026-04-19T14:30:00-03:00",
+  "issued": "2026-04-19T14:35:00-03:00",
+  "result": [
+    {
+      "reference": "Observation/evaluation-2026-04-19-001"
+    }
+  ],
+  "conclusion": "Venous ulcer with predominant granulation tissue and moderate follow-up risk.",
+  "conclusionCode": [
+    {
+      "coding": [
+        {
+          "system": "http://snomed.info/sct",
+          "code": "404684003",
+          "display": "Venous leg ulcer"
+        },
+        {
+          "system": "http://hl7.org/fhir/sid/icd-10",
+          "code": "I83.0",
+          "display": "Varicose veins of lower extremities with ulcer"
+        }
+      ],
+      "text": "Venous Ulcer"
+    }
+  ],
+  "presentedForm": [
+    {
+      "contentType": "image/jpeg",
+      "url": "https://storage.googleapis.com/redisus-demo/wounds/patient-001-day-0.jpg",
+      "title": "Initial wound photo",
+      "creation": "2026-04-19T14:31:00-03:00"
+    }
+  ],
+  "note": [
+    {
+      "text": "Keep the wound bed moist and protected according to protocol."
+    },
+    {
+      "text": "Maintain compression therapy after vascular assessment confirms indication."
+    },
+    {
+      "text": "Repeat photo capture in 7 days to monitor tissue progression."
+    }
+  ]
+}

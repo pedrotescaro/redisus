@@ -1,0 +1,61 @@
+{
+  "resourceType": "Patient",
+  "id": "patient-redisus-001",
+  "meta": {
+    "lastUpdated": "2026-04-19T18:38:07-03:00",
+    "profile": [
+      "http://www.saude.gov.br/fhir/r4/StructureDefinition/BRIndividuo-1.0"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "https://heal.redisus.org.br/fhir/CodeSystem/patient-id",
+      "value": "patient-redisus-001",
+      "use": "official"
+    },
+    {
+      "system": "https://saude.gov.br/fhir/r4/NamingSystem/cpf",
+      "value": "12345678901",
+      "use": "official"
+    },
+    {
+      "system": "https://saude.gov.br/fhir/r4/NamingSystem/cns",
+      "value": "700000000000001",
+      "use": "official"
+    }
+  ],
+  "active": true,
+  "name": [
+    {
+      "use": "official",
+      "family": "Souza",
+      "given": [
+        "Maria",
+        "de"
+      ],
+      "text": "Maria de Souza"
+    }
+  ],
+  "gender": "female",
+  "birthDate": "1954-08-14",
+  "telecom": [
+    {
+      "system": "phone",
+      "value": "+55-11-99999-0001",
+      "use": "mobile"
+    }
+  ],
+  "address": [
+    {
+      "use": "home",
+      "type": "physical",
+      "line": [
+        "Rua das Flores, 100"
+      ],
+      "city": "Sao Paulo",
+      "state": "SP",
+      "postalCode": "01000-000",
+      "country": "BR"
+    }
+  ]
+}

@@ -1,20 +1,32 @@
 """
-HEAL/REDISUS - Módulo de Interoperabilidade
-Integração com padrões HL7 FHIR R4, e-SUS/PEC e DATASUS.
+REDISUS interoperability package.
 
-Camada 3 da Plataforma Nacional de Saúde Digital Integrada:
-- HL7 FHIR R4: Recursos Patient, Observation, Condition, CarePlan, DiagnosticReport
-- e-SUS/PEC: Fichas de Atendimento Individual, SOAP, importação de cadastro
-- DATASUS: SIGTAP, BPA, SISAB, CNES
+Legacy entry points remain available through src.interoperability.fhir_client,
+while the new HL7 FHIR R4 implementation lives in src.interoperability.fhir_r4.
 """
-from src.interoperability.fhir_client import FHIRClient, FHIRResourceBuilder
-from src.interoperability.esus_integration import ESUSIntegration, FichaAtendimentoIndividual
+
 from src.interoperability.datasus_integration import DATASUSIntegration
+from src.interoperability.esus_integration import ESUSIntegration, FichaAtendimentoIndividual
+from src.interoperability.fhir_client import FHIRClient, FHIRResourceBuilder
+from src.interoperability.fhir_r4 import (
+    FHIRValidationError,
+    GoogleCloudHealthcareFHIRAdapter,
+    RedisusFHIRMapper,
+    build_example_artifacts,
+    validate_bundle,
+    validate_resource,
+)
 
 __all__ = [
+    "DATASUSIntegration",
+    "ESUSIntegration",
     "FHIRClient",
     "FHIRResourceBuilder",
-    "ESUSIntegration",
+    "FHIRValidationError",
     "FichaAtendimentoIndividual",
-    "DATASUSIntegration",
+    "GoogleCloudHealthcareFHIRAdapter",
+    "RedisusFHIRMapper",
+    "build_example_artifacts",
+    "validate_bundle",
+    "validate_resource",
 ]

@@ -69,6 +69,7 @@ onnx>=1.14.0
 # ============================================================
 requests>=2.31.0
 fhir.resources>=7.0.0  # HL7 FHIR R4 models (opcional)
+google-auth>=2.0.0  # Opcional: ADC para Google Cloud Healthcare API
 
 # ============================================================
 # Eixo 5: Dashboard Web Clínico

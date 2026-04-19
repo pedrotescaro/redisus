@@ -1,0 +1,61 @@
+{
+  "resourceType": "CarePlan",
+  "id": "careplan-venous-001",
+  "meta": {
+    "lastUpdated": "2026-04-19T18:38:07-03:00"
+  },
+  "status": "active",
+  "intent": "plan",
+  "title": "Venous ulcer care plan - lesion 001",
+  "description": "Care plan generated from REDISUS wound assessment for venous ulcer follow-up.",
+  "subject": {
+    "reference": "Patient/patient-redisus-001"
+  },
+  "created": "2026-04-19T14:35:00-03:00",
+  "period": {
+    "start": "2026-04-19T14:35:00-03:00",
+    "end": "2026-04-26"
+  },
+  "addresses": [
+    {
+      "reference": "Condition/lesion-venous-001"
+    }
+  ],
+  "activity": [
+    {
+      "detail": {
+        "status": "scheduled",
+        "description": "Dressing change Clean with saline, inspect the wound bed, and apply primary and secondary coverings. Materials: saline, primary dressing, secondary dressing Precautions: watch for infection, avoid trauma during exchange",
+        "scheduledString": "twice_weekly"
+      }
+    },
+    {
+      "detail": {
+        "status": "scheduled",
+        "description": "Compression therapy Use compression bandaging or elastic stocking as prescribed.",
+        "scheduledString": "daily"
+      }
+    },
+    {
+      "detail": {
+        "status": "scheduled",
+        "description": "Clinical review",
+        "scheduledString": "weekly"
+      }
+    }
+  ],
+  "note": [
+    {
+      "text": "Reduce devitalized tissue below 10 percent."
+    },
+    {
+      "text": "Control edema and pain within two weeks."
+    },
+    {
+      "text": "Document weekly image-based evolution."
+    },
+    {
+      "text": "Weekly reassessment required"
+    }
+  ]
+}
