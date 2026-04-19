@@ -51,6 +51,18 @@ bundle = mapper.map_case_to_bundle(
 )
 ```
 
+## Backend endpoint
+
+The clinical API now exposes on-demand case export at:
+
+- `GET /api/v1/lesions/<case_id>/fhir`
+
+Supported query parameters:
+
+- `bundleType=collection|transaction`
+- `evaluationId=<evaluation_id>` to export a specific evaluation from the case
+- `download=1` to return the generated FHIR bundle as a file
+
 For backward compatibility, `src.interoperability.fhir_client.FHIRResourceBuilder`
 now delegates to this package instead of maintaining a second FHIR implementation.
 

@@ -1543,7 +1543,7 @@ class ClinicalDashboard:
         """Exporta dados FHIR"""
         return {
             "patient_id": patient_id,
-            "message": "Use FHIRClient.export_analysis_as_fhir() para exportação completa",
+            "message": "Use GET /api/v1/lesions/<case_id>/fhir para exportação FHIR R4 sob demanda por caso clínico.",
         }
 
 

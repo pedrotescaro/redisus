@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Optional
 from flask import Blueprint, abort, jsonify, request, send_file
 from loguru import logger
 
+from src.interoperability.fhir_r4 import ClinicalCaseFHIRExportService
 from packages.clinical_domain.validation import (
     AIChatPayload,
     AnalyzeEvaluationPayload,
@@ -92,11 +93,14 @@ class ClinicalAPI:
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.report_dir = self.project_root / "output" / "reports"
         self.report_dir.mkdir(parents=True, exist_ok=True)
+        self.fhir_export_dir = self.project_root / "output" / "fhir_exports"
+        self.fhir_export_dir.mkdir(parents=True, exist_ok=True)
         self.service_status_provider = service_status_provider
         self.require_auth = os.getenv("CLINICAL_API_REQUIRE_AUTH", "1") != "0"
         self.allowed_origin = os.getenv("CLINICAL_API_ALLOWED_ORIGIN", "http://localhost:3000")
         self.firebase_auth = self._init_firebase_auth()
         self.ml_service = ClinicalMLService()
+        self.fhir_export_service = ClinicalCaseFHIRExportService()
         if self.require_auth and not self.firebase_auth:
             logger.error(
                 "CLINICAL_API_REQUIRE_AUTH=1 mas Firebase Admin nao foi configurado. "
@@ -504,6 +508,48 @@ class ClinicalAPI:
                 audit_log=raw_timeline.get("audit_log", []),
             )
             return jsonify(timeline), 200
+
+        @bp.route("/lesions/<case_id>/fhir", methods=["GET"])
+        def export_case_fhir(case_id: str):
+            user = current_user_required()
+            wound_case = ensure_case_access(self.db, case_id, user=user)
+
+            bundle_type = (request.args.get("bundleType") or "collection").strip().lower()
+            if bundle_type not in {"collection", "transaction"}:
+                return jsonify({"error": "bundle_type_invalido", "detail": "bundleType must be collection or transaction"}), 400
+
+            evaluation_id = (request.args.get("evaluationId") or "").strip() or None
+            download = (request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
+            raw_timeline = self.db.get_case_timeline(wound_case["id"])
+            if not raw_timeline:
+                return jsonify({"error": "lesion_timeline_not_found"}), 404
+
+            try:
+                export_payload = self.fhir_export_service.export_case(
+                    raw_timeline,
+                    evaluation_id=evaluation_id,
+                    bundle_type=bundle_type,
+                )
+            except LookupError as exc:
+                message = str(exc)
+                if message == "fhir_export_requires_at_least_one_evaluation":
+                    return jsonify({"error": message}), 409
+                if message == "fhir_export_evaluation_not_found_for_case":
+                    return jsonify({"error": message}), 404
+                return jsonify({"error": message}), 400
+            except ValueError as exc:
+                return jsonify({"error": "fhir_export_invalid_request", "detail": str(exc)}), 400
+
+            if download:
+                output_path = self._write_case_fhir_export(export_payload)
+                return send_file(
+                    output_path,
+                    mimetype="application/fhir+json",
+                    as_attachment=True,
+                    download_name=Path(output_path).name,
+                )
+
+            return jsonify(export_payload), 200
 
         @bp.route("/patients/<patient_id>/timeline", methods=["GET"])
         def patient_timeline(patient_id: str):
@@ -1046,6 +1092,13 @@ class ClinicalAPI:
             return "Manter conduta e reavaliar em 7 dias."
         return "Evolução favorável. Seguir protocolo e reavaliar em 14 dias."
 
+    def _write_case_fhir_export(self, export_payload: Dict[str, Any]) -> str:
+        case_id = str(export_payload.get("case_id") or "case")
+        evaluation_id = str(export_payload.get("evaluation_id") or "latest")
+        path = self.fhir_export_dir / f"fhir_case_{case_id}_{evaluation_id}.json"
+        path.write_text(json.dumps(export_payload["bundle"], ensure_ascii=False, indent=2), encoding="utf-8")
+        return str(path)
+
     def _process_ai_pipeline(self, run_id: str, evaluation_id: str, force_fallback: bool):
         start = time.time()
         self.metrics["jobs_total"] += 1
@@ -1059,7 +1112,8 @@ class ClinicalAPI:
 
             self.db.update_ai_run(run_id, {"status": "running_stage1"})
             stage1_start = time.time()
-            time.sleep(0.8)
+            # Simulate async stage transition without making the contract tests flaky.
+            time.sleep(0.2)
             stage1_latency = int((time.time() - stage1_start) * 1000)
             self.metrics["stage1_latency_ms_sum"] += stage1_latency
 
@@ -1093,7 +1147,7 @@ class ClinicalAPI:
                 }
             )
             raw_output = dict(runtime_inference.get("raw_output") or {})
-            time.sleep(0.8)
+            time.sleep(0.2)
             stage2_latency = int((time.time() - stage2_start) * 1000)
             self.metrics["stage2_latency_ms_sum"] += stage2_latency
 

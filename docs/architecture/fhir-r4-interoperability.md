@@ -38,6 +38,26 @@ The implementation follows this flow:
 4. Validators perform minimum structural checks.
 5. A generic client or cloud adapter sends the payload.
 
+## Backend integration
+
+The first backend integration point is now available in the clinical API:
+
+- `GET /api/v1/lesions/<case_id>/fhir`
+
+This route assembles the FHIR export from the real persisted clinical case:
+
+- patient record
+- selected evaluation, defaulting to the latest one in the lesion timeline
+- stored clinical images
+- latest inference result linked to the evaluation
+- active or matching care plan
+
+Supported query parameters:
+
+- `bundleType=collection|transaction`
+- `evaluationId=<evaluation_id>`
+- `download=1`
+
 ## Resource mapping
 
 ### Patient
