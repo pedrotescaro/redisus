@@ -29,6 +29,8 @@ def sample_evaluation_data() -> dict[str, Any]:
         "id": "evaluation-2026-04-19-001",
         "case_id": "lesion-venous-001",
         "evaluation_date": "2026-04-19T14:30:00-03:00",
+        "professional_name": "Dra Helena Martins",
+        "professional_role": "doctor",
         "wound_type": "venous_ulcer",
         "wound_location": "left medial malleolus",
         "clinical_description": "Chronic venous ulcer with moderate exudate and regular borders.",
@@ -51,6 +53,35 @@ def sample_evaluation_data() -> dict[str, Any]:
                 "captured_at": "2026-04-19T14:31:00-03:00",
             }
         ],
+    }
+
+
+def sample_practitioner_data() -> dict[str, Any]:
+    return {
+        "id": "user-helena-martins",
+        "name": "Dra Helena Martins",
+        "role": "doctor",
+        "unit_id": "UBS-Centro",
+        "team_id": "Equipe-Cronicas-A",
+    }
+
+
+def sample_encounter_data() -> dict[str, Any]:
+    return {
+        "id": "encounter-2026-04-19-001",
+        "case_id": "lesion-venous-001",
+        "evaluation_id": "evaluation-2026-04-19-001",
+        "status": "finished",
+        "class_code": "AMB",
+        "type_text": "Ambulatory wound reassessment",
+        "service_type_text": "Chronic wound outpatient care",
+        "reason_text": "Reassessment of chronic venous ulcer with moderate exudate.",
+        "period_start": "2026-04-19T14:30:00-03:00",
+        "period_end": "2026-04-19T14:35:00-03:00",
+        "wound_type": "venous_ulcer",
+        "wound_location": "left medial malleolus",
+        "unit_id": "UBS-Centro",
+        "team_id": "Equipe-Cronicas-A",
     }
 
 
@@ -150,19 +181,34 @@ def build_example_artifacts() -> dict[str, Any]:
     mapper = RedisusFHIRMapper(strict_validation=False)
     patient_data = sample_patient_data()
     evaluation_data = sample_evaluation_data()
+    practitioner_data = sample_practitioner_data()
+    encounter_data = sample_encounter_data()
     inference_result = sample_inference_result()
     care_plan_data = sample_care_plan_data()
 
     patient = mapper.map_patient(patient_data)
-    observation = mapper.map_observation(
-        patient["id"],
-        evaluation_data=evaluation_data,
-        inference_result=inference_result,
-    )
+    practitioner = mapper.map_practitioner(practitioner_data, evaluation_data=evaluation_data)
     condition = mapper.map_condition(
         patient["id"],
         evaluation_data=evaluation_data,
         inference_result=inference_result,
+        practitioner_id=practitioner["id"],
+        encounter_id=encounter_data["id"],
+    )
+    encounter = mapper.map_encounter(
+        patient["id"],
+        encounter_data=encounter_data,
+        evaluation_data=evaluation_data,
+        inference_result=inference_result,
+        practitioner_id=practitioner["id"],
+        condition=condition,
+    )
+    observation = mapper.map_observation(
+        patient["id"],
+        evaluation_data=evaluation_data,
+        inference_result=inference_result,
+        practitioner_id=practitioner["id"],
+        encounter_id=encounter["id"],
     )
     diagnostic_report = mapper.map_diagnostic_report(
         patient["id"],
@@ -170,17 +216,29 @@ def build_example_artifacts() -> dict[str, Any]:
         condition=condition,
         evaluation_data=evaluation_data,
         inference_result=inference_result,
+        practitioner_id=practitioner["id"],
+        encounter_id=encounter["id"],
     )
-    care_plan = mapper.map_care_plan(patient["id"], care_plan_data, condition=condition)
+    care_plan = mapper.map_care_plan(
+        patient["id"],
+        care_plan_data,
+        condition=condition,
+        practitioner_id=practitioner["id"],
+        encounter_id=encounter["id"],
+    )
     bundle = mapper.map_case_to_bundle(
         patient_data=patient_data,
         evaluation_data=evaluation_data,
         inference_result=inference_result,
         care_plan_data=care_plan_data,
+        practitioner_data=practitioner_data,
+        encounter_data=encounter_data,
         bundle_type="collection",
     )
     return {
         "patient": patient,
+        "practitioner": practitioner,
+        "encounter": encounter,
         "observation": observation,
         "condition": condition,
         "diagnostic_report": diagnostic_report,

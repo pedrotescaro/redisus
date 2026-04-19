@@ -17,6 +17,8 @@ through the rest of the codebase.
 ## Supported resources
 
 - `Patient`
+- `Practitioner`
+- `Encounter`
 - `Observation`
 - `Condition`
 - `DiagnosticReport`
@@ -29,12 +31,14 @@ The mapper is intentionally focused on the REDISUS domain already present in the
 repository:
 
 - wound analysis values
+- responsible practitioner and encounter context
 - tissue distribution
 - wound area and depth
 - PUSH and BWAT scores
 - AI classification and confidence
 - risk level and recommendations
 - clinical images attached to `DiagnosticReport.presentedForm`
+- care-plan and report references linked back to the encounter when available
 
 ## Typical usage
 

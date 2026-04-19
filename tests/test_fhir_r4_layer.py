@@ -25,7 +25,15 @@ def test_mapper_creates_complete_wound_case_bundle():
     resource_types = [entry["resource"]["resourceType"] for entry in bundle["entry"]]
     assert bundle["resourceType"] == "Bundle"
     assert bundle["type"] == "collection"
-    assert resource_types == ["Patient", "Observation", "Condition", "DiagnosticReport", "CarePlan"]
+    assert resource_types == ["Patient", "Practitioner", "Condition", "Encounter", "Observation", "DiagnosticReport", "CarePlan"]
+
+    resources = {entry["resource"]["resourceType"]: entry["resource"] for entry in bundle["entry"]}
+    assert resources["Encounter"]["subject"]["reference"] == "Patient/patient-redisus-001"
+    assert resources["Encounter"]["participant"][0]["individual"]["reference"] == (
+        f"Practitioner/{resources['Practitioner']['id']}"
+    )
+    assert resources["Observation"]["encounter"]["reference"] == f"Encounter/{resources['Encounter']['id']}"
+    assert resources["DiagnosticReport"]["encounter"]["reference"] == f"Encounter/{resources['Encounter']['id']}"
 
 
 def test_validate_bundle_rejects_missing_entry_resource():

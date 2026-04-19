@@ -2,7 +2,7 @@
   "resourceType": "CarePlan",
   "id": "careplan-venous-001",
   "meta": {
-    "lastUpdated": "2026-04-19T18:38:07-03:00"
+    "lastUpdated": "2026-04-19T19:30:31-03:00"
   },
   "status": "active",
   "intent": "plan",
@@ -10,6 +10,12 @@
   "description": "Care plan generated from REDISUS wound assessment for venous ulcer follow-up.",
   "subject": {
     "reference": "Patient/patient-redisus-001"
+  },
+  "encounter": {
+    "reference": "Encounter/encounter-2026-04-19-001"
+  },
+  "author": {
+    "reference": "Practitioner/practitioner-user-helena-martins"
   },
   "created": "2026-04-19T14:35:00-03:00",
   "period": {

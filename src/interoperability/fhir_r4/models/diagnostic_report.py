@@ -14,6 +14,7 @@ class DiagnosticReportResource(FHIRResourceModel):
     category: list[dict[str, Any]] = field(default_factory=list)
     code: dict[str, Any] = field(default_factory=dict)
     subject: dict[str, Any] = field(default_factory=dict)
+    encounter: dict[str, Any] | None = None
     effective_date_time: str | None = None
     issued: str | None = None
     performer: list[dict[str, Any]] = field(default_factory=list)
@@ -31,6 +32,7 @@ class DiagnosticReportResource(FHIRResourceModel):
                 "category": self.category,
                 "code": self.code,
                 "subject": self.subject,
+                "encounter": self.encounter,
                 "effectiveDateTime": self.effective_date_time,
                 "issued": self.issued,
                 "performer": self.performer,
@@ -41,4 +43,3 @@ class DiagnosticReportResource(FHIRResourceModel):
                 "note": self.note,
             }
         )
-

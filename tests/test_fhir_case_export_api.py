@@ -103,12 +103,23 @@ def test_case_fhir_export_returns_transaction_bundle(client):
     assert payload["patient_id"] == "p001"
     assert payload["evaluation_id"] == evaluation["id"]
     assert payload["bundle_type"] == "transaction"
-    assert payload["resource_count"] == 5
+    assert payload["resource_count"] == 7
     assert payload["bundle"]["resourceType"] == "Bundle"
     assert payload["bundle"]["type"] == "transaction"
 
     resource_types = [entry["resource"]["resourceType"] for entry in payload["bundle"]["entry"]]
-    assert resource_types == ["Patient", "Observation", "Condition", "DiagnosticReport", "CarePlan"]
+    assert resource_types == ["Patient", "Practitioner", "Condition", "Encounter", "Observation", "DiagnosticReport", "CarePlan"]
+
+    resources = {entry["resource"]["resourceType"]: entry["resource"] for entry in payload["bundle"]["entry"]}
+    assert resources["Practitioner"]["name"][0]["text"] == "local-dev"
+    assert resources["Encounter"]["participant"][0]["individual"]["reference"] == (
+        f"Practitioner/{resources['Practitioner']['id']}"
+    )
+    assert resources["Encounter"]["diagnosis"][0]["condition"]["reference"] == (
+        f"Condition/{resources['Condition']['id']}"
+    )
+    assert resources["Observation"]["encounter"]["reference"] == f"Encounter/{resources['Encounter']['id']}"
+    assert resources["CarePlan"]["author"]["reference"] == f"Practitioner/{resources['Practitioner']['id']}"
 
     report_entry = next(entry for entry in payload["bundle"]["entry"] if entry["resource"]["resourceType"] == "DiagnosticReport")
     assert report_entry["resource"]["presentedForm"]

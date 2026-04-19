@@ -2,7 +2,7 @@
   "resourceType": "DiagnosticReport",
   "id": "evaluation-2026-04-19-001",
   "meta": {
-    "lastUpdated": "2026-04-19T18:38:07-03:00"
+    "lastUpdated": "2026-04-19T19:30:31-03:00"
   },
   "status": "final",
   "category": [
@@ -29,8 +29,16 @@
   "subject": {
     "reference": "Patient/patient-redisus-001"
   },
+  "encounter": {
+    "reference": "Encounter/encounter-2026-04-19-001"
+  },
   "effectiveDateTime": "2026-04-19T14:30:00-03:00",
   "issued": "2026-04-19T14:35:00-03:00",
+  "performer": [
+    {
+      "reference": "Practitioner/practitioner-user-helena-martins"
+    }
+  ],
   "result": [
     {
       "reference": "Observation/evaluation-2026-04-19-001"

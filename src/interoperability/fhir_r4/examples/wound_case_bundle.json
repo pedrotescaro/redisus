@@ -1,7 +1,7 @@
 {
   "resourceType": "Bundle",
   "type": "collection",
-  "timestamp": "2026-04-19T18:38:07-03:00",
+  "timestamp": "2026-04-19T19:30:31-03:00",
   "entry": [
     {
       "fullUrl": "urn:uuid:patient-patient-redisus-001",
@@ -9,7 +9,7 @@
         "resourceType": "Patient",
         "id": "patient-redisus-001",
         "meta": {
-          "lastUpdated": "2026-04-19T18:38:07-03:00",
+          "lastUpdated": "2026-04-19T19:30:31-03:00",
           "profile": [
             "http://www.saude.gov.br/fhir/r4/StructureDefinition/BRIndividuo-1.0"
           ]
@@ -68,12 +68,255 @@
       }
     },
     {
+      "fullUrl": "urn:uuid:practitioner-practitioner-user-helena-martins",
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "practitioner-user-helena-martins",
+        "meta": {
+          "lastUpdated": "2026-04-19T19:30:31-03:00"
+        },
+        "identifier": [
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/practitioner-id",
+            "value": "user-helena-martins",
+            "use": "official"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Martins",
+            "given": [
+              "Dra",
+              "Helena"
+            ],
+            "text": "Dra Helena Martins"
+          }
+        ],
+        "extension": [
+          {
+            "url": "https://heal.redisus.org.br/fhir/StructureDefinition/practitioner-role-label",
+            "valueCodeableConcept": {
+              "coding": [
+                {
+                  "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-role",
+                  "code": "doctor",
+                  "display": "doctor"
+                }
+              ],
+              "text": "doctor"
+            }
+          },
+          {
+            "url": "https://heal.redisus.org.br/fhir/StructureDefinition/practitioner-unit-id",
+            "valueString": "UBS-Centro"
+          },
+          {
+            "url": "https://heal.redisus.org.br/fhir/StructureDefinition/practitioner-team-id",
+            "valueString": "Equipe-Cronicas-A"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:condition-lesion-venous-001",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "lesion-venous-001",
+        "meta": {
+          "lastUpdated": "2026-04-19T19:30:31-03:00"
+        },
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active",
+              "display": "Active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed",
+              "display": "Confirmed"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "encounter-diagnosis",
+                "display": "Encounter Diagnosis"
+              }
+            ]
+          }
+        ],
+        "severity": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "6736007",
+              "display": "Moderate"
+            }
+          ],
+          "text": "moderado"
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "404684003",
+              "display": "Venous leg ulcer"
+            },
+            {
+              "system": "http://hl7.org/fhir/sid/icd-10",
+              "code": "I83.0",
+              "display": "Varicose veins of lower extremities with ulcer"
+            }
+          ],
+          "text": "Venous Ulcer"
+        },
+        "subject": {
+          "reference": "Patient/patient-redisus-001"
+        },
+        "encounter": {
+          "reference": "Encounter/encounter-2026-04-19-001"
+        },
+        "recorder": {
+          "reference": "Practitioner/practitioner-user-helena-martins"
+        },
+        "bodySite": [
+          {
+            "text": "left medial malleolus"
+          }
+        ],
+        "onsetDateTime": "2026-04-19T14:30:00-03:00",
+        "recordedDate": "2026-04-19T14:35:00-03:00",
+        "note": [
+          {
+            "text": "Venous ulcer with predominant granulation tissue and moderate follow-up risk."
+          }
+        ],
+        "extension": [
+          {
+            "url": "https://heal.redisus.org.br/fhir/StructureDefinition/ai-confidence",
+            "valueDecimal": 0.86
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:encounter-encounter-2026-04-19-001",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "encounter-2026-04-19-001",
+        "meta": {
+          "lastUpdated": "2026-04-19T19:30:31-03:00"
+        },
+        "identifier": [
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/case-id",
+            "value": "lesion-venous-001",
+            "use": "official"
+          },
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/evaluation-id",
+            "value": "evaluation-2026-04-19-001",
+            "use": "official"
+          }
+        ],
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB",
+          "display": "ambulatory"
+        },
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "https://heal.redisus.org.br/fhir/CodeSystem/encounter-type",
+                "code": "wound-evaluation",
+                "display": "Wound evaluation encounter"
+              }
+            ],
+            "text": "Ambulatory wound reassessment"
+          }
+        ],
+        "serviceType": {
+          "coding": [
+            {
+              "system": "https://heal.redisus.org.br/fhir/CodeSystem/service-type",
+              "code": "wound-care-follow-up",
+              "display": "Wound care follow-up"
+            }
+          ],
+          "text": "Chronic wound outpatient care"
+        },
+        "subject": {
+          "reference": "Patient/patient-redisus-001"
+        },
+        "participant": [
+          {
+            "type": [
+              {
+                "text": "Performer"
+              }
+            ],
+            "individual": {
+              "reference": "Practitioner/practitioner-user-helena-martins"
+            }
+          }
+        ],
+        "period": {
+          "start": "2026-04-19T14:30:00-03:00",
+          "end": "2026-04-19T14:35:00-03:00"
+        },
+        "reasonCode": [
+          {
+            "coding": [
+              {
+                "system": "https://heal.redisus.org.br/fhir/CodeSystem/encounter-reason",
+                "code": "venous-ulcer",
+                "display": "Venous Ulcer"
+              }
+            ],
+            "text": "Reassessment of chronic venous ulcer with moderate exudate."
+          }
+        ],
+        "diagnosis": [
+          {
+            "condition": {
+              "reference": "Condition/lesion-venous-001"
+            },
+            "rank": 1
+          }
+        ],
+        "note": [
+          {
+            "text": "Wound location: left medial malleolus"
+          },
+          {
+            "text": "Unit scope: UBS-Centro"
+          },
+          {
+            "text": "Team scope: Equipe-Cronicas-A"
+          }
+        ]
+      }
+    },
+    {
       "fullUrl": "urn:uuid:observation-evaluation-2026-04-19-001",
       "resource": {
         "resourceType": "Observation",
         "id": "evaluation-2026-04-19-001",
         "meta": {
-          "lastUpdated": "2026-04-19T18:38:07-03:00"
+          "lastUpdated": "2026-04-19T19:30:31-03:00"
         },
         "status": "final",
         "category": [
@@ -100,8 +343,16 @@
         "subject": {
           "reference": "Patient/patient-redisus-001"
         },
+        "encounter": {
+          "reference": "Encounter/encounter-2026-04-19-001"
+        },
         "effectiveDateTime": "2026-04-19T14:30:00-03:00",
         "issued": "2026-04-19T14:35:00-03:00",
+        "performer": [
+          {
+            "reference": "Practitioner/practitioner-user-helena-martins"
+          }
+        ],
         "bodySite": {
           "text": "left medial malleolus"
         },
@@ -328,97 +579,12 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:condition-lesion-venous-001",
-      "resource": {
-        "resourceType": "Condition",
-        "id": "lesion-venous-001",
-        "meta": {
-          "lastUpdated": "2026-04-19T18:38:07-03:00"
-        },
-        "clinicalStatus": {
-          "coding": [
-            {
-              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
-              "code": "active",
-              "display": "Active"
-            }
-          ]
-        },
-        "verificationStatus": {
-          "coding": [
-            {
-              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
-              "code": "confirmed",
-              "display": "Confirmed"
-            }
-          ]
-        },
-        "category": [
-          {
-            "coding": [
-              {
-                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
-                "code": "encounter-diagnosis",
-                "display": "Encounter Diagnosis"
-              }
-            ]
-          }
-        ],
-        "severity": {
-          "coding": [
-            {
-              "system": "http://snomed.info/sct",
-              "code": "6736007",
-              "display": "Moderate"
-            }
-          ],
-          "text": "moderado"
-        },
-        "code": {
-          "coding": [
-            {
-              "system": "http://snomed.info/sct",
-              "code": "404684003",
-              "display": "Venous leg ulcer"
-            },
-            {
-              "system": "http://hl7.org/fhir/sid/icd-10",
-              "code": "I83.0",
-              "display": "Varicose veins of lower extremities with ulcer"
-            }
-          ],
-          "text": "Venous Ulcer"
-        },
-        "subject": {
-          "reference": "Patient/patient-redisus-001"
-        },
-        "bodySite": [
-          {
-            "text": "left medial malleolus"
-          }
-        ],
-        "onsetDateTime": "2026-04-19T14:30:00-03:00",
-        "recordedDate": "2026-04-19T14:35:00-03:00",
-        "note": [
-          {
-            "text": "Venous ulcer with predominant granulation tissue and moderate follow-up risk."
-          }
-        ],
-        "extension": [
-          {
-            "url": "https://heal.redisus.org.br/fhir/StructureDefinition/ai-confidence",
-            "valueDecimal": 0.86
-          }
-        ]
-      }
-    },
-    {
       "fullUrl": "urn:uuid:diagnosticreport-evaluation-2026-04-19-001",
       "resource": {
         "resourceType": "DiagnosticReport",
         "id": "evaluation-2026-04-19-001",
         "meta": {
-          "lastUpdated": "2026-04-19T18:38:07-03:00"
+          "lastUpdated": "2026-04-19T19:30:31-03:00"
         },
         "status": "final",
         "category": [
@@ -445,8 +611,16 @@
         "subject": {
           "reference": "Patient/patient-redisus-001"
         },
+        "encounter": {
+          "reference": "Encounter/encounter-2026-04-19-001"
+        },
         "effectiveDateTime": "2026-04-19T14:30:00-03:00",
         "issued": "2026-04-19T14:35:00-03:00",
+        "performer": [
+          {
+            "reference": "Practitioner/practitioner-user-helena-martins"
+          }
+        ],
         "result": [
           {
             "reference": "Observation/evaluation-2026-04-19-001"
@@ -497,7 +671,7 @@
         "resourceType": "CarePlan",
         "id": "careplan-venous-001",
         "meta": {
-          "lastUpdated": "2026-04-19T18:38:07-03:00"
+          "lastUpdated": "2026-04-19T19:30:31-03:00"
         },
         "status": "active",
         "intent": "plan",
@@ -505,6 +679,12 @@
         "description": "Care plan generated from REDISUS wound assessment for venous ulcer follow-up.",
         "subject": {
           "reference": "Patient/patient-redisus-001"
+        },
+        "encounter": {
+          "reference": "Encounter/encounter-2026-04-19-001"
+        },
+        "author": {
+          "reference": "Practitioner/practitioner-user-helena-martins"
         },
         "created": "2026-04-19T14:35:00-03:00",
         "period": {

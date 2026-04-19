@@ -15,6 +15,8 @@ class CarePlanResource(FHIRResourceModel):
     title: str | None = None
     description: str | None = None
     subject: dict[str, Any] = field(default_factory=dict)
+    encounter: dict[str, Any] | None = None
+    author: dict[str, Any] | None = None
     created: str | None = None
     period: dict[str, Any] | None = None
     addresses: list[dict[str, Any]] = field(default_factory=list)
@@ -30,6 +32,8 @@ class CarePlanResource(FHIRResourceModel):
                 "title": self.title,
                 "description": self.description,
                 "subject": self.subject,
+                "encounter": self.encounter,
+                "author": self.author,
                 "created": self.created,
                 "period": self.period,
                 "addresses": self.addresses,
@@ -37,4 +41,3 @@ class CarePlanResource(FHIRResourceModel):
                 "note": self.note,
             }
         )
-

@@ -69,6 +69,24 @@ Source inputs:
 - demographics
 - contact and address data
 
+### Practitioner
+
+Mapped REDISUS concepts:
+
+- `professional_name` from the stored evaluation
+- local professional identifier when available
+- local role and unit/team scope kept as REDISUS extensions
+
+### Encounter
+
+Mapped REDISUS concepts:
+
+- evaluation as an ambulatory encounter
+- patient subject and practitioner participant
+- condition link through encounter diagnosis
+- local case/evaluation identifiers for traceability
+- period, reason text, wound location, and unit/team notes
+
 ### Observation
 
 Mapped REDISUS concepts:
@@ -91,6 +109,7 @@ Mapped REDISUS concepts:
 - body site
 - risk-derived severity
 - AI confidence as extension
+- optional links to `Encounter` and recorder `Practitioner`
 
 ### DiagnosticReport
 
@@ -101,6 +120,7 @@ Mapped REDISUS concepts:
 - condition coding summary
 - recommendations
 - wound image attachments through `presentedForm`
+- encounter and performer linkage when available
 
 ### CarePlan
 
@@ -110,6 +130,7 @@ Mapped REDISUS concepts:
 - schedule/frequency text
 - goals and alert notes
 - condition relationship
+- author and encounter linkage when available
 
 ## Validation approach
 

@@ -4,6 +4,8 @@ from typing import Any, Mapping
 
 REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "Patient": ("resourceType", "id", "name"),
+    "Practitioner": ("resourceType", "id", "name"),
+    "Encounter": ("resourceType", "id", "status", "class", "subject"),
     "Observation": ("resourceType", "id", "status", "code", "subject"),
     "Condition": ("resourceType", "id", "clinicalStatus", "verificationStatus", "code", "subject"),
     "DiagnosticReport": ("resourceType", "id", "status", "code", "subject"),
@@ -34,15 +36,20 @@ def validate_resource_structure(resource: Mapping[str, Any] | Any) -> list[str]:
         if value is None or value == "" or value == [] or value == {}:
             errors.append(f"{resource_type}.{field_name} is required")
 
-    if resource_type == "Patient":
+    if resource_type in {"Patient", "Practitioner"}:
         name = payload.get("name") or []
         if not isinstance(name, list):
-            errors.append("Patient.name must be a list")
+            errors.append(f"{resource_type}.name must be a list")
 
-    if resource_type in {"Observation", "Condition", "DiagnosticReport", "CarePlan"}:
+    if resource_type in {"Observation", "Condition", "DiagnosticReport", "CarePlan", "Encounter"}:
         subject = payload.get("subject") or {}
         if not isinstance(subject, Mapping) or not str(subject.get("reference") or "").strip():
             errors.append(f"{resource_type}.subject.reference is required")
+
+    if resource_type == "Encounter":
+        class_payload = payload.get("class") or {}
+        if not isinstance(class_payload, Mapping) or not str(class_payload.get("code") or "").strip():
+            errors.append("Encounter.class.code is required")
 
     if resource_type == "Bundle":
         entry = payload.get("entry") or []
@@ -66,6 +73,8 @@ def validate_with_fhir_models(resource: Mapping[str, Any] | Any) -> list[str]:
 
     model_map = {
         "Patient": ("fhir.resources.patient", "Patient"),
+        "Practitioner": ("fhir.resources.practitioner", "Practitioner"),
+        "Encounter": ("fhir.resources.encounter", "Encounter"),
         "Observation": ("fhir.resources.observation", "Observation"),
         "Condition": ("fhir.resources.condition", "Condition"),
         "DiagnosticReport": ("fhir.resources.diagnosticreport", "DiagnosticReport"),
@@ -100,4 +109,3 @@ def validate_bundle(bundle: Mapping[str, Any] | Any, strict: bool = True) -> Non
     payload = _require_mapping(bundle)
     for item in payload.get("entry") or []:
         validate_resource(item.get("resource"), strict=strict)
-

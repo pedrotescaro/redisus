@@ -1,0 +1,97 @@
+{
+  "resourceType": "Encounter",
+  "id": "encounter-2026-04-19-001",
+  "meta": {
+    "lastUpdated": "2026-04-19T19:30:31-03:00"
+  },
+  "identifier": [
+    {
+      "system": "https://heal.redisus.org.br/fhir/CodeSystem/case-id",
+      "value": "lesion-venous-001",
+      "use": "official"
+    },
+    {
+      "system": "https://heal.redisus.org.br/fhir/CodeSystem/evaluation-id",
+      "value": "evaluation-2026-04-19-001",
+      "use": "official"
+    }
+  ],
+  "status": "finished",
+  "class": {
+    "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+    "code": "AMB",
+    "display": "ambulatory"
+  },
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/encounter-type",
+          "code": "wound-evaluation",
+          "display": "Wound evaluation encounter"
+        }
+      ],
+      "text": "Ambulatory wound reassessment"
+    }
+  ],
+  "serviceType": {
+    "coding": [
+      {
+        "system": "https://heal.redisus.org.br/fhir/CodeSystem/service-type",
+        "code": "wound-care-follow-up",
+        "display": "Wound care follow-up"
+      }
+    ],
+    "text": "Chronic wound outpatient care"
+  },
+  "subject": {
+    "reference": "Patient/patient-redisus-001"
+  },
+  "participant": [
+    {
+      "type": [
+        {
+          "text": "Performer"
+        }
+      ],
+      "individual": {
+        "reference": "Practitioner/practitioner-user-helena-martins"
+      }
+    }
+  ],
+  "period": {
+    "start": "2026-04-19T14:30:00-03:00",
+    "end": "2026-04-19T14:35:00-03:00"
+  },
+  "reasonCode": [
+    {
+      "coding": [
+        {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/encounter-reason",
+          "code": "venous-ulcer",
+          "display": "Venous Ulcer"
+        }
+      ],
+      "text": "Reassessment of chronic venous ulcer with moderate exudate."
+    }
+  ],
+  "diagnosis": [
+    {
+      "condition": {
+        "reference": "Condition/lesion-venous-001"
+      },
+      "rank": 1
+    }
+  ],
+  "note": [
+    {
+      "text": "Wound location: left medial malleolus"
+    },
+    {
+      "text": "Unit scope: UBS-Centro"
+    },
+    {
+      "text": "Team scope: Equipe-Cronicas-A"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "resourceType": "Practitioner",
+  "id": "practitioner-user-helena-martins",
+  "meta": {
+    "lastUpdated": "2026-04-19T19:30:31-03:00"
+  },
+  "identifier": [
+    {
+      "system": "https://heal.redisus.org.br/fhir/CodeSystem/practitioner-id",
+      "value": "user-helena-martins",
+      "use": "official"
+    }
+  ],
+  "active": true,
+  "name": [
+    {
+      "use": "official",
+      "family": "Martins",
+      "given": [
+        "Dra",
+        "Helena"
+      ],
+      "text": "Dra Helena Martins"
+    }
+  ],
+  "extension": [
+    {
+      "url": "https://heal.redisus.org.br/fhir/StructureDefinition/practitioner-role-label",
+      "valueCodeableConcept": {
+        "coding": [
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-role",
+            "code": "doctor",
+            "display": "doctor"
+          }
+        ],
+        "text": "doctor"
+      }
+    },
+    {
+      "url": "https://heal.redisus.org.br/fhir/StructureDefinition/practitioner-unit-id",
+      "valueString": "UBS-Centro"
+    },
+    {
+      "url": "https://heal.redisus.org.br/fhir/StructureDefinition/practitioner-team-id",
+      "valueString": "Equipe-Cronicas-A"
+    }
+  ]
+}

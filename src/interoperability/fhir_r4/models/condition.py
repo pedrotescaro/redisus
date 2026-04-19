@@ -16,6 +16,8 @@ class ConditionResource(FHIRResourceModel):
     severity: dict[str, Any] | None = None
     code: dict[str, Any] = field(default_factory=dict)
     subject: dict[str, Any] = field(default_factory=dict)
+    encounter: dict[str, Any] | None = None
+    recorder: dict[str, Any] | None = None
     body_site: list[dict[str, Any]] = field(default_factory=list)
     onset_date_time: str | None = None
     recorded_date: str | None = None
@@ -32,6 +34,8 @@ class ConditionResource(FHIRResourceModel):
                 "severity": self.severity,
                 "code": self.code,
                 "subject": self.subject,
+                "encounter": self.encounter,
+                "recorder": self.recorder,
                 "bodySite": self.body_site,
                 "onsetDateTime": self.onset_date_time,
                 "recordedDate": self.recorded_date,
@@ -39,4 +43,3 @@ class ConditionResource(FHIRResourceModel):
                 "extension": self.extension,
             }
         )
-

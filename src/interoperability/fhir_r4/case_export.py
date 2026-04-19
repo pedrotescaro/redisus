@@ -47,12 +47,16 @@ class ClinicalCaseFHIRExportService:
         selected_care_plan = self._select_care_plan(care_plans, evaluation_id=selected_evaluation.get("id"))
         patient_payload = self._build_patient_payload(patient)
         evaluation_payload = self._build_evaluation_payload(selected_evaluation, lesion=lesion)
+        practitioner_payload = self._build_practitioner_payload(selected_evaluation, lesion=lesion)
+        encounter_payload = self._build_encounter_payload(selected_evaluation, lesion=lesion)
         inference_payload = _as_dict(selected_evaluation.get("inference_result"))
         bundle = self.mapper.map_case_to_bundle(
             patient_data=patient_payload,
             evaluation_data=evaluation_payload,
             inference_result=inference_payload or None,
             care_plan_data=selected_care_plan or None,
+            practitioner_data=practitioner_payload,
+            encounter_data=encounter_payload,
             images=evaluation_payload.get("images") or [],
             bundle_type=normalized_bundle_type,
         )
@@ -165,3 +169,65 @@ class ClinicalCaseFHIRExportService:
         payload["images"] = list(payload.get("images") or [])
         return payload
 
+    def _build_practitioner_payload(
+        self,
+        evaluation: dict[str, Any],
+        *,
+        lesion: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        evaluation_metadata = evaluation.get("metadata") if isinstance(evaluation.get("metadata"), Mapping) else {}
+        lesion_metadata = lesion.get("metadata") if isinstance(lesion.get("metadata"), Mapping) else {}
+
+        payload = {
+            "id": (
+                evaluation.get("professional_id")
+                or evaluation_metadata.get("professional_id")
+                or evaluation_metadata.get("practitioner_id")
+                or lesion.get("assigned_to_uid")
+                or lesion.get("claimed_by_uid")
+                or lesion.get("handoff_to_uid")
+            ),
+            "name": (
+                evaluation.get("professional_name")
+                or evaluation_metadata.get("professional_name")
+                or lesion.get("assigned_to_name")
+                or lesion.get("claimed_by_name")
+                or lesion.get("handoff_to_name")
+            ),
+            "role": (
+                evaluation.get("professional_role")
+                or evaluation_metadata.get("professional_role")
+                or lesion.get("assigned_to_role")
+                or lesion.get("claimed_by_role")
+                or lesion.get("handoff_to_role")
+            ),
+            "unit_id": lesion.get("unit_id") or lesion_metadata.get("unit_id") or lesion_metadata.get("unit"),
+            "team_id": lesion.get("team_id") or lesion_metadata.get("team_id") or lesion_metadata.get("team"),
+        }
+        normalized = {key: value for key, value in payload.items() if value not in (None, "", {}, [])}
+        return normalized or None
+
+    def _build_encounter_payload(self, evaluation: dict[str, Any], *, lesion: dict[str, Any]) -> dict[str, Any]:
+        lesion_metadata = lesion.get("metadata") if isinstance(lesion.get("metadata"), Mapping) else {}
+        payload = {
+            "id": evaluation.get("encounter_id"),
+            "case_id": lesion.get("id") or evaluation.get("case_id"),
+            "evaluation_id": evaluation.get("id"),
+            "status": evaluation.get("encounter_status") or "finished",
+            "class_code": evaluation.get("encounter_class") or "AMB",
+            "type_text": lesion.get("title") or "REDISUS wound assessment encounter",
+            "service_type_text": "Wound care follow-up",
+            "reason_text": (
+                evaluation.get("clinical_description")
+                or lesion.get("title")
+                or evaluation.get("wound_type")
+                or lesion.get("wound_type")
+            ),
+            "period_start": evaluation.get("evaluation_date") or evaluation.get("created_at"),
+            "period_end": evaluation.get("updated_at") or evaluation.get("evaluation_date"),
+            "wound_type": evaluation.get("wound_type") or lesion.get("wound_type"),
+            "wound_location": evaluation.get("wound_location") or lesion.get("location"),
+            "unit_id": lesion.get("unit_id") or lesion_metadata.get("unit_id") or lesion_metadata.get("unit"),
+            "team_id": lesion.get("team_id") or lesion_metadata.get("team_id") or lesion_metadata.get("team"),
+        }
+        return {key: value for key, value in payload.items() if value not in (None, "", {}, [])}

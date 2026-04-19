@@ -17,8 +17,10 @@ from ..models import (
     CarePlanResource,
     ConditionResource,
     DiagnosticReportResource,
+    EncounterResource,
     ObservationResource,
     PatientResource,
+    PractitionerResource,
     build_identifier,
     build_reference,
     compact_dict,
@@ -63,6 +65,54 @@ RISK_INTERPRETATION_CODES = {
     "critico": {"system": f"{REDISUS_CODE_SYSTEM}/risk-level", "code": "critico", "display": "Critical risk"},
 }
 
+ENCOUNTER_CLASS_CODES = {
+    "AMB": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "AMB",
+        "display": "ambulatory",
+    },
+    "AMBULATORY": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "AMB",
+        "display": "ambulatory",
+    },
+    "OUTPATIENT": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "AMB",
+        "display": "ambulatory",
+    },
+    "EMER": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "EMER",
+        "display": "emergency",
+    },
+    "EMERGENCY": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "EMER",
+        "display": "emergency",
+    },
+    "IMP": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "IMP",
+        "display": "inpatient encounter",
+    },
+    "INPATIENT": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "IMP",
+        "display": "inpatient encounter",
+    },
+    "VR": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "VR",
+        "display": "virtual",
+    },
+    "VIRTUAL": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "VR",
+        "display": "virtual",
+    },
+}
+
 TISSUE_ALIASES = {
     "granulation": "granulation",
     "granulacao": "granulation",
@@ -103,6 +153,22 @@ def _slugify(value: Any) -> str:
             chars.append("_")
             last_separator = True
     return "".join(chars).strip("_")
+
+
+def _resource_slug(value: Any) -> str:
+    return _slugify(value).replace("_", "-")
+
+
+def _stable_resource_id(prefix: str, *values: Any) -> str:
+    normalized_prefix = _resource_slug(prefix) or prefix
+    max_length = max(1, 64 - len(normalized_prefix) - 1)
+    for value in values:
+        slug = _resource_slug(value)
+        if slug:
+            if slug.startswith(f"{normalized_prefix}-"):
+                return slug[:64]
+            return f"{normalized_prefix}-{slug[:max_length]}"
+    return generate_id(normalized_prefix)
 
 
 def _safe_float(value: Any, default: float | None = None) -> float | None:
@@ -357,6 +423,340 @@ class RedisusFHIRMapper:
         self._validate_resource(resource)
         return resource
 
+    def map_practitioner(
+        self,
+        practitioner_data: Mapping[str, Any] | None = None,
+        *,
+        evaluation_data: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload = dict(practitioner_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        payload_metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        evaluation_metadata = (
+            evaluation_payload.get("metadata") if isinstance(evaluation_payload.get("metadata"), Mapping) else {}
+        )
+
+        practitioner_uid = (
+            payload.get("id")
+            or payload.get("practitioner_id")
+            or payload.get("professional_id")
+            or payload.get("uid")
+            or payload.get("user_id")
+            or payload_metadata.get("practitioner_id")
+            or payload_metadata.get("professional_id")
+            or evaluation_payload.get("practitioner_id")
+            or evaluation_payload.get("professional_id")
+            or evaluation_metadata.get("practitioner_id")
+            or evaluation_metadata.get("professional_id")
+        )
+        full_name = str(
+            payload.get("name")
+            or payload.get("full_name")
+            or payload.get("professional_name")
+            or payload.get("display_name")
+            or payload_metadata.get("professional_name")
+            or evaluation_payload.get("professional_name")
+            or evaluation_metadata.get("professional_name")
+            or ""
+        ).strip()
+        role = str(
+            payload.get("role")
+            or payload.get("professional_role")
+            or payload_metadata.get("professional_role")
+            or evaluation_payload.get("professional_role")
+            or evaluation_metadata.get("professional_role")
+            or ""
+        ).strip()
+        unit_id = str(
+            payload.get("unit_id")
+            or payload_metadata.get("unit_id")
+            or payload_metadata.get("unit")
+            or evaluation_payload.get("unit_id")
+            or evaluation_metadata.get("unit_id")
+            or evaluation_metadata.get("unit")
+            or ""
+        ).strip()
+        team_id = str(
+            payload.get("team_id")
+            or payload_metadata.get("team_id")
+            or payload_metadata.get("team")
+            or evaluation_payload.get("team_id")
+            or evaluation_metadata.get("team_id")
+            or evaluation_metadata.get("team")
+            or ""
+        ).strip()
+
+        if not practitioner_uid and not full_name:
+            raise ValueError("practitioner data requires at least a local id or display name")
+
+        resolved_name = full_name or "Profissional REDISUS"
+        family, given = _split_human_name(resolved_name)
+
+        identifiers: list[dict[str, Any]] = []
+        if practitioner_uid:
+            identifiers.append(build_identifier(f"{REDISUS_CODE_SYSTEM}/practitioner-id", str(practitioner_uid)))
+
+        professional_registration = str(
+            payload.get("registration_number")
+            or payload.get("professional_registration")
+            or payload.get("license_number")
+            or payload_metadata.get("registration_number")
+            or payload_metadata.get("professional_registration")
+            or ""
+        ).strip()
+        if professional_registration:
+            identifiers.append(
+                build_identifier(
+                    f"{REDISUS_CODE_SYSTEM}/professional-registration",
+                    professional_registration,
+                )
+            )
+
+        telecom: list[dict[str, Any]] = []
+        phone = str(
+            payload.get("phone")
+            or payload.get("telefone")
+            or payload_metadata.get("phone")
+            or payload_metadata.get("telefone")
+            or ""
+        ).strip()
+        email = str(payload.get("email") or payload_metadata.get("email") or "").strip()
+        if phone:
+            telecom.append({"system": "phone", "value": phone, "use": "work"})
+        if email:
+            telecom.append({"system": "email", "value": email, "use": "work"})
+
+        extensions: list[dict[str, Any]] = []
+        if role:
+            extensions.append(
+                {
+                    "url": f"{REDISUS_STRUCTURE_DEFINITION}/practitioner-role-label",
+                    "valueCodeableConcept": {
+                        "coding": [
+                            {
+                                "system": f"{REDISUS_CODE_SYSTEM}/clinical-role",
+                                "code": _resource_slug(role),
+                                "display": role,
+                            }
+                        ],
+                        "text": role,
+                    },
+                }
+            )
+        if unit_id:
+            extensions.append(
+                {
+                    "url": f"{REDISUS_STRUCTURE_DEFINITION}/practitioner-unit-id",
+                    "valueString": unit_id,
+                }
+            )
+        if team_id:
+            extensions.append(
+                {
+                    "url": f"{REDISUS_STRUCTURE_DEFINITION}/practitioner-team-id",
+                    "valueString": team_id,
+                }
+            )
+
+        resource = PractitionerResource(
+            id=self._resolve_practitioner_id(payload, evaluation_payload),
+            identifier=identifiers,
+            active=True,
+            name=[
+                {
+                    "use": "official",
+                    "family": family,
+                    "given": given,
+                    "text": resolved_name,
+                }
+            ],
+            telecom=telecom,
+            extension=extensions,
+        ).to_dict()
+        self._validate_resource(resource)
+        return resource
+
+    def map_encounter(
+        self,
+        patient_id: str,
+        *,
+        encounter_data: Mapping[str, Any] | None = None,
+        evaluation_data: Mapping[str, Any] | None = None,
+        inference_result: Mapping[str, Any] | None = None,
+        practitioner_id: str | None = None,
+        condition: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload = dict(encounter_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        payload_metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        evaluation_metadata = (
+            evaluation_payload.get("metadata") if isinstance(evaluation_payload.get("metadata"), Mapping) else {}
+        )
+
+        status_key = _slugify(
+            payload.get("status")
+            or payload.get("encounter_status")
+            or payload_metadata.get("encounter_status")
+            or evaluation_payload.get("encounter_status")
+            or evaluation_metadata.get("encounter_status")
+            or "finished"
+        )
+        status = {
+            "completed": "finished",
+            "complete": "finished",
+            "finished": "finished",
+            "in_progress": "in-progress",
+            "inprogress": "in-progress",
+            "planned": "planned",
+            "cancelled": "cancelled",
+            "canceled": "cancelled",
+            "arrived": "arrived",
+            "triaged": "triaged",
+        }.get(status_key, "finished")
+
+        raw_class = str(
+            payload.get("class_code")
+            or payload.get("encounter_class")
+            or payload_metadata.get("encounter_class")
+            or evaluation_payload.get("encounter_class")
+            or evaluation_metadata.get("encounter_class")
+            or "AMB"
+        ).strip()
+        class_key = _resource_slug(raw_class).upper().replace("-", "_") or "AMB"
+        class_payload = ENCOUNTER_CLASS_CODES.get(class_key, ENCOUNTER_CLASS_CODES["AMB"])
+
+        case_id = str(payload.get("case_id") or evaluation_payload.get("case_id") or "").strip()
+        evaluation_id = str(payload.get("evaluation_id") or evaluation_payload.get("id") or "").strip()
+        wound_type = str(payload.get("wound_type") or evaluation_payload.get("wound_type") or "").strip()
+        wound_location = str(
+            payload.get("wound_location")
+            or evaluation_payload.get("wound_location")
+            or evaluation_payload.get("body_site")
+            or ""
+        ).strip()
+        reason_text = str(
+            payload.get("reason_text")
+            or payload.get("clinical_description")
+            or evaluation_payload.get("clinical_description")
+            or wound_type
+            or "Clinical wound follow-up"
+        ).strip()
+        type_text = str(
+            payload.get("type_text")
+            or payload.get("title")
+            or evaluation_payload.get("encounter_title")
+            or "REDISUS wound assessment encounter"
+        ).strip()
+        service_type_text = str(
+            payload.get("service_type_text")
+            or payload.get("service_type")
+            or "Wound care follow-up"
+        ).strip()
+        unit_id = str(
+            payload.get("unit_id")
+            or payload_metadata.get("unit_id")
+            or payload_metadata.get("unit")
+            or evaluation_payload.get("unit_id")
+            or evaluation_metadata.get("unit_id")
+            or evaluation_metadata.get("unit")
+            or ""
+        ).strip()
+        team_id = str(
+            payload.get("team_id")
+            or payload_metadata.get("team_id")
+            or payload_metadata.get("team")
+            or evaluation_payload.get("team_id")
+            or evaluation_metadata.get("team_id")
+            or evaluation_metadata.get("team")
+            or ""
+        ).strip()
+
+        identifiers: list[dict[str, Any]] = []
+        if case_id:
+            identifiers.append(build_identifier(f"{REDISUS_CODE_SYSTEM}/case-id", case_id))
+        if evaluation_id:
+            identifiers.append(build_identifier(f"{REDISUS_CODE_SYSTEM}/evaluation-id", evaluation_id))
+
+        participant = [
+            {
+                "type": [{"text": "Performer"}],
+                "individual": build_reference("Practitioner", practitioner_id),
+            }
+        ] if practitioner_id else []
+
+        start = _ensure_datetime(
+            payload.get("period_start")
+            or evaluation_payload.get("evaluation_date")
+            or evaluation_payload.get("created_at")
+        )
+        end = _ensure_datetime(
+            payload.get("period_end")
+            or (inference_result or {}).get("generated_at")
+            or evaluation_payload.get("updated_at")
+            or evaluation_payload.get("created_at")
+            or evaluation_payload.get("evaluation_date")
+        )
+
+        notes: list[str] = []
+        if wound_location:
+            notes.append(f"Wound location: {wound_location}")
+        if unit_id:
+            notes.append(f"Unit scope: {unit_id}")
+        if team_id:
+            notes.append(f"Team scope: {team_id}")
+
+        diagnosis = []
+        if condition and condition.get("id"):
+            diagnosis.append({"condition": build_reference("Condition", condition.get("id")), "rank": 1})
+
+        resource = EncounterResource(
+            id=self._resolve_encounter_id(payload, evaluation_payload),
+            identifier=identifiers,
+            status=status,
+            class_fhir=class_payload,
+            encounter_type=[
+                {
+                    "coding": [
+                        {
+                            "system": f"{REDISUS_CODE_SYSTEM}/encounter-type",
+                            "code": "wound-evaluation",
+                            "display": "Wound evaluation encounter",
+                        }
+                    ],
+                    "text": type_text,
+                }
+            ],
+            service_type={
+                "coding": [
+                    {
+                        "system": f"{REDISUS_CODE_SYSTEM}/service-type",
+                        "code": "wound-care-follow-up",
+                        "display": "Wound care follow-up",
+                    }
+                ],
+                "text": service_type_text,
+            },
+            subject=build_reference("Patient", patient_id),
+            participant=participant,
+            period=compact_dict({"start": start, "end": end}),
+            reason_code=[
+                {
+                    "coding": [
+                        {
+                            "system": f"{REDISUS_CODE_SYSTEM}/encounter-reason",
+                            "code": _resource_slug(wound_type or "wound-assessment"),
+                            "display": (wound_type or "Wound assessment").replace("_", " ").title(),
+                        }
+                    ],
+                    "text": reason_text,
+                }
+            ],
+            diagnosis=diagnosis,
+            note=_build_note(*notes),
+        ).to_dict()
+        self._validate_resource(resource)
+        return resource
+
     def map_observation(
         self,
         patient_id: str,
@@ -364,6 +764,7 @@ class RedisusFHIRMapper:
         evaluation_data: Mapping[str, Any] | None = None,
         inference_result: Mapping[str, Any] | None = None,
         practitioner_id: str | None = None,
+        encounter_id: str | None = None,
     ) -> dict[str, Any]:
         inference = self._extract_inference(inference_result)
         interpretation = self._extract_interpretation(inference_result)
@@ -478,6 +879,7 @@ class RedisusFHIRMapper:
                 "text": "REDISUS wound assessment",
             },
             subject=build_reference("Patient", patient_id),
+            encounter=build_reference("Encounter", encounter_id) if encounter_id else None,
             effective_date_time=_ensure_datetime((evaluation_data or {}).get("evaluation_date") or (inference_result or {}).get("generated_at")),
             issued=_ensure_datetime((inference_result or {}).get("generated_at") or (evaluation_data or {}).get("evaluation_date")),
             performer=performer,
@@ -504,6 +906,8 @@ class RedisusFHIRMapper:
         *,
         evaluation_data: Mapping[str, Any] | None = None,
         inference_result: Mapping[str, Any] | None = None,
+        practitioner_id: str | None = None,
+        encounter_id: str | None = None,
     ) -> dict[str, Any]:
         inference = self._extract_inference(inference_result)
         interpretation = self._extract_interpretation(inference_result)
@@ -562,6 +966,8 @@ class RedisusFHIRMapper:
                 "text": etiology_code.replace("_", " ").title(),
             },
             subject=build_reference("Patient", patient_id),
+            encounter=build_reference("Encounter", encounter_id) if encounter_id else None,
+            recorder=build_reference("Practitioner", practitioner_id) if practitioner_id else None,
             body_site=[{"text": body_site}] if body_site else [],
             onset_date_time=str((evaluation_data or {}).get("evaluation_date") or "").strip() or None,
             recorded_date=_ensure_datetime((inference_result or {}).get("generated_at") or (evaluation_data or {}).get("evaluation_date")),
@@ -586,6 +992,7 @@ class RedisusFHIRMapper:
         inference_result: Mapping[str, Any] | None = None,
         images: list[Any] | None = None,
         practitioner_id: str | None = None,
+        encounter_id: str | None = None,
     ) -> dict[str, Any]:
         interpretation = self._extract_interpretation(inference_result)
         attachments = [
@@ -633,6 +1040,7 @@ class RedisusFHIRMapper:
                 "text": "REDISUS wound diagnostic report",
             },
             subject=build_reference("Patient", patient_id),
+            encounter=build_reference("Encounter", encounter_id) if encounter_id else None,
             effective_date_time=_ensure_datetime((evaluation_data or {}).get("evaluation_date") or (inference_result or {}).get("generated_at")),
             issued=_ensure_datetime((inference_result or {}).get("generated_at") or (evaluation_data or {}).get("evaluation_date")),
             performer=performer,
@@ -651,6 +1059,8 @@ class RedisusFHIRMapper:
         care_plan_data: Mapping[str, Any],
         *,
         condition: Mapping[str, Any] | None = None,
+        practitioner_id: str | None = None,
+        encounter_id: str | None = None,
     ) -> dict[str, Any]:
         tasks = care_plan_data.get("tasks") if isinstance(care_plan_data.get("tasks"), list) else care_plan_data.get("activities")
         activity = [self._map_activity(task) for task in (tasks or [])]
@@ -679,6 +1089,8 @@ class RedisusFHIRMapper:
                 or "Care plan generated from REDISUS wound assessment"
             ),
             subject=build_reference("Patient", patient_id),
+            encounter=build_reference("Encounter", encounter_id) if encounter_id else None,
+            author=build_reference("Practitioner", practitioner_id) if practitioner_id else None,
             created=str(care_plan_data.get("created_at") or fhir_now()),
             period=period or None,
             addresses=[build_reference("Condition", condition.get("id"))] if condition else [],
@@ -695,19 +1107,44 @@ class RedisusFHIRMapper:
         evaluation_data: Mapping[str, Any] | None = None,
         inference_result: Mapping[str, Any] | None = None,
         care_plan_data: Mapping[str, Any] | None = None,
+        practitioner_data: Mapping[str, Any] | None = None,
+        encounter_data: Mapping[str, Any] | None = None,
         images: list[Any] | None = None,
         bundle_type: str = "collection",
     ) -> dict[str, Any]:
         patient = self.map_patient(patient_data)
-        observation = self.map_observation(
-            patient["id"],
-            evaluation_data=evaluation_data,
-            inference_result=inference_result,
-        )
+        practitioner = None
+        if self._has_practitioner_context(practitioner_data, evaluation_data):
+            practitioner = self.map_practitioner(practitioner_data, evaluation_data=evaluation_data)
+
+        encounter_id = self._resolve_encounter_id(encounter_data, evaluation_data) if self._has_encounter_context(
+            encounter_data, evaluation_data
+        ) else None
         condition = self.map_condition(
             patient["id"],
             evaluation_data=evaluation_data,
             inference_result=inference_result,
+            practitioner_id=practitioner["id"] if practitioner else None,
+            encounter_id=encounter_id,
+        )
+        encounter = None
+        if encounter_id:
+            encounter = self.map_encounter(
+                patient["id"],
+                encounter_data=encounter_data,
+                evaluation_data=evaluation_data,
+                inference_result=inference_result,
+                practitioner_id=practitioner["id"] if practitioner else None,
+                condition=condition,
+            )
+            encounter_id = encounter["id"]
+
+        observation = self.map_observation(
+            patient["id"],
+            evaluation_data=evaluation_data,
+            inference_result=inference_result,
+            practitioner_id=practitioner["id"] if practitioner else None,
+            encounter_id=encounter_id,
         )
         report = self.map_diagnostic_report(
             patient["id"],
@@ -716,11 +1153,27 @@ class RedisusFHIRMapper:
             evaluation_data=evaluation_data,
             inference_result=inference_result,
             images=images,
+            practitioner_id=practitioner["id"] if practitioner else None,
+            encounter_id=encounter_id,
         )
 
-        resources: list[dict[str, Any]] = [patient, observation, condition, report]
+        resources: list[dict[str, Any]] = [patient]
+        if practitioner:
+            resources.append(practitioner)
+        resources.append(condition)
+        if encounter:
+            resources.append(encounter)
+        resources.extend([observation, report])
         if care_plan_data:
-            resources.append(self.map_care_plan(patient["id"], care_plan_data, condition=condition))
+            resources.append(
+                self.map_care_plan(
+                    patient["id"],
+                    care_plan_data,
+                    condition=condition,
+                    practitioner_id=practitioner["id"] if practitioner else None,
+                    encounter_id=encounter_id,
+                )
+            )
         return self.build_bundle(resources, bundle_type=bundle_type)
 
     def build_bundle(self, resources: list[Mapping[str, Any]], bundle_type: str = "collection") -> dict[str, Any]:
@@ -816,6 +1269,103 @@ class RedisusFHIRMapper:
                 }
             )
         }
+
+    def _has_practitioner_context(
+        self,
+        practitioner_data: Mapping[str, Any] | None,
+        evaluation_data: Mapping[str, Any] | None,
+    ) -> bool:
+        payload = dict(practitioner_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        payload_metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        evaluation_metadata = (
+            evaluation_payload.get("metadata") if isinstance(evaluation_payload.get("metadata"), Mapping) else {}
+        )
+        candidates = (
+            payload.get("id"),
+            payload.get("practitioner_id"),
+            payload.get("professional_id"),
+            payload.get("uid"),
+            payload.get("name"),
+            payload.get("full_name"),
+            payload.get("professional_name"),
+            payload_metadata.get("professional_id"),
+            payload_metadata.get("professional_name"),
+            evaluation_payload.get("practitioner_id"),
+            evaluation_payload.get("professional_id"),
+            evaluation_payload.get("professional_name"),
+            evaluation_metadata.get("practitioner_id"),
+            evaluation_metadata.get("professional_id"),
+            evaluation_metadata.get("professional_name"),
+        )
+        return any(str(value or "").strip() for value in candidates)
+
+    def _has_encounter_context(
+        self,
+        encounter_data: Mapping[str, Any] | None,
+        evaluation_data: Mapping[str, Any] | None,
+    ) -> bool:
+        if encounter_data:
+            return True
+        payload = dict(evaluation_data or {})
+        return any(
+            str(payload.get(key) or "").strip()
+            for key in ("id", "case_id", "evaluation_date", "wound_type", "wound_location")
+        )
+
+    def _resolve_practitioner_id(
+        self,
+        practitioner_data: Mapping[str, Any] | None,
+        evaluation_data: Mapping[str, Any] | None,
+    ) -> str:
+        payload = dict(practitioner_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        payload_metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        evaluation_metadata = (
+            evaluation_payload.get("metadata") if isinstance(evaluation_payload.get("metadata"), Mapping) else {}
+        )
+        return _stable_resource_id(
+            "practitioner",
+            payload.get("id"),
+            payload.get("practitioner_id"),
+            payload.get("professional_id"),
+            payload.get("uid"),
+            payload_metadata.get("practitioner_id"),
+            payload_metadata.get("professional_id"),
+            evaluation_payload.get("practitioner_id"),
+            evaluation_payload.get("professional_id"),
+            evaluation_metadata.get("practitioner_id"),
+            evaluation_metadata.get("professional_id"),
+            payload.get("name"),
+            payload.get("full_name"),
+            payload.get("professional_name"),
+            evaluation_payload.get("professional_name"),
+            evaluation_metadata.get("professional_name"),
+        )
+
+    def _resolve_encounter_id(
+        self,
+        encounter_data: Mapping[str, Any] | None,
+        evaluation_data: Mapping[str, Any] | None,
+    ) -> str:
+        payload = dict(encounter_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        payload_metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        evaluation_metadata = (
+            evaluation_payload.get("metadata") if isinstance(evaluation_payload.get("metadata"), Mapping) else {}
+        )
+        return _stable_resource_id(
+            "encounter",
+            payload.get("id"),
+            payload.get("encounter_id"),
+            payload_metadata.get("encounter_id"),
+            evaluation_payload.get("encounter_id"),
+            evaluation_metadata.get("encounter_id"),
+            evaluation_payload.get("id"),
+            payload.get("evaluation_id"),
+            payload.get("case_id"),
+            evaluation_payload.get("case_id"),
+        )
 
     def _validate_resource(self, resource: Mapping[str, Any]) -> None:
         validate_resource(resource, strict=self.strict_validation)

@@ -2,7 +2,7 @@
   "resourceType": "Condition",
   "id": "lesion-venous-001",
   "meta": {
-    "lastUpdated": "2026-04-19T18:38:07-03:00"
+    "lastUpdated": "2026-04-19T19:30:31-03:00"
   },
   "clinicalStatus": {
     "coding": [
@@ -60,6 +60,12 @@
   },
   "subject": {
     "reference": "Patient/patient-redisus-001"
+  },
+  "encounter": {
+    "reference": "Encounter/encounter-2026-04-19-001"
+  },
+  "recorder": {
+    "reference": "Practitioner/practitioner-user-helena-martins"
   },
   "bodySite": [
     {
