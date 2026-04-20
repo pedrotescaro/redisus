@@ -2,7 +2,10 @@
   "resourceType": "Encounter",
   "id": "encounter-2026-04-19-001",
   "meta": {
-    "lastUpdated": "2026-04-19T19:30:31-03:00"
+    "lastUpdated": "2026-04-19T20:07:03-03:00",
+    "profile": [
+      "https://heal.redisus.org.br/fhir/StructureDefinition/redisus-encounter"
+    ]
   },
   "identifier": [
     {
@@ -31,7 +34,7 @@
           "display": "Wound evaluation encounter"
         }
       ],
-      "text": "Ambulatory wound reassessment"
+      "text": "Wound evaluation encounter"
     }
   ],
   "serviceType": {
@@ -42,7 +45,7 @@
         "display": "Wound care follow-up"
       }
     ],
-    "text": "Chronic wound outpatient care"
+    "text": "Wound care follow-up"
   },
   "subject": {
     "reference": "Patient/patient-redisus-001"
@@ -59,6 +62,9 @@
       }
     }
   ],
+  "serviceProvider": {
+    "reference": "Organization/organization-health-unit-ubs-centro"
+  },
   "period": {
     "start": "2026-04-19T14:30:00-03:00",
     "end": "2026-04-19T14:35:00-03:00"
@@ -69,7 +75,7 @@
         {
           "system": "https://heal.redisus.org.br/fhir/CodeSystem/encounter-reason",
           "code": "venous-ulcer",
-          "display": "Venous Ulcer"
+          "display": "Reassessment of chronic venous ulcer with moderate exudate."
         }
       ],
       "text": "Reassessment of chronic venous ulcer with moderate exudate."
@@ -86,12 +92,6 @@
   "note": [
     {
       "text": "Wound location: left medial malleolus"
-    },
-    {
-      "text": "Unit scope: UBS-Centro"
-    },
-    {
-      "text": "Team scope: Equipe-Cronicas-A"
     }
   ]
 }

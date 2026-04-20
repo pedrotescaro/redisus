@@ -2,7 +2,10 @@
   "resourceType": "Observation",
   "id": "evaluation-2026-04-19-001",
   "meta": {
-    "lastUpdated": "2026-04-19T19:30:31-03:00"
+    "lastUpdated": "2026-04-19T20:07:03-03:00",
+    "profile": [
+      "https://heal.redisus.org.br/fhir/StructureDefinition/redisus-wound-observation"
+    ]
   },
   "status": "final",
   "category": [
@@ -59,6 +62,11 @@
             "system": "http://loinc.org",
             "code": "72514-3",
             "display": "Wound bed granulation tissue percentage"
+          },
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-score",
+            "code": "granulation",
+            "display": "Wound bed granulation tissue percentage"
           }
         ],
         "text": "Wound bed granulation tissue percentage"
@@ -76,6 +84,11 @@
           {
             "system": "http://loinc.org",
             "code": "72287-6",
+            "display": "Wound bed slough percentage"
+          },
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-score",
+            "code": "slough",
             "display": "Wound bed slough percentage"
           }
         ],
@@ -95,6 +108,11 @@
             "system": "http://loinc.org",
             "code": "72288-4",
             "display": "Wound bed necrotic tissue percentage"
+          },
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-score",
+            "code": "necrosis",
+            "display": "Wound bed necrotic tissue percentage"
           }
         ],
         "text": "Wound bed necrotic tissue percentage"
@@ -112,6 +130,11 @@
           {
             "system": "http://loinc.org",
             "code": "89260-9",
+            "display": "Wound area"
+          },
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-score",
+            "code": "wound-area",
             "display": "Wound area"
           }
         ],
@@ -226,7 +249,7 @@
       "code": {
         "coding": [
           {
-            "system": "https://heal.redisus.org.br/fhir/CodeSystem/risk-level",
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-score",
             "code": "risk-level",
             "display": "REDISUS risk level"
           }
@@ -241,7 +264,7 @@
             "display": "Moderate risk"
           }
         ],
-        "text": "moderado"
+        "text": "Moderate risk"
       }
     }
   ],
@@ -259,7 +282,7 @@
           "display": "Moderate risk"
         }
       ],
-      "text": "moderado"
+      "text": "Moderate risk"
     }
   ]
 }

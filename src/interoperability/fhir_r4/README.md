@@ -17,12 +17,16 @@ through the rest of the codebase.
 ## Supported resources
 
 - `Patient`
+- `Organization`
 - `Practitioner`
+- `PractitionerRole`
 - `Encounter`
+- `Media`
 - `Observation`
 - `Condition`
 - `DiagnosticReport`
 - `CarePlan`
+- `Provenance`
 - `Bundle` for case packaging and transaction submission
 
 ## Mapping scope
@@ -32,12 +36,14 @@ repository:
 
 - wound analysis values
 - responsible practitioner and encounter context
+- health unit and care-team scope derived from `unit_id` and `team_id`
 - tissue distribution
 - wound area and depth
 - PUSH and BWAT scores
 - AI classification and confidence
 - risk level and recommendations
-- clinical images attached to `DiagnosticReport.presentedForm`
+- clinical images represented as `Media` and linked from `DiagnosticReport.media`
+- provenance for human evaluator and AI pipeline generation
 - care-plan and report references linked back to the encounter when available
 
 ## Typical usage
@@ -101,6 +107,30 @@ Optional:
 - `REDISUS_FHIR_GCP_API_BASE_URL`
 - `GOOGLE_OAUTH_ACCESS_TOKEN`
 
+## Controlled publication
+
+`FHIRPublicationService` prepares the write path to a FHIR store without coupling
+the mapper to transport concerns. The service currently provides:
+
+- bundle validation before send
+- stable bundle hashing that ignores volatile timestamps
+- idempotent skip for an already published logical bundle
+- retry with bounded attempts
+- JSON audit trail plus local publication index
+
+Typical usage:
+
+```python
+from src.interoperability.fhir_r4 import (
+    FHIRPublicationService,
+    GoogleCloudHealthcareFHIRAdapter,
+)
+
+client = GoogleCloudHealthcareFHIRAdapter.from_environment()
+publisher = FHIRPublicationService(client)
+result = publisher.publish_bundle(bundle, case_id="case-001", evaluation_id="eval-001")
+```
+
 ## External dependency boundaries
 
 This package does not implement a real RNDS integration. It only prepares the
@@ -109,6 +139,7 @@ architecture for future connectors by keeping the following pieces isolated:
 - FHIR resource construction
 - transport client abstraction
 - cloud adapter boundary
+- controlled publication boundary with idempotency and audit
 - validation boundary
 
 Future RNDS work should plug into the client/adapter layer instead of changing

@@ -25,15 +25,52 @@ def test_mapper_creates_complete_wound_case_bundle():
     resource_types = [entry["resource"]["resourceType"] for entry in bundle["entry"]]
     assert bundle["resourceType"] == "Bundle"
     assert bundle["type"] == "collection"
-    assert resource_types == ["Patient", "Practitioner", "Condition", "Encounter", "Observation", "DiagnosticReport", "CarePlan"]
+    assert resource_types == [
+        "Patient",
+        "Organization",
+        "Organization",
+        "Practitioner",
+        "PractitionerRole",
+        "Condition",
+        "Encounter",
+        "Media",
+        "Observation",
+        "DiagnosticReport",
+        "CarePlan",
+        "Provenance",
+    ]
 
-    resources = {entry["resource"]["resourceType"]: entry["resource"] for entry in bundle["entry"]}
-    assert resources["Encounter"]["subject"]["reference"] == "Patient/patient-redisus-001"
-    assert resources["Encounter"]["participant"][0]["individual"]["reference"] == (
-        f"Practitioner/{resources['Practitioner']['id']}"
+    resources_by_type: dict[str, list[dict]] = {}
+    for entry in bundle["entry"]:
+        resources_by_type.setdefault(entry["resource"]["resourceType"], []).append(entry["resource"])
+
+    patient = resources_by_type["Patient"][0]
+    unit_organization, team_organization = resources_by_type["Organization"]
+    practitioner = resources_by_type["Practitioner"][0]
+    practitioner_role = resources_by_type["PractitionerRole"][0]
+    encounter = resources_by_type["Encounter"][0]
+    media = resources_by_type["Media"][0]
+    observation = resources_by_type["Observation"][0]
+    report = resources_by_type["DiagnosticReport"][0]
+    care_plan = resources_by_type["CarePlan"][0]
+    provenance = resources_by_type["Provenance"][0]
+
+    assert encounter["subject"]["reference"] == f"Patient/{patient['id']}"
+    assert encounter["participant"][0]["individual"]["reference"] == (
+        f"Practitioner/{practitioner['id']}"
     )
-    assert resources["Observation"]["encounter"]["reference"] == f"Encounter/{resources['Encounter']['id']}"
-    assert resources["DiagnosticReport"]["encounter"]["reference"] == f"Encounter/{resources['Encounter']['id']}"
+    assert encounter["serviceProvider"]["reference"] == f"Organization/{unit_organization['id']}"
+    assert team_organization["partOf"]["reference"] == f"Organization/{unit_organization['id']}"
+    assert practitioner_role["practitioner"]["reference"] == f"Practitioner/{practitioner['id']}"
+    assert practitioner_role["organization"]["reference"] == f"Organization/{team_organization['id']}"
+    assert observation["encounter"]["reference"] == f"Encounter/{encounter['id']}"
+    assert report["encounter"]["reference"] == f"Encounter/{encounter['id']}"
+    assert report["media"][0]["link"]["reference"] == f"Media/{media['id']}"
+    assert report["presentedForm"]
+    assert care_plan["author"]["reference"] == f"Practitioner/{practitioner['id']}"
+    provenance_targets = {item["reference"] for item in provenance["target"]}
+    assert f"DiagnosticReport/{report['id']}" in provenance_targets
+    assert f"Media/{media['id']}" in provenance_targets
 
 
 def test_validate_bundle_rejects_missing_entry_resource():

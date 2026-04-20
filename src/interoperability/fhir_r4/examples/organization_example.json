@@ -1,0 +1,49 @@
+{
+  "resourceType": "Organization",
+  "id": "organization-health-unit-ubs-centro",
+  "meta": {
+    "lastUpdated": "2026-04-19T20:07:03-03:00",
+    "profile": [
+      "https://heal.redisus.org.br/fhir/StructureDefinition/redisus-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "https://heal.redisus.org.br/fhir/CodeSystem/organization-id",
+      "value": "UBS-Centro",
+      "use": "official"
+    }
+  ],
+  "active": true,
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/organization-type",
+          "code": "health-unit",
+          "display": "Health unit"
+        }
+      ],
+      "text": "Health unit"
+    }
+  ],
+  "name": "UBS Centro",
+  "alias": [
+    "UBS-Centro"
+  ],
+  "extension": [
+    {
+      "url": "https://heal.redisus.org.br/fhir/StructureDefinition/organization-scope",
+      "valueCodeableConcept": {
+        "coding": [
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/organization-type",
+            "code": "health-unit",
+            "display": "Health unit"
+          }
+        ],
+        "text": "Health unit"
+      }
+    }
+  ]
+}

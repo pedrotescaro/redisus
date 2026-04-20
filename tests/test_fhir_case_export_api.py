@@ -103,26 +103,51 @@ def test_case_fhir_export_returns_transaction_bundle(client):
     assert payload["patient_id"] == "p001"
     assert payload["evaluation_id"] == evaluation["id"]
     assert payload["bundle_type"] == "transaction"
-    assert payload["resource_count"] == 7
+    assert payload["resource_count"] >= 10
     assert payload["bundle"]["resourceType"] == "Bundle"
     assert payload["bundle"]["type"] == "transaction"
 
     resource_types = [entry["resource"]["resourceType"] for entry in payload["bundle"]["entry"]]
-    assert resource_types == ["Patient", "Practitioner", "Condition", "Encounter", "Observation", "DiagnosticReport", "CarePlan"]
+    assert {"Patient", "Practitioner", "PractitionerRole", "Condition", "Encounter", "Media", "Observation", "DiagnosticReport", "CarePlan", "Provenance"}.issubset(resource_types)
 
-    resources = {entry["resource"]["resourceType"]: entry["resource"] for entry in payload["bundle"]["entry"]}
-    assert resources["Practitioner"]["name"][0]["text"] == "local-dev"
-    assert resources["Encounter"]["participant"][0]["individual"]["reference"] == (
-        f"Practitioner/{resources['Practitioner']['id']}"
-    )
-    assert resources["Encounter"]["diagnosis"][0]["condition"]["reference"] == (
-        f"Condition/{resources['Condition']['id']}"
-    )
-    assert resources["Observation"]["encounter"]["reference"] == f"Encounter/{resources['Encounter']['id']}"
-    assert resources["CarePlan"]["author"]["reference"] == f"Practitioner/{resources['Practitioner']['id']}"
+    resources_by_type: dict[str, list[dict]] = {}
+    for entry in payload["bundle"]["entry"]:
+        resources_by_type.setdefault(entry["resource"]["resourceType"], []).append(entry["resource"])
 
-    report_entry = next(entry for entry in payload["bundle"]["entry"] if entry["resource"]["resourceType"] == "DiagnosticReport")
-    assert report_entry["resource"]["presentedForm"]
+    practitioner = resources_by_type["Practitioner"][0]
+    practitioner_role = resources_by_type["PractitionerRole"][0]
+    encounter = resources_by_type["Encounter"][0]
+    condition = resources_by_type["Condition"][0]
+    media = resources_by_type["Media"][0]
+    observation = resources_by_type["Observation"][0]
+    care_plan = resources_by_type["CarePlan"][0]
+    report = resources_by_type["DiagnosticReport"][0]
+    provenance = resources_by_type["Provenance"][0]
+
+    assert practitioner["name"][0]["text"] == "local-dev"
+    assert encounter["participant"][0]["individual"]["reference"] == (
+        f"Practitioner/{practitioner['id']}"
+    )
+    assert practitioner_role["practitioner"]["reference"] == f"Practitioner/{practitioner['id']}"
+    assert encounter["diagnosis"][0]["condition"]["reference"] == (
+        f"Condition/{condition['id']}"
+    )
+    assert observation["encounter"]["reference"] == f"Encounter/{encounter['id']}"
+    assert care_plan["author"]["reference"] == f"Practitioner/{practitioner['id']}"
+    assert report["media"][0]["link"]["reference"] == f"Media/{media['id']}"
+    assert report["presentedForm"]
+    provenance_targets = {item["reference"] for item in provenance["target"]}
+    assert f"DiagnosticReport/{report['id']}" in provenance_targets
+    assert f"Media/{media['id']}" in provenance_targets
+
+    if "Organization" in resources_by_type:
+        organization_ids = {resource["id"] for resource in resources_by_type["Organization"]}
+        service_provider_ref = encounter.get("serviceProvider", {}).get("reference", "")
+        assert service_provider_ref.split("/", 1)[-1] in organization_ids
+
+    for entry in payload["bundle"]["entry"]:
+        assert entry["request"]["method"] == "PUT"
+        assert entry["request"]["url"].endswith(entry["resource"]["id"])
 
 
 def test_case_fhir_export_rejects_evaluation_from_other_case(client):

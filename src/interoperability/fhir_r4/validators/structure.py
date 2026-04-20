@@ -4,8 +4,12 @@ from typing import Any, Mapping
 
 REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "Patient": ("resourceType", "id", "name"),
+    "Organization": ("resourceType", "id", "name"),
     "Practitioner": ("resourceType", "id", "name"),
+    "PractitionerRole": ("resourceType", "id"),
     "Encounter": ("resourceType", "id", "status", "class", "subject"),
+    "Media": ("resourceType", "id", "status", "content", "subject"),
+    "Provenance": ("resourceType", "id", "target", "recorded", "agent"),
     "Observation": ("resourceType", "id", "status", "code", "subject"),
     "Condition": ("resourceType", "id", "clinicalStatus", "verificationStatus", "code", "subject"),
     "DiagnosticReport": ("resourceType", "id", "status", "code", "subject"),
@@ -41,10 +45,40 @@ def validate_resource_structure(resource: Mapping[str, Any] | Any) -> list[str]:
         if not isinstance(name, list):
             errors.append(f"{resource_type}.name must be a list")
 
-    if resource_type in {"Observation", "Condition", "DiagnosticReport", "CarePlan", "Encounter"}:
+    if resource_type == "Organization":
+        name = str(payload.get("name") or "").strip()
+        if not name:
+            errors.append("Organization.name is required")
+
+    if resource_type in {"Observation", "Condition", "DiagnosticReport", "CarePlan", "Encounter", "Media"}:
         subject = payload.get("subject") or {}
         if not isinstance(subject, Mapping) or not str(subject.get("reference") or "").strip():
             errors.append(f"{resource_type}.subject.reference is required")
+
+    if resource_type == "PractitionerRole":
+        practitioner = payload.get("practitioner")
+        organization = payload.get("organization")
+        if not practitioner and not organization:
+            errors.append("PractitionerRole.practitioner or PractitionerRole.organization is required")
+
+    if resource_type == "Media":
+        content = payload.get("content") or {}
+        if not isinstance(content, Mapping):
+            errors.append("Media.content must be a mapping")
+        elif not (
+            str(content.get("url") or "").strip()
+            or str(content.get("data") or "").strip()
+            or str(content.get("title") or "").strip()
+        ):
+            errors.append("Media.content must include url, data, or title")
+
+    if resource_type == "Provenance":
+        target = payload.get("target") or []
+        if not isinstance(target, list) or not target:
+            errors.append("Provenance.target must be a non-empty list")
+        agent = payload.get("agent") or []
+        if not isinstance(agent, list) or not agent:
+            errors.append("Provenance.agent must be a non-empty list")
 
     if resource_type == "Encounter":
         class_payload = payload.get("class") or {}
@@ -73,8 +107,12 @@ def validate_with_fhir_models(resource: Mapping[str, Any] | Any) -> list[str]:
 
     model_map = {
         "Patient": ("fhir.resources.patient", "Patient"),
+        "Organization": ("fhir.resources.organization", "Organization"),
         "Practitioner": ("fhir.resources.practitioner", "Practitioner"),
+        "PractitionerRole": ("fhir.resources.practitionerrole", "PractitionerRole"),
         "Encounter": ("fhir.resources.encounter", "Encounter"),
+        "Media": ("fhir.resources.media", "Media"),
+        "Provenance": ("fhir.resources.provenance", "Provenance"),
         "Observation": ("fhir.resources.observation", "Observation"),
         "Condition": ("fhir.resources.condition", "Condition"),
         "DiagnosticReport": ("fhir.resources.diagnosticreport", "DiagnosticReport"),

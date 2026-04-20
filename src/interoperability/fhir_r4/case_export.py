@@ -202,7 +202,9 @@ class ClinicalCaseFHIRExportService:
                 or lesion.get("handoff_to_role")
             ),
             "unit_id": lesion.get("unit_id") or lesion_metadata.get("unit_id") or lesion_metadata.get("unit"),
+            "unit_name": lesion.get("unit_name") or lesion_metadata.get("unit_name") or lesion_metadata.get("unit"),
             "team_id": lesion.get("team_id") or lesion_metadata.get("team_id") or lesion_metadata.get("team"),
+            "team_name": lesion.get("team_name") or lesion_metadata.get("team_name") or lesion_metadata.get("team"),
         }
         normalized = {key: value for key, value in payload.items() if value not in (None, "", {}, [])}
         return normalized or None
@@ -228,6 +230,8 @@ class ClinicalCaseFHIRExportService:
             "wound_type": evaluation.get("wound_type") or lesion.get("wound_type"),
             "wound_location": evaluation.get("wound_location") or lesion.get("location"),
             "unit_id": lesion.get("unit_id") or lesion_metadata.get("unit_id") or lesion_metadata.get("unit"),
+            "unit_name": lesion.get("unit_name") or lesion_metadata.get("unit_name") or lesion_metadata.get("unit"),
             "team_id": lesion.get("team_id") or lesion_metadata.get("team_id") or lesion_metadata.get("team"),
+            "team_name": lesion.get("team_name") or lesion_metadata.get("team_name") or lesion_metadata.get("team"),
         }
         return {key: value for key, value in payload.items() if value not in (None, "", {}, [])}

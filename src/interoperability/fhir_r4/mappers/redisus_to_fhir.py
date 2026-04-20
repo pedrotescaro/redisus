@@ -10,6 +10,9 @@ from typing import Any, Mapping
 from ..models import (
     ICD10_SYSTEM,
     LOINC_SYSTEM,
+    MEDIA_CATEGORY_SYSTEM,
+    PRACTITIONER_ROLE_SYSTEM,
+    PROVENANCE_PARTICIPANT_TYPE_SYSTEM,
     REDISUS_CODE_SYSTEM,
     REDISUS_STRUCTURE_DEFINITION,
     SNOMED_SYSTEM,
@@ -18,14 +21,34 @@ from ..models import (
     ConditionResource,
     DiagnosticReportResource,
     EncounterResource,
+    MediaResource,
     ObservationResource,
+    OrganizationResource,
     PatientResource,
     PractitionerResource,
+    PractitionerRoleResource,
+    ProvenanceResource,
+    build_codeable_concept,
+    build_coding,
     build_identifier,
     build_reference,
     compact_dict,
     fhir_now,
     generate_id,
+)
+from ..terminology import (
+    TARGET_PROFILE_REGISTRY,
+    clinical_score_concept,
+    encounter_type_concept,
+    encounter_reason_concept,
+    media_category_concept,
+    media_type_code,
+    organization_type_concept,
+    practitioner_role_concept,
+    provenance_agent_type_concept,
+    risk_level_concept,
+    service_type_concept,
+    wound_classification_concept,
 )
 from ..validators import validate_bundle, validate_resource
 
@@ -139,6 +162,20 @@ ETIOLOGY_ALIASES = {
     "ferida_cirurgica": "SURGICAL_WOUND",
 }
 
+ORGANIZATION_KIND_ALIASES = {
+    "unit": "health-unit",
+    "health_unit": "health-unit",
+    "facility": "health-unit",
+    "team": "care-team",
+    "care_team": "care-team",
+}
+
+MEDIA_CATEGORY_BY_CONTENT_TYPE = {
+    "image": "image",
+    "video": "video",
+    "audio": "audio",
+}
+
 
 def _slugify(value: Any) -> str:
     text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
@@ -178,6 +215,24 @@ def _safe_float(value: Any, default: float | None = None) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _first_non_empty(*values: Any) -> Any:
+    for value in values:
+        if isinstance(value, str):
+            if value.strip():
+                return value
+            continue
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _display_from_code(code: Any, default: str) -> str:
+    text = str(code or "").strip()
+    if not text:
+        return default
+    return text.replace("-", " ").replace("_", " ").title()
 
 
 def _ensure_datetime(value: Any) -> str:
@@ -272,6 +327,21 @@ def _split_human_name(name: str) -> tuple[str, list[str]]:
     return parts[-1], parts[:-1]
 
 
+def _build_reference_with_identifier(
+    *,
+    system: str,
+    value: str,
+    display: str | None = None,
+    reference: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"identifier": build_identifier(system, value)}
+    if reference:
+        payload["reference"] = reference
+    if display:
+        payload["display"] = display
+    return payload
+
+
 def _attachment_from_image(image: Any) -> dict[str, Any] | None:
     if isinstance(image, Mapping):
         payload = dict(image)
@@ -334,16 +404,7 @@ def _build_quantity_component(code: dict[str, Any], value: float, unit: str, cod
 
 def _build_score_component(code: str, display: str, value: float) -> dict[str, Any]:
     return {
-        "code": {
-            "coding": [
-                {
-                    "system": f"{REDISUS_CODE_SYSTEM}/clinical-score",
-                    "code": code,
-                    "display": display,
-                }
-            ],
-            "text": display,
-        },
+        "code": clinical_score_concept(code, display),
         "valueQuantity": {
             "value": round(value, 2),
             "unit": "score",
@@ -459,32 +520,6 @@ class RedisusFHIRMapper:
             or evaluation_metadata.get("professional_name")
             or ""
         ).strip()
-        role = str(
-            payload.get("role")
-            or payload.get("professional_role")
-            or payload_metadata.get("professional_role")
-            or evaluation_payload.get("professional_role")
-            or evaluation_metadata.get("professional_role")
-            or ""
-        ).strip()
-        unit_id = str(
-            payload.get("unit_id")
-            or payload_metadata.get("unit_id")
-            or payload_metadata.get("unit")
-            or evaluation_payload.get("unit_id")
-            or evaluation_metadata.get("unit_id")
-            or evaluation_metadata.get("unit")
-            or ""
-        ).strip()
-        team_id = str(
-            payload.get("team_id")
-            or payload_metadata.get("team_id")
-            or payload_metadata.get("team")
-            or evaluation_payload.get("team_id")
-            or evaluation_metadata.get("team_id")
-            or evaluation_metadata.get("team")
-            or ""
-        ).strip()
 
         if not practitioner_uid and not full_name:
             raise ValueError("practitioner data requires at least a local id or display name")
@@ -526,38 +561,6 @@ class RedisusFHIRMapper:
         if email:
             telecom.append({"system": "email", "value": email, "use": "work"})
 
-        extensions: list[dict[str, Any]] = []
-        if role:
-            extensions.append(
-                {
-                    "url": f"{REDISUS_STRUCTURE_DEFINITION}/practitioner-role-label",
-                    "valueCodeableConcept": {
-                        "coding": [
-                            {
-                                "system": f"{REDISUS_CODE_SYSTEM}/clinical-role",
-                                "code": _resource_slug(role),
-                                "display": role,
-                            }
-                        ],
-                        "text": role,
-                    },
-                }
-            )
-        if unit_id:
-            extensions.append(
-                {
-                    "url": f"{REDISUS_STRUCTURE_DEFINITION}/practitioner-unit-id",
-                    "valueString": unit_id,
-                }
-            )
-        if team_id:
-            extensions.append(
-                {
-                    "url": f"{REDISUS_STRUCTURE_DEFINITION}/practitioner-team-id",
-                    "valueString": team_id,
-                }
-            )
-
         resource = PractitionerResource(
             id=self._resolve_practitioner_id(payload, evaluation_payload),
             identifier=identifiers,
@@ -571,7 +574,339 @@ class RedisusFHIRMapper:
                 }
             ],
             telecom=telecom,
+        ).to_dict()
+        self._validate_resource(resource)
+        return resource
+
+    def map_organization(
+        self,
+        organization_data: Mapping[str, Any],
+        *,
+        kind: str,
+        parent_organization_id: str | None = None,
+    ) -> dict[str, Any]:
+        payload = dict(organization_data)
+        normalized_kind = ORGANIZATION_KIND_ALIASES.get(_slugify(kind), _resource_slug(kind) or "organization")
+        organization_id = self._resolve_organization_id(payload, normalized_kind)
+        identifier_value = str(payload.get("identifier") or payload.get("id") or organization_id).strip()
+        name = str(
+            payload.get("name")
+            or payload.get("display")
+            or payload.get("display_name")
+            or payload.get("unit_name")
+            or payload.get("team_name")
+            or payload.get("label")
+            or payload.get("id")
+            or identifier_value
+        ).strip()
+
+        alias = []
+        if identifier_value and identifier_value != name:
+            alias.append(identifier_value)
+
+        extensions: list[dict[str, Any]] = []
+        scope_code = str(payload.get("scope_code") or normalized_kind).strip()
+        if scope_code:
+            extensions.append(
+                {
+                    "url": f"{REDISUS_STRUCTURE_DEFINITION}/organization-scope",
+                    "valueCodeableConcept": organization_type_concept(scope_code),
+                }
+            )
+
+        resource = OrganizationResource(
+            id=organization_id,
+            identifier=[build_identifier(f"{REDISUS_CODE_SYSTEM}/organization-id", identifier_value)],
+            active=True,
+            organization_type=[organization_type_concept(normalized_kind)],
+            name=name,
+            alias=alias,
+            part_of=build_reference("Organization", parent_organization_id) if parent_organization_id else None,
             extension=extensions,
+        ).to_dict()
+        self._validate_resource(resource)
+        return resource
+
+    def map_practitioner_role(
+        self,
+        practitioner_id: str,
+        *,
+        practitioner_data: Mapping[str, Any] | None = None,
+        evaluation_data: Mapping[str, Any] | None = None,
+        organization_id: str | None = None,
+    ) -> dict[str, Any]:
+        payload = dict(practitioner_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        payload_metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        evaluation_metadata = (
+            evaluation_payload.get("metadata") if isinstance(evaluation_payload.get("metadata"), Mapping) else {}
+        )
+
+        role = str(
+            _first_non_empty(
+                payload.get("role"),
+                payload.get("professional_role"),
+                payload_metadata.get("professional_role"),
+                evaluation_payload.get("professional_role"),
+                evaluation_metadata.get("professional_role"),
+                "clinician",
+            )
+        ).strip()
+        organization_reference = build_reference("Organization", organization_id) if organization_id else None
+        evaluation_date = _ensure_datetime(
+            _first_non_empty(
+                evaluation_payload.get("evaluation_date"),
+                evaluation_payload.get("created_at"),
+                fhir_now(),
+            )
+        )
+
+        resource = PractitionerRoleResource(
+            id=self._resolve_practitioner_role_id(payload, evaluation_payload, organization_id=organization_id),
+            identifier=[
+                build_identifier(
+                    f"{REDISUS_CODE_SYSTEM}/practitioner-role-id",
+                    str(
+                        _first_non_empty(
+                            payload.get("role_id"),
+                            payload.get("id"),
+                            evaluation_payload.get("professional_id"),
+                            f"{practitioner_id}:{organization_id or 'unscoped'}:{_resource_slug(role)}",
+                        )
+                    ),
+                )
+            ],
+            active=True,
+            period={"start": evaluation_date},
+            practitioner=build_reference("Practitioner", practitioner_id),
+            organization=organization_reference,
+            code=[practitioner_role_concept(role)],
+            specialty=[
+                build_codeable_concept(
+                    build_coding(
+                        f"{REDISUS_CODE_SYSTEM}/practice-setting",
+                        "wound-care",
+                        "Wound care",
+                    ),
+                    text="Wound care",
+                )
+            ],
+        ).to_dict()
+        self._validate_resource(resource)
+        return resource
+
+    def map_media(
+        self,
+        patient_id: str,
+        image: Any,
+        *,
+        evaluation_data: Mapping[str, Any] | None = None,
+        practitioner_id: str | None = None,
+        encounter_id: str | None = None,
+        index: int = 0,
+    ) -> dict[str, Any]:
+        attachment = _attachment_from_image(image)
+        if not attachment:
+            raise ValueError("media mapping requires a resolvable image attachment")
+
+        payload = dict(image) if isinstance(image, Mapping) else {"image_path": image}
+        content_type = str(attachment.get("contentType") or "").strip()
+        media_category = MEDIA_CATEGORY_BY_CONTENT_TYPE.get(content_type.split("/")[0].lower(), "image")
+        evaluation_payload = dict(evaluation_data or {})
+        wound_type = str(evaluation_payload.get("wound_type") or "wound-assessment").strip()
+        wound_location = str(
+            evaluation_payload.get("wound_location") or evaluation_payload.get("body_site") or ""
+        ).strip()
+
+        identifier_value = str(
+            _first_non_empty(
+                payload.get("id"),
+                payload.get("image_id"),
+                payload.get("storage_key"),
+                payload.get("url"),
+                payload.get("image_path"),
+                f"{evaluation_payload.get('id') or 'evaluation'}-{index + 1}",
+            )
+        ).strip()
+        media_id = self._resolve_media_id(payload, evaluation_payload, index=index)
+
+        resource = MediaResource(
+            id=media_id,
+            identifier=[build_identifier(f"{REDISUS_CODE_SYSTEM}/media-id", identifier_value)],
+            status="completed",
+            media_type=media_type_code(media_category),
+            modality=build_codeable_concept(
+                build_coding(
+                    f"{REDISUS_CODE_SYSTEM}/media-modality",
+                    "clinical-wound-image",
+                    "Clinical wound image",
+                ),
+                text="Clinical wound image",
+            ),
+            subject=build_reference("Patient", patient_id),
+            encounter=build_reference("Encounter", encounter_id) if encounter_id else None,
+            created_date_time=_ensure_datetime(
+                _first_non_empty(
+                    payload.get("captured_at"),
+                    payload.get("created_at"),
+                    payload.get("date"),
+                    evaluation_payload.get("evaluation_date"),
+                )
+            ),
+            operator=build_reference("Practitioner", practitioner_id) if practitioner_id else None,
+            reason_code=[
+                build_codeable_concept(
+                    build_coding(
+                        f"{REDISUS_CODE_SYSTEM}/media-reason",
+                        _resource_slug(wound_type or "wound-assessment"),
+                        _display_from_code(wound_type, "Wound assessment"),
+                    ),
+                    text=str(
+                        _first_non_empty(
+                            payload.get("reason_text"),
+                            evaluation_payload.get("clinical_description"),
+                            "Clinical wound assessment image capture",
+                        )
+                    ),
+                )
+            ],
+            body_site={"text": wound_location} if wound_location else None,
+            content=attachment,
+            note=_build_note(payload.get("title") or payload.get("name")),
+        ).to_dict()
+        self._validate_resource(resource)
+        return resource
+
+    def map_provenance(
+        self,
+        *,
+        target_resources: list[Mapping[str, Any]],
+        evaluation_data: Mapping[str, Any] | None = None,
+        inference_result: Mapping[str, Any] | None = None,
+        practitioner_id: str | None = None,
+        practitioner_role_id: str | None = None,
+        organization_id: str | None = None,
+        media_resources: list[Mapping[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        evaluation_payload = dict(evaluation_data or {})
+        inference_payload = dict(inference_result or {})
+        targets = [
+            build_reference(str(resource.get("resourceType")), str(resource.get("id")))
+            for resource in target_resources
+            if resource.get("resourceType") and resource.get("id")
+        ]
+
+        if not targets:
+            raise ValueError("provenance mapping requires at least one target resource")
+
+        agents: list[dict[str, Any]] = []
+        if practitioner_id:
+            agents.append(
+                compact_dict(
+                    {
+                        "type": provenance_agent_type_concept("author"),
+                        "role": [practitioner_role_concept(evaluation_payload.get("professional_role") or "clinician")],
+                        "who": build_reference("Practitioner", practitioner_id),
+                        "onBehalfOf": build_reference("Organization", organization_id) if organization_id else None,
+                    }
+                )
+            )
+        if inference_payload:
+            model_version = str(
+                _first_non_empty(
+                    inference_payload.get("model_version"),
+                    inference_payload.get("contract_version"),
+                    (inference_payload.get("inference") or {}).get("model_version"),
+                    "redisus-fhir-pipeline",
+                )
+            ).strip()
+            agents.append(
+                {
+                    "type": provenance_agent_type_concept("assembler"),
+                    "role": [
+                        build_codeable_concept(
+                            build_coding(
+                                f"{REDISUS_CODE_SYSTEM}/automation-role",
+                                "clinical-ai-pipeline",
+                                "Clinical AI pipeline",
+                            ),
+                            text="Clinical AI pipeline",
+                        )
+                    ],
+                    "who": _build_reference_with_identifier(
+                        system=f"{REDISUS_CODE_SYSTEM}/ai-pipeline",
+                        value=model_version,
+                        display=str(
+                            _first_non_empty(
+                                inference_payload.get("analysis_type"),
+                                "REDISUS AI wound assessment pipeline",
+                            )
+                        ),
+                    ),
+                    "onBehalfOf": (
+                        build_reference("PractitionerRole", practitioner_role_id) if practitioner_role_id else None
+                    ),
+                }
+            )
+
+        entities: list[dict[str, Any]] = []
+        for media in media_resources or []:
+            if media.get("id"):
+                entities.append({"role": "source", "what": build_reference("Media", str(media.get("id")))})
+
+        evaluation_id = str(evaluation_payload.get("id") or "").strip()
+        if evaluation_id:
+            entities.append(
+                {
+                    "role": "source",
+                    "what": _build_reference_with_identifier(
+                        system=f"{REDISUS_CODE_SYSTEM}/evaluation-id",
+                        value=evaluation_id,
+                        display="REDISUS wound evaluation",
+                    ),
+                }
+            )
+
+        resource = ProvenanceResource(
+            id=self._resolve_provenance_id(evaluation_payload, inference_payload, target_resources),
+            target=targets,
+            recorded=_ensure_datetime(
+                _first_non_empty(
+                    inference_payload.get("generated_at"),
+                    evaluation_payload.get("updated_at"),
+                    evaluation_payload.get("evaluation_date"),
+                    fhir_now(),
+                )
+            ),
+            reason=[
+                build_codeable_concept(
+                    build_coding(
+                        f"{REDISUS_CODE_SYSTEM}/provenance-reason",
+                        "clinical-interoperability-export",
+                        "Clinical interoperability export",
+                    ),
+                    text="Clinical interoperability export",
+                )
+            ],
+            activity=build_codeable_concept(
+                build_coding(
+                    f"{REDISUS_CODE_SYSTEM}/provenance-activity",
+                    "derive-fhir-wound-case",
+                    "Derive wound case bundle",
+                ),
+                text="Derive wound case bundle",
+            ),
+            agent=agents or [
+                {
+                    "type": provenance_agent_type_concept("author"),
+                    "who": _build_reference_with_identifier(
+                        system=f"{REDISUS_CODE_SYSTEM}/system-actor",
+                        value="redisus-system",
+                        display="REDISUS system",
+                    ),
+                }
+            ],
+            entity=entities,
         ).to_dict()
         self._validate_resource(resource)
         return resource
@@ -585,6 +920,7 @@ class RedisusFHIRMapper:
         inference_result: Mapping[str, Any] | None = None,
         practitioner_id: str | None = None,
         condition: Mapping[str, Any] | None = None,
+        service_provider_id: str | None = None,
     ) -> dict[str, Any]:
         payload = dict(encounter_data or {})
         evaluation_payload = dict(evaluation_data or {})
@@ -641,35 +977,18 @@ class RedisusFHIRMapper:
             or wound_type
             or "Clinical wound follow-up"
         ).strip()
-        type_text = str(
-            payload.get("type_text")
-            or payload.get("title")
-            or evaluation_payload.get("encounter_title")
-            or "REDISUS wound assessment encounter"
-        ).strip()
-        service_type_text = str(
-            payload.get("service_type_text")
-            or payload.get("service_type")
-            or "Wound care follow-up"
-        ).strip()
-        unit_id = str(
-            payload.get("unit_id")
-            or payload_metadata.get("unit_id")
-            or payload_metadata.get("unit")
-            or evaluation_payload.get("unit_id")
-            or evaluation_metadata.get("unit_id")
-            or evaluation_metadata.get("unit")
-            or ""
-        ).strip()
-        team_id = str(
-            payload.get("team_id")
-            or payload_metadata.get("team_id")
-            or payload_metadata.get("team")
-            or evaluation_payload.get("team_id")
-            or evaluation_metadata.get("team_id")
-            or evaluation_metadata.get("team")
-            or ""
-        ).strip()
+        encounter_type_code = _resource_slug(
+            str(
+                _first_non_empty(
+                    payload.get("encounter_type_code"),
+                    payload.get("type_code"),
+                    "wound-evaluation",
+                )
+            )
+        ) or "wound-evaluation"
+        service_type_code = _resource_slug(
+            str(_first_non_empty(payload.get("service_type_code"), payload.get("service_type"), "wound-care-follow-up"))
+        ) or "wound-care-follow-up"
 
         identifiers: list[dict[str, Any]] = []
         if case_id:
@@ -700,10 +1019,6 @@ class RedisusFHIRMapper:
         notes: list[str] = []
         if wound_location:
             notes.append(f"Wound location: {wound_location}")
-        if unit_id:
-            notes.append(f"Unit scope: {unit_id}")
-        if team_id:
-            notes.append(f"Team scope: {team_id}")
 
         diagnosis = []
         if condition and condition.get("id"):
@@ -714,43 +1029,13 @@ class RedisusFHIRMapper:
             identifier=identifiers,
             status=status,
             class_fhir=class_payload,
-            encounter_type=[
-                {
-                    "coding": [
-                        {
-                            "system": f"{REDISUS_CODE_SYSTEM}/encounter-type",
-                            "code": "wound-evaluation",
-                            "display": "Wound evaluation encounter",
-                        }
-                    ],
-                    "text": type_text,
-                }
-            ],
-            service_type={
-                "coding": [
-                    {
-                        "system": f"{REDISUS_CODE_SYSTEM}/service-type",
-                        "code": "wound-care-follow-up",
-                        "display": "Wound care follow-up",
-                    }
-                ],
-                "text": service_type_text,
-            },
+            encounter_type=[encounter_type_concept(encounter_type_code)],
+            service_type=service_type_concept(service_type_code),
             subject=build_reference("Patient", patient_id),
             participant=participant,
+            service_provider=build_reference("Organization", service_provider_id) if service_provider_id else None,
             period=compact_dict({"start": start, "end": end}),
-            reason_code=[
-                {
-                    "coding": [
-                        {
-                            "system": f"{REDISUS_CODE_SYSTEM}/encounter-reason",
-                            "code": _resource_slug(wound_type or "wound-assessment"),
-                            "display": (wound_type or "Wound assessment").replace("_", " ").title(),
-                        }
-                    ],
-                    "text": reason_text,
-                }
-            ],
+            reason_code=[encounter_reason_concept(_resource_slug(wound_type or "wound-assessment"), reason_text)],
             diagnosis=diagnosis,
             note=_build_note(*notes),
         ).to_dict()
@@ -773,7 +1058,9 @@ class RedisusFHIRMapper:
         components: list[dict[str, Any]] = []
         for tissue_key, code in TISSUE_COMPONENT_CODES.items():
             value = tissue.get(tissue_key, 0.0)
-            components.append(_build_quantity_component(code, value, "%", "%"))
+            component = _build_quantity_component(code, value, "%", "%")
+            component["code"] = clinical_score_concept(tissue_key, code.get("display"))
+            components.append(component)
 
         area_cm2 = _safe_float(
             inference.get("wound_area_cm2")
@@ -790,6 +1077,7 @@ class RedisusFHIRMapper:
                     "cm2",
                 )
             )
+            components[-1]["code"] = clinical_score_concept("wound-area", "Wound area")
 
         depth_mm = _safe_float((evaluation_data or {}).get("depth_mm"))
         if depth_mm is not None:
@@ -833,20 +1121,8 @@ class RedisusFHIRMapper:
         risk_level = _normalize_risk(interpretation.get("risk_level") or (inference_result or {}).get("risk_level"))
         components.append(
             {
-                "code": {
-                    "coding": [
-                        {
-                            "system": f"{REDISUS_CODE_SYSTEM}/risk-level",
-                            "code": "risk-level",
-                            "display": "REDISUS risk level",
-                        }
-                    ],
-                    "text": "REDISUS risk level",
-                },
-                "valueCodeableConcept": {
-                    "coding": [RISK_INTERPRETATION_CODES[risk_level]],
-                    "text": risk_level,
-                },
+                "code": clinical_score_concept("risk-level", "REDISUS risk level"),
+                "valueCodeableConcept": risk_level_concept(risk_level),
             }
         )
 
@@ -895,7 +1171,7 @@ class RedisusFHIRMapper:
             },
             component=components,
             note=_build_note(summary),
-            interpretation=[{"coding": [RISK_INTERPRETATION_CODES[risk_level]], "text": risk_level}],
+            interpretation=[risk_level_concept(risk_level)],
         ).to_dict()
         self._validate_resource(resource)
         return resource
@@ -961,10 +1237,7 @@ class RedisusFHIRMapper:
                 }
             ],
             severity={"coding": [RISK_SEVERITY_CODES[risk_level]], "text": risk_level},
-            code={
-                "coding": codings,
-                "text": etiology_code.replace("_", " ").title(),
-            },
+            code=wound_classification_concept(etiology_code.lower()),
             subject=build_reference("Patient", patient_id),
             encounter=build_reference("Encounter", encounter_id) if encounter_id else None,
             recorder=build_reference("Practitioner", practitioner_id) if practitioner_id else None,
@@ -991,6 +1264,7 @@ class RedisusFHIRMapper:
         evaluation_data: Mapping[str, Any] | None = None,
         inference_result: Mapping[str, Any] | None = None,
         images: list[Any] | None = None,
+        media_resources: list[Mapping[str, Any]] | None = None,
         practitioner_id: str | None = None,
         encounter_id: str | None = None,
     ) -> dict[str, Any]:
@@ -1014,6 +1288,23 @@ class RedisusFHIRMapper:
 
         report_notes = _build_note(*((interpretation.get("recommendations") or []) if isinstance(interpretation.get("recommendations"), list) else []))
         performer = [build_reference("Practitioner", practitioner_id)] if practitioner_id else []
+        media_entries = []
+        for media in media_resources or []:
+            if not media.get("id"):
+                continue
+            media_entries.append(
+                compact_dict(
+                    {
+                        "comment": str(
+                            _first_non_empty(
+                                (((media.get("content") or {}).get("title")) if isinstance(media.get("content"), Mapping) else None),
+                                "Clinical wound media",
+                            )
+                        ),
+                        "link": build_reference("Media", str(media.get("id"))),
+                    }
+                )
+            )
 
         resource = DiagnosticReportResource(
             id=str((inference_result or {}).get("evaluation_id") or (evaluation_data or {}).get("id") or generate_id("report")),
@@ -1047,6 +1338,7 @@ class RedisusFHIRMapper:
             result=[build_reference("Observation", observation.get("id"))],
             conclusion=str(interpretation.get("summary") or (inference_result or {}).get("diagnosis_summary") or "REDISUS wound assessment report"),
             conclusion_code=conclusion_codes,
+            media=media_entries,
             presented_form=attachments,
             note=report_notes,
         ).to_dict()
@@ -1113,9 +1405,53 @@ class RedisusFHIRMapper:
         bundle_type: str = "collection",
     ) -> dict[str, Any]:
         patient = self.map_patient(patient_data)
+        scope = self._resolve_scope_context(practitioner_data, evaluation_data, encounter_data)
+
+        organizations: list[dict[str, Any]] = []
+        unit_organization = None
+        if scope["unit_id"]:
+            unit_organization = self.map_organization(
+                {
+                    "id": scope["unit_id"],
+                    "name": scope["unit_name"] or scope["unit_id"],
+                    "identifier": scope["unit_id"],
+                    "scope_code": "health-unit",
+                },
+                kind="health-unit",
+            )
+            organizations.append(unit_organization)
+
+        team_organization = None
+        if scope["team_id"]:
+            team_organization = self.map_organization(
+                {
+                    "id": scope["team_id"],
+                    "name": scope["team_name"] or scope["team_id"],
+                    "identifier": scope["team_id"],
+                    "scope_code": "care-team",
+                },
+                kind="care-team",
+                parent_organization_id=unit_organization["id"] if unit_organization else None,
+            )
+            organizations.append(team_organization)
+
         practitioner = None
         if self._has_practitioner_context(practitioner_data, evaluation_data):
             practitioner = self.map_practitioner(practitioner_data, evaluation_data=evaluation_data)
+
+        primary_organization_id = (
+            (team_organization or unit_organization or {}).get("id")
+            if (team_organization or unit_organization)
+            else None
+        )
+        practitioner_role = None
+        if practitioner and self._has_practitioner_role_context(practitioner_data, evaluation_data, primary_organization_id):
+            practitioner_role = self.map_practitioner_role(
+                practitioner["id"],
+                practitioner_data=practitioner_data,
+                evaluation_data=evaluation_data,
+                organization_id=primary_organization_id,
+            )
 
         encounter_id = self._resolve_encounter_id(encounter_data, evaluation_data) if self._has_encounter_context(
             encounter_data, evaluation_data
@@ -1136,8 +1472,25 @@ class RedisusFHIRMapper:
                 inference_result=inference_result,
                 practitioner_id=practitioner["id"] if practitioner else None,
                 condition=condition,
+                service_provider_id=(unit_organization or team_organization or {}).get("id") if (unit_organization or team_organization) else None,
             )
             encounter_id = encounter["id"]
+
+        media_resources: list[dict[str, Any]] = []
+        for index, image in enumerate(_extract_images(evaluation_data, inference_result, explicit_images=images)):
+            try:
+                media_resources.append(
+                    self.map_media(
+                        patient["id"],
+                        image,
+                        evaluation_data=evaluation_data,
+                        practitioner_id=practitioner["id"] if practitioner else None,
+                        encounter_id=encounter_id,
+                        index=index,
+                    )
+                )
+            except ValueError:
+                continue
 
         observation = self.map_observation(
             patient["id"],
@@ -1153,27 +1506,53 @@ class RedisusFHIRMapper:
             evaluation_data=evaluation_data,
             inference_result=inference_result,
             images=images,
+            media_resources=media_resources,
             practitioner_id=practitioner["id"] if practitioner else None,
             encounter_id=encounter_id,
         )
 
         resources: list[dict[str, Any]] = [patient]
+        resources.extend(organizations)
         if practitioner:
             resources.append(practitioner)
+        if practitioner_role:
+            resources.append(practitioner_role)
         resources.append(condition)
         if encounter:
             resources.append(encounter)
+        resources.extend(media_resources)
         resources.extend([observation, report])
+        care_plan = None
         if care_plan_data:
-            resources.append(
-                self.map_care_plan(
-                    patient["id"],
-                    care_plan_data,
-                    condition=condition,
-                    practitioner_id=practitioner["id"] if practitioner else None,
-                    encounter_id=encounter_id,
-                )
+            care_plan = self.map_care_plan(
+                patient["id"],
+                care_plan_data,
+                condition=condition,
+                practitioner_id=practitioner["id"] if practitioner else None,
+                encounter_id=encounter_id,
             )
+            resources.append(care_plan)
+
+        provenance_targets: list[dict[str, Any]] = [condition]
+        if encounter:
+            provenance_targets.append(encounter)
+        provenance_targets.extend(media_resources)
+        provenance_targets.extend([observation, report])
+        if care_plan:
+            provenance_targets.append(care_plan)
+        resources.append(
+            self.map_provenance(
+                target_resources=provenance_targets,
+                evaluation_data=evaluation_data,
+                inference_result=inference_result,
+                practitioner_id=practitioner["id"] if practitioner else None,
+                practitioner_role_id=practitioner_role["id"] if practitioner_role else None,
+                organization_id=(unit_organization or team_organization or {}).get("id")
+                if (unit_organization or team_organization)
+                else None,
+                media_resources=media_resources,
+            )
+        )
         return self.build_bundle(resources, bundle_type=bundle_type)
 
     def build_bundle(self, resources: list[Mapping[str, Any]], bundle_type: str = "collection") -> dict[str, Any]:
@@ -1192,6 +1571,10 @@ class RedisusFHIRMapper:
 
         bundle = {
             "resourceType": "Bundle",
+            "meta": {
+                "lastUpdated": fhir_now(),
+                "profile": [TARGET_PROFILE_REGISTRY["bundle-export"]],
+            },
             "type": bundle_type,
             "timestamp": fhir_now(),
             "entry": entries,
@@ -1300,6 +1683,32 @@ class RedisusFHIRMapper:
         )
         return any(str(value or "").strip() for value in candidates)
 
+    def _has_practitioner_role_context(
+        self,
+        practitioner_data: Mapping[str, Any] | None,
+        evaluation_data: Mapping[str, Any] | None,
+        organization_id: str | None,
+    ) -> bool:
+        if organization_id:
+            return True
+
+        payload = dict(practitioner_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        payload_metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        evaluation_metadata = (
+            evaluation_payload.get("metadata") if isinstance(evaluation_payload.get("metadata"), Mapping) else {}
+        )
+        candidates = (
+            payload.get("role"),
+            payload.get("professional_role"),
+            payload_metadata.get("professional_role"),
+            evaluation_payload.get("professional_role"),
+            evaluation_metadata.get("professional_role"),
+        )
+        return self._has_practitioner_context(practitioner_data, evaluation_data) or any(
+            str(value or "").strip() for value in candidates
+        )
+
     def _has_encounter_context(
         self,
         encounter_data: Mapping[str, Any] | None,
@@ -1365,6 +1774,126 @@ class RedisusFHIRMapper:
             payload.get("evaluation_id"),
             payload.get("case_id"),
             evaluation_payload.get("case_id"),
+        )
+
+    def _resolve_scope_context(
+        self,
+        practitioner_data: Mapping[str, Any] | None,
+        evaluation_data: Mapping[str, Any] | None,
+        encounter_data: Mapping[str, Any] | None,
+    ) -> dict[str, str | None]:
+        sources = [
+            dict(practitioner_data or {}),
+            dict(encounter_data or {}),
+            dict(evaluation_data or {}),
+        ]
+        metadata_sources = [
+            source.get("metadata")
+            for source in sources
+            if isinstance(source.get("metadata"), Mapping)
+        ]
+
+        def _pick(*keys: str) -> str | None:
+            values: list[Any] = []
+            for source in sources:
+                values.extend(source.get(key) for key in keys)
+            for source in metadata_sources:
+                values.extend(source.get(key) for key in keys)
+            resolved = _first_non_empty(*values)
+            return str(resolved).strip() if str(resolved or "").strip() else None
+
+        unit_id = _pick("unit_id", "unit", "facility_id", "service_provider_id")
+        unit_name = _pick("unit_name", "unit_display", "unit_label", "facility_name", "service_provider_name")
+        team_id = _pick("team_id", "team", "care_team_id")
+        team_name = _pick("team_name", "team_display", "team_label", "care_team_name")
+
+        return {
+            "unit_id": unit_id,
+            "unit_name": unit_name or unit_id,
+            "team_id": team_id,
+            "team_name": team_name or team_id,
+        }
+
+    def _resolve_organization_id(self, organization_data: Mapping[str, Any], kind: str) -> str:
+        payload = dict(organization_data or {})
+        normalized_kind = _resource_slug(kind) or "organization"
+        return _stable_resource_id(
+            f"organization-{normalized_kind}",
+            payload.get("id"),
+            payload.get("identifier"),
+            payload.get("unit_id"),
+            payload.get("team_id"),
+            payload.get("name"),
+            payload.get("display_name"),
+        )
+
+    def _resolve_practitioner_role_id(
+        self,
+        practitioner_data: Mapping[str, Any] | None,
+        evaluation_data: Mapping[str, Any] | None,
+        *,
+        organization_id: str | None = None,
+    ) -> str:
+        payload = dict(practitioner_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        payload_metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        evaluation_metadata = (
+            evaluation_payload.get("metadata") if isinstance(evaluation_payload.get("metadata"), Mapping) else {}
+        )
+        return _stable_resource_id(
+            "practitioner-role",
+            payload.get("role_id"),
+            evaluation_payload.get("role_id"),
+            payload.get("id"),
+            payload.get("practitioner_id"),
+            evaluation_payload.get("professional_id"),
+            organization_id,
+            payload.get("role"),
+            payload.get("professional_role"),
+            payload_metadata.get("professional_role"),
+            evaluation_payload.get("professional_role"),
+            evaluation_metadata.get("professional_role"),
+        )
+
+    def _resolve_media_id(
+        self,
+        image_data: Mapping[str, Any] | None,
+        evaluation_data: Mapping[str, Any] | None,
+        *,
+        index: int = 0,
+    ) -> str:
+        payload = dict(image_data or {})
+        evaluation_payload = dict(evaluation_data or {})
+        return _stable_resource_id(
+            "media",
+            payload.get("id"),
+            payload.get("image_id"),
+            payload.get("storage_key"),
+            payload.get("url"),
+            payload.get("image_path"),
+            f"{evaluation_payload.get('id') or evaluation_payload.get('case_id') or 'evaluation'}-{index + 1}",
+        )
+
+    def _resolve_provenance_id(
+        self,
+        evaluation_data: Mapping[str, Any] | None,
+        inference_result: Mapping[str, Any] | None,
+        target_resources: list[Mapping[str, Any]],
+    ) -> str:
+        evaluation_payload = dict(evaluation_data or {})
+        inference_payload = dict(inference_result or {})
+        target_signature = ",".join(
+            f"{resource.get('resourceType')}:{resource.get('id')}"
+            for resource in target_resources
+            if resource.get("resourceType") and resource.get("id")
+        )
+        return _stable_resource_id(
+            "provenance",
+            evaluation_payload.get("id"),
+            inference_payload.get("evaluation_id"),
+            inference_payload.get("case_id"),
+            inference_payload.get("generated_at"),
+            target_signature,
         )
 
     def _validate_resource(self, resource: Mapping[str, Any]) -> None:

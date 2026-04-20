@@ -9,6 +9,9 @@ from src.interoperability.datasus_integration import DATASUSIntegration
 from src.interoperability.esus_integration import ESUSIntegration, FichaAtendimentoIndividual
 from src.interoperability.fhir_client import FHIRClient, FHIRResourceBuilder
 from src.interoperability.fhir_r4 import (
+    FHIRPublicationError,
+    FHIRPublicationResult,
+    FHIRPublicationService,
     FHIRValidationError,
     GoogleCloudHealthcareFHIRAdapter,
     RedisusFHIRMapper,
@@ -21,6 +24,9 @@ __all__ = [
     "DATASUSIntegration",
     "ESUSIntegration",
     "FHIRClient",
+    "FHIRPublicationError",
+    "FHIRPublicationResult",
+    "FHIRPublicationService",
     "FHIRResourceBuilder",
     "FHIRValidationError",
     "FichaAtendimentoIndividual",

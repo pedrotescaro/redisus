@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .common import FHIRResourceModel, compact_dict
+from .common import FHIRResourceModel, REDISUS_ENCOUNTER_PROFILE, compact_dict, ensure_meta_profile
 
 
 @dataclass(slots=True)
@@ -17,15 +17,18 @@ class EncounterResource(FHIRResourceModel):
     service_type: dict[str, Any] | None = None
     subject: dict[str, Any] = field(default_factory=dict)
     participant: list[dict[str, Any]] = field(default_factory=list)
+    service_provider: dict[str, Any] | None = None
     period: dict[str, Any] | None = None
     reason_code: list[dict[str, Any]] = field(default_factory=list)
     diagnosis: list[dict[str, Any]] = field(default_factory=list)
     note: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        meta = ensure_meta_profile(self.meta, REDISUS_ENCOUNTER_PROFILE)
         return compact_dict(
             {
                 **self.base_dict(),
+                "meta": meta,
                 "identifier": self.identifier,
                 "status": self.status,
                 "class": self.class_fhir,
@@ -33,6 +36,7 @@ class EncounterResource(FHIRResourceModel):
                 "serviceType": self.service_type,
                 "subject": self.subject,
                 "participant": self.participant,
+                "serviceProvider": self.service_provider,
                 "period": self.period,
                 "reasonCode": self.reason_code,
                 "diagnosis": self.diagnosis,

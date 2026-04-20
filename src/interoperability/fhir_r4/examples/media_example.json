@@ -1,0 +1,65 @@
+{
+  "resourceType": "Media",
+  "id": "media-https-storage-googleapis-com-redisus-demo-wounds-patient-0",
+  "meta": {
+    "lastUpdated": "2026-04-19T20:07:03-03:00",
+    "profile": [
+      "https://heal.redisus.org.br/fhir/StructureDefinition/redisus-wound-media"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "https://heal.redisus.org.br/fhir/CodeSystem/media-id",
+      "value": "https://storage.googleapis.com/redisus-demo/wounds/patient-001-day-0.jpg",
+      "use": "official"
+    }
+  ],
+  "status": "completed",
+  "type": "photo",
+  "modality": {
+    "coding": [
+      {
+        "system": "https://heal.redisus.org.br/fhir/CodeSystem/media-modality",
+        "code": "clinical-wound-image",
+        "display": "Clinical wound image"
+      }
+    ],
+    "text": "Clinical wound image"
+  },
+  "subject": {
+    "reference": "Patient/patient-redisus-001"
+  },
+  "encounter": {
+    "reference": "Encounter/encounter-2026-04-19-001"
+  },
+  "createdDateTime": "2026-04-19T14:31:00-03:00",
+  "operator": {
+    "reference": "Practitioner/practitioner-user-helena-martins"
+  },
+  "reasonCode": [
+    {
+      "coding": [
+        {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/media-reason",
+          "code": "venous-ulcer",
+          "display": "Venous Ulcer"
+        }
+      ],
+      "text": "Chronic venous ulcer with moderate exudate and regular borders."
+    }
+  ],
+  "bodySite": {
+    "text": "left medial malleolus"
+  },
+  "content": {
+    "contentType": "image/jpeg",
+    "url": "https://storage.googleapis.com/redisus-demo/wounds/patient-001-day-0.jpg",
+    "title": "Initial wound photo",
+    "creation": "2026-04-19T14:31:00-03:00"
+  },
+  "note": [
+    {
+      "text": "Initial wound photo"
+    }
+  ]
+}

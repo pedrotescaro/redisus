@@ -29,8 +29,13 @@ def sample_evaluation_data() -> dict[str, Any]:
         "id": "evaluation-2026-04-19-001",
         "case_id": "lesion-venous-001",
         "evaluation_date": "2026-04-19T14:30:00-03:00",
+        "professional_id": "user-helena-martins",
         "professional_name": "Dra Helena Martins",
         "professional_role": "doctor",
+        "unit_id": "UBS-Centro",
+        "unit_name": "UBS Centro",
+        "team_id": "Equipe-Cronicas-A",
+        "team_name": "Equipe Cronicas A",
         "wound_type": "venous_ulcer",
         "wound_location": "left medial malleolus",
         "clinical_description": "Chronic venous ulcer with moderate exudate and regular borders.",
@@ -62,7 +67,9 @@ def sample_practitioner_data() -> dict[str, Any]:
         "name": "Dra Helena Martins",
         "role": "doctor",
         "unit_id": "UBS-Centro",
+        "unit_name": "UBS Centro",
         "team_id": "Equipe-Cronicas-A",
+        "team_name": "Equipe Cronicas A",
     }
 
 
@@ -186,46 +193,6 @@ def build_example_artifacts() -> dict[str, Any]:
     inference_result = sample_inference_result()
     care_plan_data = sample_care_plan_data()
 
-    patient = mapper.map_patient(patient_data)
-    practitioner = mapper.map_practitioner(practitioner_data, evaluation_data=evaluation_data)
-    condition = mapper.map_condition(
-        patient["id"],
-        evaluation_data=evaluation_data,
-        inference_result=inference_result,
-        practitioner_id=practitioner["id"],
-        encounter_id=encounter_data["id"],
-    )
-    encounter = mapper.map_encounter(
-        patient["id"],
-        encounter_data=encounter_data,
-        evaluation_data=evaluation_data,
-        inference_result=inference_result,
-        practitioner_id=practitioner["id"],
-        condition=condition,
-    )
-    observation = mapper.map_observation(
-        patient["id"],
-        evaluation_data=evaluation_data,
-        inference_result=inference_result,
-        practitioner_id=practitioner["id"],
-        encounter_id=encounter["id"],
-    )
-    diagnostic_report = mapper.map_diagnostic_report(
-        patient["id"],
-        observation=observation,
-        condition=condition,
-        evaluation_data=evaluation_data,
-        inference_result=inference_result,
-        practitioner_id=practitioner["id"],
-        encounter_id=encounter["id"],
-    )
-    care_plan = mapper.map_care_plan(
-        patient["id"],
-        care_plan_data,
-        condition=condition,
-        practitioner_id=practitioner["id"],
-        encounter_id=encounter["id"],
-    )
     bundle = mapper.map_case_to_bundle(
         patient_data=patient_data,
         evaluation_data=evaluation_data,
@@ -235,13 +202,36 @@ def build_example_artifacts() -> dict[str, Any]:
         encounter_data=encounter_data,
         bundle_type="collection",
     )
+    grouped_resources: dict[str, list[dict[str, Any]]] = {}
+    for entry in bundle["entry"]:
+        resource = dict(entry["resource"])
+        grouped_resources.setdefault(resource["resourceType"], []).append(resource)
+
+    patient = grouped_resources["Patient"][0]
+    organizations = grouped_resources.get("Organization", [])
+    practitioner = grouped_resources["Practitioner"][0]
+    practitioner_role = grouped_resources["PractitionerRole"][0]
+    condition = grouped_resources["Condition"][0]
+    encounter = grouped_resources["Encounter"][0]
+    media_resources = grouped_resources.get("Media", [])
+    observation = grouped_resources["Observation"][0]
+    diagnostic_report = grouped_resources["DiagnosticReport"][0]
+    care_plan = grouped_resources["CarePlan"][0]
+    provenance = grouped_resources["Provenance"][0]
+
     return {
         "patient": patient,
+        "organization": organizations[0] if organizations else None,
+        "organizations": organizations,
         "practitioner": practitioner,
+        "practitioner_role": practitioner_role,
         "encounter": encounter,
+        "media": media_resources[0] if media_resources else None,
+        "media_resources": media_resources,
         "observation": observation,
         "condition": condition,
         "diagnostic_report": diagnostic_report,
         "care_plan": care_plan,
+        "provenance": provenance,
         "bundle": bundle,
     }

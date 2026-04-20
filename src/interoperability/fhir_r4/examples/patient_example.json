@@ -2,7 +2,7 @@
   "resourceType": "Patient",
   "id": "patient-redisus-001",
   "meta": {
-    "lastUpdated": "2026-04-19T19:30:31-03:00",
+    "lastUpdated": "2026-04-19T20:07:03-03:00",
     "profile": [
       "http://www.saude.gov.br/fhir/r4/StructureDefinition/BRIndividuo-1.0"
     ]

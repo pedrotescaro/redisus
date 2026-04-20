@@ -1,0 +1,56 @@
+{
+  "resourceType": "PractitionerRole",
+  "id": "practitioner-role-user-helena-martins",
+  "meta": {
+    "lastUpdated": "2026-04-19T20:07:03-03:00",
+    "profile": [
+      "https://heal.redisus.org.br/fhir/StructureDefinition/redisus-practitioner-role"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "https://heal.redisus.org.br/fhir/CodeSystem/practitioner-role-id",
+      "value": "user-helena-martins",
+      "use": "official"
+    }
+  ],
+  "active": true,
+  "period": {
+    "start": "2026-04-19T14:30:00-03:00"
+  },
+  "practitioner": {
+    "reference": "Practitioner/practitioner-user-helena-martins"
+  },
+  "organization": {
+    "reference": "Organization/organization-care-team-equipe-cronicas-a"
+  },
+  "code": [
+    {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/practitioner-role",
+          "code": "doctor",
+          "display": "Doctor"
+        },
+        {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-role",
+          "code": "doctor",
+          "display": "Doctor"
+        }
+      ],
+      "text": "Doctor"
+    }
+  ],
+  "specialty": [
+    {
+      "coding": [
+        {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/practice-setting",
+          "code": "wound-care",
+          "display": "Wound care"
+        }
+      ],
+      "text": "Wound care"
+    }
+  ]
+}

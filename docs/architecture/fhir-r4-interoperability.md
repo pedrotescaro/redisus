@@ -75,7 +75,7 @@ Mapped REDISUS concepts:
 
 - `professional_name` from the stored evaluation
 - local professional identifier when available
-- local role and unit/team scope kept as REDISUS extensions
+- professional role represented in `PractitionerRole`
 
 ### Encounter
 
@@ -83,9 +83,10 @@ Mapped REDISUS concepts:
 
 - evaluation as an ambulatory encounter
 - patient subject and practitioner participant
+- service provider link to the mapped unit organization when available
 - condition link through encounter diagnosis
 - local case/evaluation identifiers for traceability
-- period, reason text, wound location, and unit/team notes
+- period, reason text, wound location, and service type coding
 
 ### Observation
 
@@ -106,6 +107,7 @@ Mapped REDISUS concepts:
 Mapped REDISUS concepts:
 
 - wound etiology classification
+- dual-use coding strategy with local REDISUS coding plus standard wound codings where already known
 - body site
 - risk-derived severity
 - AI confidence as extension
@@ -119,7 +121,8 @@ Mapped REDISUS concepts:
 - observation reference
 - condition coding summary
 - recommendations
-- wound image attachments through `presentedForm`
+- wound image linkage through `Media`
+- attachment fallback through `presentedForm`
 - encounter and performer linkage when available
 
 ### CarePlan
@@ -132,6 +135,38 @@ Mapped REDISUS concepts:
 - condition relationship
 - author and encounter linkage when available
 
+### Organization
+
+Mapped REDISUS concepts:
+
+- `unit_id` and `unit_name` as the primary service organization
+- `team_id` and `team_name` as the care-team organization
+- hierarchical relation between team and unit through `partOf`
+
+### PractitionerRole
+
+Mapped REDISUS concepts:
+
+- clinical role derived from practitioner/evaluation context
+- organization allocation derived from team or unit scope
+- wound-care specialty placeholder prepared for future target value sets
+
+### Media
+
+Mapped REDISUS concepts:
+
+- stored wound images as reusable clinical resources
+- patient, encounter, operator, reason, and body-site linkage
+- attachment preservation for URL, inline data, or local image path
+
+### Provenance
+
+Mapped REDISUS concepts:
+
+- human authorship from the evaluating professional
+- derived AI generation with model/contract version traceability
+- explicit linkage between exported resources and the originating evaluation/images
+
 ## Validation approach
 
 This first version uses minimum structural validation by default:
@@ -142,7 +177,7 @@ This first version uses minimum structural validation by default:
 
 Optional validation through `fhir.resources` remains available but is not the
 default execution path because local environments may carry different package
-versions or FHIR model expectations.
+versions or target-profile expectations.
 
 ## Google Cloud Healthcare API boundary
 
@@ -157,6 +192,27 @@ Auth is intentionally externalized:
 
 This keeps transport concerns out of the mapper and makes it easier to add other
 destinations later.
+
+## Publication flow
+
+The package now includes `FHIRPublicationService` as the controlled write path.
+It is intentionally separate from the mapper and the API route.
+
+Current responsibilities:
+
+- validate bundle structure before send
+- compute a stable hash ignoring volatile export timestamps
+- skip duplicate publication of the same logical bundle
+- retry transient failures with bounded attempts
+- persist a local audit log and publication index
+
+What is intentionally not hard-wired yet:
+
+- asynchronous job orchestration
+- persistent DB-backed publication ledger
+- distributed locking
+- target-specific retry policies
+- operator-facing dashboards for publication status
 
 ## RNDS and other external dependencies
 
@@ -180,7 +236,7 @@ What still depends on external definition before RNDS work starts:
 ## Known limitations of this first version
 
 - The mapper covers the main wound case flow only.
-- Some REDISUS scores use local code systems instead of nationally adopted terminologies.
-- Images are represented as attachments in `DiagnosticReport`; a richer `Media` strategy can be added later.
-- Validation is structural-first, not full profile conformance validation.
-- No write path is wired into the existing clinical API yet.
+- Several score/service/reason codings still depend on local REDISUS value sets until the external target profile is fixed.
+- Validation is structural-first, not full conformance against a Brazilian production IG package.
+- Publication audit is currently file-based, not yet persisted in the application database.
+- No automatic publication route is wired into the existing clinical API yet.

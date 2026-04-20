@@ -2,7 +2,10 @@
   "resourceType": "CarePlan",
   "id": "careplan-venous-001",
   "meta": {
-    "lastUpdated": "2026-04-19T19:30:31-03:00"
+    "lastUpdated": "2026-04-19T20:07:03-03:00",
+    "profile": [
+      "https://heal.redisus.org.br/fhir/StructureDefinition/redisus-wound-care-plan"
+    ]
   },
   "status": "active",
   "intent": "plan",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .common import FHIRResourceModel, compact_dict
+from .common import FHIRResourceModel, REDISUS_CARE_PLAN_PROFILE, compact_dict, ensure_meta_profile
 
 
 @dataclass(slots=True)
@@ -24,9 +24,11 @@ class CarePlanResource(FHIRResourceModel):
     note: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        meta = ensure_meta_profile(self.meta, REDISUS_CARE_PLAN_PROFILE)
         return compact_dict(
             {
                 **self.base_dict(),
+                "meta": meta,
                 "status": self.status,
                 "intent": self.intent,
                 "title": self.title,

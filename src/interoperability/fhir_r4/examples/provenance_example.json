@@ -1,0 +1,154 @@
+{
+  "resourceType": "Provenance",
+  "id": "provenance-evaluation-2026-04-19-001",
+  "meta": {
+    "lastUpdated": "2026-04-19T20:07:03-03:00",
+    "profile": [
+      "https://heal.redisus.org.br/fhir/StructureDefinition/redisus-provenance"
+    ]
+  },
+  "target": [
+    {
+      "reference": "Condition/lesion-venous-001"
+    },
+    {
+      "reference": "Encounter/encounter-2026-04-19-001"
+    },
+    {
+      "reference": "Media/media-https-storage-googleapis-com-redisus-demo-wounds-patient-0"
+    },
+    {
+      "reference": "Observation/evaluation-2026-04-19-001"
+    },
+    {
+      "reference": "DiagnosticReport/evaluation-2026-04-19-001"
+    },
+    {
+      "reference": "CarePlan/careplan-venous-001"
+    }
+  ],
+  "recorded": "2026-04-19T14:35:00-03:00",
+  "reason": [
+    {
+      "coding": [
+        {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/provenance-reason",
+          "code": "clinical-interoperability-export",
+          "display": "Clinical interoperability export"
+        }
+      ],
+      "text": "Clinical interoperability export"
+    }
+  ],
+  "activity": {
+    "coding": [
+      {
+        "system": "https://heal.redisus.org.br/fhir/CodeSystem/provenance-activity",
+        "code": "derive-fhir-wound-case",
+        "display": "Derive wound case bundle"
+      }
+    ],
+    "text": "Derive wound case bundle"
+  },
+  "agent": [
+    {
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type",
+            "code": "author",
+            "display": "Author"
+          },
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/provenance-agent-type",
+            "code": "author",
+            "display": "Author"
+          }
+        ],
+        "text": "Author"
+      },
+      "role": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/practitioner-role",
+              "code": "doctor",
+              "display": "Doctor"
+            },
+            {
+              "system": "https://heal.redisus.org.br/fhir/CodeSystem/clinical-role",
+              "code": "doctor",
+              "display": "Doctor"
+            }
+          ],
+          "text": "Doctor"
+        }
+      ],
+      "who": {
+        "reference": "Practitioner/practitioner-user-helena-martins"
+      },
+      "onBehalfOf": {
+        "reference": "Organization/organization-health-unit-ubs-centro"
+      }
+    },
+    {
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type",
+            "code": "assembler",
+            "display": "Assembler"
+          },
+          {
+            "system": "https://heal.redisus.org.br/fhir/CodeSystem/provenance-agent-type",
+            "code": "assembler",
+            "display": "Assembler"
+          }
+        ],
+        "text": "Assembler"
+      },
+      "role": [
+        {
+          "coding": [
+            {
+              "system": "https://heal.redisus.org.br/fhir/CodeSystem/automation-role",
+              "code": "clinical-ai-pipeline",
+              "display": "Clinical AI pipeline"
+            }
+          ],
+          "text": "Clinical AI pipeline"
+        }
+      ],
+      "who": {
+        "identifier": {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/ai-pipeline",
+          "value": "redisus-fhir-demo-v1",
+          "use": "official"
+        },
+        "display": "wound_assessment"
+      },
+      "onBehalfOf": {
+        "reference": "PractitionerRole/practitioner-role-user-helena-martins"
+      }
+    }
+  ],
+  "entity": [
+    {
+      "role": "source",
+      "what": {
+        "reference": "Media/media-https-storage-googleapis-com-redisus-demo-wounds-patient-0"
+      }
+    },
+    {
+      "role": "source",
+      "what": {
+        "identifier": {
+          "system": "https://heal.redisus.org.br/fhir/CodeSystem/evaluation-id",
+          "value": "evaluation-2026-04-19-001",
+          "use": "official"
+        },
+        "display": "REDISUS wound evaluation"
+      }
+    }
+  ]
+}

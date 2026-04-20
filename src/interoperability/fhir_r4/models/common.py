@@ -9,13 +9,27 @@ FHIR_VERSION = "4.0.1"
 REDISUS_FHIR_BASE = "https://heal.redisus.org.br/fhir"
 REDISUS_CODE_SYSTEM = f"{REDISUS_FHIR_BASE}/CodeSystem"
 REDISUS_STRUCTURE_DEFINITION = f"{REDISUS_FHIR_BASE}/StructureDefinition"
+REDISUS_VALUE_SET = f"{REDISUS_FHIR_BASE}/ValueSet"
 
 LOINC_SYSTEM = "http://loinc.org"
 SNOMED_SYSTEM = "http://snomed.info/sct"
 ICD10_SYSTEM = "http://hl7.org/fhir/sid/icd-10"
 UCUM_SYSTEM = "http://unitsofmeasure.org"
+PRACTITIONER_ROLE_SYSTEM = "http://terminology.hl7.org/CodeSystem/practitioner-role"
+MEDIA_CATEGORY_SYSTEM = "http://terminology.hl7.org/CodeSystem/media-category"
+PROVENANCE_PARTICIPANT_TYPE_SYSTEM = "http://terminology.hl7.org/CodeSystem/provenance-participant-type"
 
 BR_PATIENT_PROFILE = "http://www.saude.gov.br/fhir/r4/StructureDefinition/BRIndividuo-1.0"
+REDISUS_PRACTITIONER_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-practitioner"
+REDISUS_ORGANIZATION_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-organization"
+REDISUS_PRACTITIONER_ROLE_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-practitioner-role"
+REDISUS_ENCOUNTER_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-encounter"
+REDISUS_OBSERVATION_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-wound-observation"
+REDISUS_CONDITION_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-wound-condition"
+REDISUS_DIAGNOSTIC_REPORT_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-wound-diagnostic-report"
+REDISUS_CARE_PLAN_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-wound-care-plan"
+REDISUS_MEDIA_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-wound-media"
+REDISUS_PROVENANCE_PROFILE = f"{REDISUS_STRUCTURE_DEFINITION}/redisus-provenance"
 
 
 def fhir_now() -> str:
@@ -30,6 +44,32 @@ def build_identifier(system: str, value: str, use: str | None = "official") -> d
     payload: dict[str, Any] = {"system": system, "value": value}
     if use:
         payload["use"] = use
+    return payload
+
+
+def build_coding(system: str, code: str, display: str | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {"system": system, "code": code}
+    if display:
+        payload["display"] = display
+    return payload
+
+
+def build_codeable_concept(*codings: dict[str, Any], text: str | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    coding_items = [dict(coding) for coding in codings if coding]
+    if coding_items:
+        payload["coding"] = coding_items
+    if text:
+        payload["text"] = text
+    return payload
+
+
+def ensure_meta_profile(meta: dict[str, Any] | None, profile_url: str) -> dict[str, Any]:
+    payload = dict(meta or {})
+    profiles = list(payload.get("profile") or [])
+    if profile_url not in profiles:
+        profiles.append(profile_url)
+    payload["profile"] = profiles
     return payload
 
 
@@ -72,4 +112,3 @@ class FHIRResourceModel:
 
     def as_reference(self) -> dict[str, str]:
         return {"reference": f"{self.resource_type}/{self.id}"}
-
