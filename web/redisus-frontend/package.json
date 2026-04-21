@@ -11,7 +11,7 @@
   "dependencies": {
     "@genkit-ai/googleai": "^1.28.0",
     "clsx": "^2.1.1",
-    "firebase": "^11.6.0",
+    "firebase": "^12.12.1",
     "genkit": "^1.30.1",
     "jspdf": "^2.5.1",
     "lucide-react": "^1.8.0",
