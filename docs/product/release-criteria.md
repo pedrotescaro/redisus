@@ -2,13 +2,15 @@
 
 O piloto não deve ser tratado como liberação assistencial irrestrita. Ele é uma etapa técnica supervisionada.
 
-## v0.1.0
+## v0.1.0-alpha
 
 - Repositório sem datasets, checkpoints, runs e bancos versionados.
 - README alinhado com arquitetura real.
 - `SECURITY.md`, `CODEOWNERS`, templates e branch protection documentados.
 - CI Python, CI Web, CodeQL, Secret Scan e Artifact Guard ativos.
 - Documentação de setup, testes, releases e política de artefatos.
+- Changelog e notas em `docs/operations/releases/v0.1.0-alpha.md`.
+- Aviso claro de que o release nao e liberacao assistencial.
 
 ## v0.2.0
 
