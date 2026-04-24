@@ -28,7 +28,7 @@ git tag v0.1.0-alpha
 git push origin v0.1.0-alpha
 ```
 
-O workflow `Release` cria uma release draft usando `docs/operations/releases/<tag>.md`. O mantenedor deve revisar notas, riscos conhecidos e artefatos antes de publicar.
+O workflow `Release` publica a release usando `docs/operations/releases/<tag>.md`. O mantenedor deve revisar notas, riscos conhecidos e artefatos antes de criar e enviar a tag.
 
 ## Rollback
 
