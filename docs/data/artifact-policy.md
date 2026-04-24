@@ -2,6 +2,8 @@
 
 O repositório deve ser leve, auditável e seguro. Artefatos gerados não devem ser versionados no Git.
 
+Esta politica deve ser lida junto com `docs/data/clinical-data-policy.md`, `docs/security/data-classification.md` e `SECURITY.md`.
+
 ## Permitido no Git
 
 - Código-fonte.
@@ -44,6 +46,21 @@ Enquanto o storage externo não for definido, use `artifact_uri: pending://...` 
 ## Registro de datasets
 
 Cada dataset deve ter dataset card em `docs/data/` ou manifest em `data/manifests/`, incluindo origem, licença, termos de uso, data de coleta, splits, transformações, riscos e limitações.
+
+## Fluxo recomendado para artefatos externos
+
+1. Gere ou baixe o artefato fora do Git.
+2. Calcule checksum SHA-256.
+3. Registre origem, licenca, versao, data e responsavel.
+4. Atualize dataset card, manifest ou model card.
+5. Aponte `artifact_uri` para storage externo ou `pending://...` enquanto a decisao institucional estiver pendente.
+6. Execute Artifact Guard antes do PR.
+
+## Dados clinicos e LGPD
+
+Dados clinicos reais, identificaveis ou sensiveis sao proibidos no Git. Isso inclui imagens de feridas, FHIR Bundles reais, relatorios, timelines, dumps, screenshots e logs com dados pessoais.
+
+Quando a validacao clinica exigir material real, o repositorio deve guardar apenas metadados, protocolo, hash, versao anonimizada aprovada e referencia ao local externo autorizado.
 
 ## Exceções
 

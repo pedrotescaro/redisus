@@ -24,6 +24,8 @@ Descreva de forma curta o problema e a solução aplicada.
 - [ ] Se o PR altera ML, `ml/registry/models.yaml` e model cards foram atualizados.
 - [ ] Se o PR altera datasets, o dataset card/manifest foi atualizado.
 - [ ] Artefatos binários estão em storage externo ou cache local ignorado pelo Git.
+- [ ] `docs/data/clinical-data-policy.md` foi respeitado.
+- [ ] Nenhum FHIR Bundle real, dump local, imagem clinica real ou relatorio identificavel foi versionado.
 
 ## Riscos
 
