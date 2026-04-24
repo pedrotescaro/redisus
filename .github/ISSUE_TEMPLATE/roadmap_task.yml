@@ -1,0 +1,70 @@
+name: Roadmap task
+description: Planejar uma tarefa tecnica priorizada do roadmap Redisus/Heal+.
+title: "[Roadmap] "
+labels: ["type:architecture", "status:ready"]
+body:
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Prioridade
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area principal
+      options:
+        - architecture
+        - backend
+        - frontend
+        - fhir
+        - ml
+        - data
+        - docs
+        - devops
+        - security
+        - product
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo tecnico
+      description: Descreva o resultado concreto esperado.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceite
+      description: Liste os sinais objetivos de conclusao.
+      placeholder: |
+        - [ ] CI passa
+        - [ ] Documentacao atualizada
+        - [ ] Testes cobrem o contrato alterado
+    validations:
+      required: true
+
+  - type: textarea
+    id: impacted_paths
+    attributes:
+      label: Arquivos ou pastas impactados
+      placeholder: |
+        - .github/workflows/
+        - src/interoperability/
+        - docs/
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencias e decisoes
+      description: Informe bloqueios, decisoes humanas ou PRs anteriores.
+
