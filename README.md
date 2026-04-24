@@ -7,6 +7,9 @@ Plataforma de apoio ao diagnóstico e acompanhamento longitudinal de feridas, co
 [![CodeQL](https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml)
 [![Secret Scan](https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml)
 [![Artifact Guard](https://github.com/pedrotescaro/redisus/actions/workflows/artifact-guard.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/artifact-guard.yml)
+[![Dependency Review](https://github.com/pedrotescaro/redisus/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/dependency-review.yml)
+[![Release](https://github.com/pedrotescaro/redisus/actions/workflows/release.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/pedrotescaro/redisus?label=release)](https://github.com/pedrotescaro/redisus/releases/tag/v0.1.0-alpha)
 [![License](https://img.shields.io/github/license/pedrotescaro/redisus)](LICENSE)
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
@@ -52,6 +55,8 @@ A avaliação de feridas crônicas ainda depende muito de inspeção visual subj
 
 Este repositório é uma base técnica séria para produto clínico e pesquisa aplicada, mas ainda não deve ser apresentado como sistema clínico pronto para produção assistencial.
 
+O `main` já publicou o primeiro alpha técnico: [`v0.1.0-alpha`](https://github.com/pedrotescaro/redisus/releases/tag/v0.1.0-alpha), em 2026-04-24. Esse release marca a limpeza inicial de governança, CI/CD, documentação e política de artefatos; não é liberação assistencial.
+
 O estado atual é:
 
 - backend oficial consolidado em [`apps/api/`](apps/api/);
@@ -59,6 +64,7 @@ O estado atual é:
 - wrappers estáveis em [`packages/`](packages/);
 - frontend web em [`web/redisus-frontend/`](web/redisus-frontend/);
 - ML e artefatos experimentais descritos em [`ml/`](ml/), com datasets, checkpoints, runs e imagens temporárias mantidos fora do Git por padrão.
+- release notes versionadas em [`docs/operations/releases/v0.1.0-alpha.md`](docs/operations/releases/v0.1.0-alpha.md).
 
 ## Trilha Rápida para Desenvolvedores
 
@@ -87,6 +93,7 @@ Documentação operacional:
 - setup local: [`docs/dev/setup.md`](docs/dev/setup.md)
 - testes: [`docs/dev/testing.md`](docs/dev/testing.md)
 - política de artefatos: [`docs/data/artifact-policy.md`](docs/data/artifact-policy.md)
+- classificação de dados clínicos: [`docs/security/data-classification.md`](docs/security/data-classification.md)
 - releases: [`docs/operations/release.md`](docs/operations/release.md)
 
 ## Fluxo Clínico Principal
@@ -193,6 +200,7 @@ Essa é a trilha mais importante do projeto neste momento. Novas features devem 
 ### CI/CD e Qualidade
 
 - GitHub Actions
+- Dependency Review com fallback quando a API do GitHub não está disponível no repositório
 - CodeQL
 - Gitleaks
 - Dependabot
@@ -396,7 +404,9 @@ artifacts/               legados, saídas e logs históricos
 - Demo script: [docs/product/demo-script.md](docs/product/demo-script.md)
 - Baseline de modelos: [ml/benchmarks/baseline_report.md](ml/benchmarks/baseline_report.md)
 - Model card principal: [ml/model_cards/wound_classifier_v3.md](ml/model_cards/wound_classifier_v3.md)
+- Release atual: [docs/operations/releases/v0.1.0-alpha.md](docs/operations/releases/v0.1.0-alpha.md)
 - Segurança: [SECURITY.md](SECURITY.md)
+- Classificação de dados clínicos: [docs/security/data-classification.md](docs/security/data-classification.md)
 - Roadmap: [ROADMAP.md](ROADMAP.md)
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
 
@@ -454,7 +464,13 @@ Use [`.env.example`](.env.example) como contrato central. Não versione segredos
 ### Python
 
 ```powershell
-python -m pytest tests/test_clinical_api_contracts.py tests/test_api_security.py tests/test_clinical_dashboard.py -q
+python -m pytest `
+  tests/test_clinical_api_contracts.py `
+  tests/test_fhir_client.py `
+  tests/test_risk_stratification.py `
+  tests/test_official_api_factory.py `
+  tests/test_api_security.py `
+  -q
 ```
 
 ### Frontend
@@ -462,6 +478,7 @@ python -m pytest tests/test_clinical_api_contracts.py tests/test_api_security.py
 ```powershell
 cd web\redisus-frontend
 npm run lint
+npx tsc --noEmit
 npm run build
 ```
 
@@ -483,7 +500,7 @@ Antes de produção real, ainda é necessário:
 - aplicar `storage.rules` no ambiente Firebase real;
 - revisar permissões reais de acesso;
 - ativar branch protection;
-- fechar o processo de release.
+- manter o fluxo de releases semver com tag `v*` e notas versionadas.
 
 ## Licença
 
@@ -507,7 +524,8 @@ Importante:
 ## Importante
 
 - O projeto já roda e demonstra valor técnico real.
-- O fluxo clínico principal está sendo fechado com prioridade máxima.
+- O primeiro alpha técnico (`v0.1.0-alpha`) já está publicado.
+- O fluxo clínico principal segue sendo refinado com prioridade máxima.
 - A base ainda não representa produto clínico homologado.
 - A camada de ML continua parcialmente experimental e precisa de benchmark consolidado.
 
@@ -520,9 +538,9 @@ Importante:
 
 ## Próximos Passos
 
-- fechar o fluxo principal clínico ponta a ponta com UX consistente;
-- tornar a fila clínica acionável no dashboard;
-- consolidar dataset, manifests e QA de coleta;
-- fortalecer segurança de produção;
-- evoluir interoperabilidade FHIR e integração SUS;
-- transformar a base atual em acompanhamento longitudinal real de paciente.
+- estabilizar o recorte `v0.2.0` com OpenAPI inicial, contratos clínicos e cobertura maior;
+- tornar a fila clínica mais acionável no dashboard;
+- consolidar dataset, manifests e QA de coleta fora do Git;
+- fortalecer segurança de produção com branch protection e regras Firebase aplicadas;
+- evoluir interoperabilidade FHIR/RNDS e integração SUS Digital;
+- transformar a base atual em acompanhamento longitudinal real de paciente, sempre com revisão humana obrigatória.
