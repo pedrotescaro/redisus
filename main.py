@@ -19,7 +19,6 @@ Uso:
     python main.py --mode demo
 """
 import argparse
-import os
 import sys
 import time
 from datetime import datetime
@@ -30,8 +29,9 @@ import cv2
 import numpy as np
 from loguru import logger
 
-# Adiciona src ao path
-sys.path.insert(0, str(Path(__file__).parent))
+from packages.shared.runtime import ensure_project_root_on_path
+
+ensure_project_root_on_path()
 
 from src.core.config import config, EtiologyType, ETIOLOGY_NAMES
 from src.capture.video_stream import VideoStream, ImageLoader, FrameData

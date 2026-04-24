@@ -25,8 +25,9 @@ import cv2
 import numpy as np
 from loguru import logger
 
-# Adiciona src ao path
-sys.path.insert(0, str(Path(__file__).parent))
+from packages.shared.runtime import ensure_project_root_on_path
+
+ensure_project_root_on_path()
 
 # Importa módulos do projeto
 from src.presentation.ui_renderer import UIRenderer, HUDPanel, AnalysisOverlay, UITheme
