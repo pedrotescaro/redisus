@@ -24,11 +24,11 @@ Antes de criar uma tag:
 ## Como publicar
 
 ```powershell
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.0-alpha
+git push origin v0.1.0-alpha
 ```
 
-O workflow `Release` cria uma release draft. O mantenedor deve revisar notas, riscos conhecidos e artefatos antes de publicar.
+O workflow `Release` cria uma release draft usando `docs/operations/releases/<tag>.md`. O mantenedor deve revisar notas, riscos conhecidos e artefatos antes de publicar.
 
 ## Rollback
 

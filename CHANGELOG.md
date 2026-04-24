@@ -8,6 +8,13 @@ O formato segue a ideia de *Keep a Changelog* e versionamento semântico quando 
 
 ### Added
 
+- fila de PRs para governanca, seguranca, CI, testes, dados, entrypoints, cobertura e release alpha;
+- notas versionadas para `v0.1.0-alpha`.
+
+## [0.1.0-alpha] - 2026-04-24
+
+### Added
+
 - nova estrutura documental em `docs/`;
 - roadmap executivo do módulo de diagnóstico;
 - dataset card, model card e baseline report;
