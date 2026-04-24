@@ -14,7 +14,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check dependency review support
+        id: dependency-review-support
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pullRequest = context.payload.pull_request;
+            const basehead = `${pullRequest.base.sha}...${pullRequest.head.sha}`;
+
+            try {
+              await github.request(
+                "GET /repos/{owner}/{repo}/dependency-graph/compare/{basehead}",
+                { owner, repo, basehead },
+              );
+              core.setOutput("supported", "true");
+            } catch (error) {
+              const unsupportedStatus = [403, 404].includes(error.status);
+              const unsupportedMessage = /dependency (graph|review).*not (available|supported|enabled)/i.test(
+                error.message || "",
+              );
+
+              if (unsupportedStatus || unsupportedMessage) {
+                core.warning(
+                  "Dependency review API is not available for this repository. Enable Dependency graph, and GitHub Advanced Security for private repositories, to enforce this check.",
+                );
+                core.setOutput("supported", "false");
+                return;
+              }
+
+              throw error;
+            }
+
       - name: Review dependency changes
+        if: steps.dependency-review-support.outputs.supported == 'true'
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+
+      - name: Skip dependency review
+        if: steps.dependency-review-support.outputs.supported != 'true'
+        run: echo "Dependency review skipped because the API is not available for this repository."
