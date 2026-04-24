@@ -1,38 +1,90 @@
 models:
   - id: heal-two-stage-resnet50
+    version: pending
     status: runtime-preferred
     task: clinical-wound-triage
-    artifact: models/wound_classifier_v2/modelo_estagio1.pth + models/wound_classifier_v2/modelo_estagio2_semAugmentation.pth
-    metadata: models/wound_classifier_v2/model_metadata_v2.json
+    artifact_uri: pending://model-registry/heal-two-stage-resnet50
+    local_cache_path:
+      - models/wound_classifier_v2/modelo_estagio1.pth
+      - models/wound_classifier_v2/modelo_estagio2_semAugmentation.pth
+    sha256: TBD
+    license: TBD
+    intended_use: Clinical wound triage research support with mandatory human review.
+    limitations:
+      - Not cleared for autonomous clinical decision-making.
+      - Requires local checkpoint cache that is intentionally not tracked by Git.
+    metrics:
+      source: ml/benchmarks/baseline_report.md
     thresholds:
       expert_review: 0.80
       high_confidence: 0.95
-    notes: pipeline clínico com confidence margin, entropy e revisão especialista
+    notes: Pipeline with confidence margin, entropy, and specialist-review flag.
 
   - id: wound-classifier-v1
+    version: pending
     status: legacy
     task: wound-image-classification
-    artifact: models/wound_classifier/wound_classifier_final.keras
-    metadata: models/wound_classifier/model_metadata.json
-    notes: baseline inicial com 24 classes do acervo original
+    artifact_uri: pending://model-registry/wound-classifier-v1
+    local_cache_path:
+      - models/wound_classifier/wound_classifier_final.keras
+    sha256: TBD
+    license: TBD
+    intended_use: Legacy baseline for historical comparison.
+    limitations:
+      - Kept for reproducibility only.
+      - Not a preferred runtime model.
+    metrics:
+      source: ml/model_cards/pressure_injury_stage_classifier.md
+    notes: Initial baseline with the original wound image collection.
 
   - id: wound-classifier-v3
+    version: pending
     status: experimental
     task: wound-image-classification
-    artifact: models/wound_classifier_v2/wound_classifier_v2.pt
-    metadata: models/wound_classifier_v2/model_metadata_v2.json
-    notes: melhor baseline documentado no repositório atual
+    artifact_uri: pending://model-registry/wound-classifier-v3
+    local_cache_path:
+      - models/wound_classifier_v2/wound_classifier_v2.pt
+      - models/wound_classifier_v2/wound_classifier_v2_traced.pt
+    sha256: TBD
+    license: TBD
+    intended_use: Experimental wound image classification baseline.
+    limitations:
+      - Requires external artifact publication before release.
+      - Must be validated against dataset cards and split manifests.
+    metrics:
+      source: ml/model_cards/wound_classifier_v3.md
+    notes: Best documented local baseline in the current repository.
 
   - id: body-part-detector
+    version: pending
     status: experimental
     task: body-region-detection
-    artifact: models/body_part_detector/body_part_detector.pt
-    metadata: models/body_part_detector/metadata.json
-    notes: apoio a filtragem anatômica e contexto da imagem
+    artifact_uri: pending://model-registry/body-part-detector
+    local_cache_path:
+      - models/body_part_detector/body_part_detector.pt
+    sha256: TBD
+    license: TBD
+    intended_use: Anatomical-region support for clinical context filtering.
+    limitations:
+      - Auxiliary signal only.
+      - Needs external artifact publication and benchmark report.
+    metrics:
+      source: ml/benchmarks/baseline_report.md
+    notes: Supports anatomical filtering and image context priors.
 
   - id: yolo-wound-detector
+    version: pending
     status: exploratory
     task: wound-detection
-    artifact: runs/detect/runs/detect/wound/wound_yolov8/weights/best.pt
-    metadata: runs/detect/runs/detect/wound/wound_yolov8/results.csv
-    notes: ainda sem benchmark congelado e sem export oficial ONNX no repo
+    artifact_uri: pending://model-registry/yolo-wound-detector
+    local_cache_path:
+      - runs/detect/runs/detect/wound/wound_yolov8/weights/best.pt
+    sha256: TBD
+    license: TBD
+    intended_use: Exploratory wound detection benchmark.
+    limitations:
+      - No frozen benchmark yet.
+      - No official ONNX export registered.
+    metrics:
+      source: pending://benchmark/yolo-wound-detector
+    notes: Do not treat this artifact as a release asset until benchmark and storage are finalized.

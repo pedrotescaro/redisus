@@ -7,6 +7,7 @@ Descreva de forma curta o problema e a solução aplicada.
 - [ ] testes executados
 - [ ] screenshots anexados quando aplicável
 - [ ] docs atualizadas
+- [ ] não foram adicionados datasets, checkpoints, bancos locais, runs ou artefatos gerados
 
 ## Segurança
 
@@ -16,6 +17,13 @@ Descreva de forma curta o problema e a solução aplicada.
 - [ ] Campos inesperados são rejeitados?
 - [ ] Upload foi validado no backend?
 - [ ] Há teste negativo de bypass/IDOR?
+- [ ] Não há dados clínicos reais, identificáveis ou sensíveis no PR?
+
+## Dados e modelos
+
+- [ ] Se o PR altera ML, `ml/registry/models.yaml` e model cards foram atualizados.
+- [ ] Se o PR altera datasets, o dataset card/manifest foi atualizado.
+- [ ] Artefatos binários estão em storage externo ou cache local ignorado pelo Git.
 
 ## Riscos
 

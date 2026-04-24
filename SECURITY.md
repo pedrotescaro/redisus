@@ -13,6 +13,7 @@ O backend nunca deve confiar no frontend.
 - nunca versionar credenciais, chaves de API ou service accounts;
 - nunca subir imagens de pacientes reais para o Git;
 - nunca usar dados clínicos identificáveis em exemplos, screenshots ou testes;
+- nunca versionar checkpoints, bancos locais, runs de treino ou datasets completos;
 - manter arquivos `.env`, `.env.local` e equivalentes apenas no ambiente local;
 - preferir IDs sintéticos e datasets públicos ou explicitamente autorizados.
 
@@ -23,6 +24,7 @@ O backend nunca deve confiar no frontend.
 - `docs/security/validation-rules.md`
 - `docs/security/data-classification.md`
 - `docs/security/incident-response.md`
+- `docs/data/artifact-policy.md`
 
 ## Reporte de vulnerabilidades
 
@@ -45,5 +47,6 @@ Se você identificar uma vulnerabilidade:
 - remover segredos do workspace versionável;
 - centralizar o contrato de ambiente em exemplos seguros;
 - adicionar verificação de segredos no CI;
+- manter Artifact Guard ativo para impedir dados, modelos e bancos rastreados em PRs;
 - restringir CORS e validar autenticação por ambiente;
 - formalizar política de retenção e anonimização de dados.

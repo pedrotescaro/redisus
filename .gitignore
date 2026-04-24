@@ -7,6 +7,9 @@ __pycache__/
 dist/
 build/
 *.egg
+.coverage
+coverage.xml
+htmlcov/
 
 # ===== Virtual Environment =====
 .venv/
@@ -28,6 +31,7 @@ nul
 # ===== Logs =====
 logs/
 *.log
+artifacts/logs/
 
 # ===== Database =====
 *.db
@@ -40,15 +44,41 @@ backend/firebase-service-account.json
 # ===== Output/Generated =====
 output/
 exports/
+runs/
+tmp_images/
+tmp_img_debug*/
+tmp_manual_*/
+zz_pytest_*/
+pytest-cache-files-*/
+.pytest-ci-local/
+.pytest-tmp/
+.pytest_ci_tmp/
+.codex-pytest-run-*/
+.codex-piid-pytest/
 
-# ===== Models (new untracked detectors) =====
-models/wound_detector/
-models/pressure_injury_stage_classifier/
+# ===== Models and generated ML artifacts =====
+models/
+*.pt
+*.pth
+*.keras
+*.h5
+*.ckpt
+*.onnx
+*.tflite
+*.task
+*.pb
+events.out.tfevents*
 
 # ===== Dataset (large image files) =====
 dataset/
+datasets/
 dataset/piid/
 data/external/piid/
+
+# ===== Generated reports and binary research exports =====
+docs/research/*.docx
+*.docx
+*.mp4
 
 # ===== Temporary files =====
 tmpclaude-*
@@ -64,3 +94,10 @@ tmp_*.docx
 artifacts/generated/
 artifacts/tmp/
 artifacts/cache/
+
+# ===== Frontend =====
+web/redisus-frontend/node_modules/
+web/redisus-frontend/.next/
+web/redisus-frontend/out/
+web/redisus-frontend/dist/
+web/redisus-frontend/tsconfig.tsbuildinfo

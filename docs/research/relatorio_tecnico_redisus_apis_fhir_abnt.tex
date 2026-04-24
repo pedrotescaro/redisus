@@ -1,0 +1,1000 @@
+\documentclass[
+    12pt,
+    openright,
+    oneside,
+    a4paper,
+    chapter=TITLE,
+    section=TITLE,
+    brazil,
+    sumario=tradicional,
+    hidelinks
+]{abntex2}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{iftex}
+\ifPDFTeX
+\usepackage[scaled]{helvet}
+\renewcommand\familydefault{\sfdefault}
+\else
+\usepackage{fontspec}
+\setmainfont{Arial}
+\setsansfont{Arial}
+\fi
+\usepackage{microtype}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{ragged2e}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{csquotes}
+\usepackage[alf]{abntex2cite}
+\usepackage{hyperref}
+
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0.2cm}
+\setlength{\emergencystretch}{3em}
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{0pt}
+\OnehalfSpacing
+\setlist[itemize]{leftmargin=1.2cm}
+\setlist[enumerate]{leftmargin=1.2cm}
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash\hspace{0pt}}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash\hspace{0pt}}p{#1}}
+\urlstyle{same}
+
+\newcommand{\codecell}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\dirpath}[1]{\codecell{#1}}
+\newcommand{\route}[1]{\codecell{#1}}
+\newcommand{\fhirres}[1]{\codecell{#1}}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  backgroundcolor=\color{black!2}
+}
+
+\titulo{Relat\'orio T\'ecnico do Reposit\'orio REDISUS\\
+\large Arquitetura atual, funcionamento das APIs, fluxo cl\'inico, camada de IA e aplica\c{c}\~ao de HL7 FHIR R4}
+\autor{Documento t\'ecnico elaborado a partir do estado atual do reposit\'orio}
+\local{Suzano - SP}
+\data{19 de abril de 2026}
+\instituicao{%
+    Faculdade de Tecnologia de Ferraz de Vasconcelos\\
+    Projeto HEAL+ / REDISUS
+}
+\tipotrabalho{Relat\'orio t\'ecnico}
+\preambulo{Documento de an\'alise arquitetural e funcional do reposit\'orio \texttt{pedrotescaro/redisus}, com foco nas APIs existentes, no fluxo cl\'inico do sistema e na aplica\c{c}\~ao da camada de interoperabilidade FHIR R4 ao contexto do projeto.}
+
+\begin{document}
+
+\imprimircapa
+\imprimirfolhaderosto*
+
+\begin{resumo}
+Este relat\'orio descreve, de forma t\'ecnica e detalhada, o estado atual do reposit\'orio \texttt{pedrotescaro/redisus} em abril de 2026. O texto consolida a arquitetura real do projeto, explica a organiza\c{c}\~ao entre \texttt{apps/}, \texttt{packages/}, \texttt{src/}, \texttt{web/} e \texttt{docs/}, detalha o backend Flask oficial, o contrato da API cl\'inica, o fluxo de avalia\c{c}\~ao de feridas, a gera\c{c}\~ao de resultados de IA, a cria\c{c}\~ao de \textit{care plans}, \textit{follow-ups} e alertas, bem como o papel do dashboard cl\'inico e dos m\'odulos de seguran\c{c}a. O relat\'orio tamb\'em apresenta uma explica\c{c}\~ao estruturada do padr\~ao HL7 FHIR R4, discute sua utilidade para interoperabilidade cl\'inica e mostra como o REDISUS j\'a o aplica por meio de uma camada dedicada em \texttt{src/interoperability/fhir\_r4/}. S\~ao examinados os recursos atualmente mapeados, a rota de exporta\c{c}\~ao por caso cl\'inico, a estrat\'egia de valida\c{c}\~ao, a prepara\c{c}\~ao para publica\c{c}\~ao em FHIR store e os limites que ainda separam a implementa\c{c}\~ao atual de uma integra\c{c}\~ao externa de produ\c{c}\~ao. O documento diferencia explicitamente o que j\'a existe em c\'odigo, o que est\'a formalizado em arquitetura e o que ainda deve ser tratado como evolu\c{c}\~ao futura.
+
+\textbf{Palavras-chave}: REDISUS, HEAL+, API cl\'inica, feridas, interoperabilidade, HL7 FHIR R4, arquitetura de software.
+\end{resumo}
+
+\begin{siglas}
+    \item[ADC] Application Default Credentials
+    \item[API] Application Programming Interface
+    \item[BWAT] Bates-Jensen Wound Assessment Tool
+    \item[CDA] Clinical Document Architecture
+    \item[CNN] Convolutional Neural Network
+    \item[CPF] Cadastro de Pessoas F\'isicas
+    \item[CNS] Cart\~ao Nacional de Sa\'ude
+    \item[CI] Continuous Integration
+    \item[FHIR] Fast Healthcare Interoperability Resources
+    \item[GCP] Google Cloud Platform
+    \item[HL7] Health Level Seven
+    \item[IA] Intelig\^encia Artificial
+    \item[IG] Implementation Guide
+    \item[JSON] JavaScript Object Notation
+    \item[LGPD] Lei Geral de Prote\c{c}\~ao de Dados Pessoais
+    \item[LOINC] Logical Observation Identifiers Names and Codes
+    \item[ML] Machine Learning
+    \item[PIID] Pressure Injury Images Dataset
+    \item[PUSH] Pressure Ulcer Scale for Healing
+    \item[RBAC] Role-Based Access Control
+    \item[REST] Representational State Transfer
+    \item[RNDS] Rede Nacional de Dados em Sa\'ude
+    \item[ROI] Region of Interest
+    \item[SNOMED CT] Systematized Nomenclature of Medicine Clinical Terms
+    \item[SUS] Sistema \'Unico de Sa\'ude
+    \item[UUID] Universally Unique Identifier
+\end{siglas}
+
+\pdfbookmark[0]{\contentsname}{toc}
+\tableofcontents*
+\cleardoublepage
+
+\textual
+
+\chapter{Introdu\c{c}\~ao}
+
+O reposit\'orio \texttt{pedrotescaro/redisus} materializa a evolu\c{c}\~ao do projeto HEAL+ / REDISUS como uma plataforma de apoio ao diagn\'ostico e ao acompanhamento longitudinal de feridas, combinando backend cl\'inico em Python, frontend web em Next.js, persist\^encia local, pipeline de intelig\^encia artificial e, mais recentemente, uma camada dedicada de interoperabilidade baseada em HL7 FHIR R4, conforme a documenta\c{c}\~ao oficial do pr\'oprio projeto.
+
+O sistema foi organizado em torno de um fluxo cl\'inico principal que o pr\'oprio reposit\'orio explicita como:
+
+\begin{center}
+\texttt{paciente -> les\~ao -> imagem -> IA -> avalia\c{c}\~ao -> evolu\c{c}\~ao -> plano -> acompanhamento}
+\end{center}
+
+Esse encadeamento \'e importante porque mostra que o projeto n\~ao est\'a restrito a um classificador de imagem isolado. A proposta \'e organizar um \textit{pipeline} cl\'inico mais amplo, no qual imagem, avalia\c{c}\~ao estruturada, resultado de IA, prioriza\c{c}\~ao operacional, plano de cuidado e rastreabilidade longitudinal convivem dentro do mesmo sistema, como descrito no README e no fluxo cl\'inico versionado do reposit\'orio.
+
+Este relat\'orio foi elaborado com base na leitura direta do c\'odigo-fonte, da documenta\c{c}\~ao versionada no reposit\'orio e das especifica\c{c}\~oes oficiais do padr\~ao FHIR e do Cloud Healthcare API, tendo como objetivo registrar:
+
+\begin{itemize}
+    \item como a maioria do projeto funciona hoje;
+    \item quais APIs e fluxos est\~ao realmente implementados;
+    \item como a arquitetura atual est\'a distribu\'ida;
+    \item como a camada FHIR R4 foi acoplada ao projeto;
+    \item como aplicar interoperabilidade sem acoplar a regra cl\'inica ao transporte;
+    \item quais limita\c{c}\~oes e pr\'oximos passos ainda existem.
+\end{itemize}
+
+\chapter{Metodologia da an\'alise}
+
+O conte\'udo deste relat\'orio foi constru\'ido por an\'alise est\'atica do reposit\'orio no estado local de 19 de abril de 2026. Foram priorizados os seguintes grupos de arquivos:
+
+\begin{itemize}
+    \item \texttt{README.md}, para a vis\~ao declarada do produto;
+    \item \texttt{apps/api/app.py}, como \textit{app factory} oficial;
+    \item \texttt{src/dashboard/clinical\_api.py}, como contrato central da API cl\'inica;
+    \item \texttt{src/dashboard/clinical\_dashboard.py}, como camada de composi\c{c}\~ao operacional;
+    \item \texttt{packages/clinical\_domain/}, para os modelos, valida\c{c}\~oes e o \textit{workflow} cl\'inico;
+    \item \texttt{src/interoperability/fhir\_r4/}, para a camada de interoperabilidade;
+    \item \texttt{tests/}, como evid\^encia do comportamento esperado;
+    \item \texttt{docs/}, para a documenta\c{c}\~ao arquitetural e de requisitos.
+\end{itemize}
+
+O relat\'orio adota uma postura deliberadamente conservadora: o texto evita afirmar como existente aquilo que no reposit\'orio aparece apenas como dire\c{c}\~ao futura, arquitetura preparada ou backlog. Quando pertinente, o documento diferencia explicitamente:
+
+\begin{enumerate}
+    \item funcionalidade j\'a implementada em c\'odigo;
+    \item capacidade documentada ou arquiteturalmente preparada;
+    \item evolu\c{c}\~ao futura ainda dependente de requisitos externos.
+\end{enumerate}
+
+\chapter{Vis\~ao geral do projeto}
+
+\section{Prop\'osito funcional}
+
+De acordo com o arquivo principal do reposit\'orio, o REDISUS/HEAL+ j\'a entrega hoje uma base funcional relevante para:
+
+\begin{itemize}
+    \item cadastro e avalia\c{c}\~ao cl\'inica;
+    \item upload e valida\c{c}\~ao real de imagens;
+    \item delimita\c{c}\~ao manual de ROI antes da IA;
+    \item infer\^encia com contrato padronizado de sa\'ida;
+    \item constru\c{c}\~ao de timeline cl\'inica por les\~ao;
+    \item gera\c{c}\~ao de \textit{care plan}, \textit{follow-up} e alertas;
+    \item dashboard com fila cl\'inica priorizada;
+    \item base de interoperabilidade com exporta\c{c}\~ao FHIR.
+\end{itemize}
+
+\section{Posicionamento t\'ecnico do projeto}
+
+O pr\'oprio reposit\'orio esclarece que a base ainda n\~ao deve ser apresentada como produto assistencial homologado. Isso \'e coerente com o estado do c\'odigo: o sistema j\'a possui componentes reais de backend, seguran\c{c}a, persist\^encia, IA, exporta\c{c}\~ao e integra\c{c}\~ao, mas ainda mistura elementos can\^onicos com componentes legados, experimentais e evolu\c{c}\~oes em transi\c{c}\~ao arquitetural.
+
+\chapter{Arquitetura atual do reposit\'orio}
+
+\section{Organiza\c{c}\~ao estrutural}
+
+O reposit\'orio apresenta uma organiza\c{c}\~ao relativamente madura, com conviv\^encia entre uma camada oficial mais recente e m\'odulos herdados de fases anteriores. Em termos pr\'aticos, a distribui\c{c}\~ao principal pode ser descrita assim:
+
+\begin{lstlisting}
+apps/
+  api/                   backend oficial
+
+packages/
+  clinical_domain/       wrappers do dominio clinico
+  ml_inference/          wrappers de inferencia
+  shared/                seguranca, runtime e utilitarios
+
+src/
+  dashboard/             API clinica e dashboard operacional
+  data/                  persistencia local
+  diagnosis/             classificacao e logica diagnostica
+  processing/            visao computacional e analise
+  treatment/             conduta e apoio ao cuidado
+  interoperability/      integracoes e FHIR R4
+
+web/redisus-frontend/    frontend Next.js
+docs/                    arquitetura, requisitos, compliance e pesquisa
+tests/                   testes automatizados
+\end{lstlisting}
+
+\section{Leitura por camadas}
+
+Do ponto de vista de arquitetura de software, o projeto pode ser compreendido como um sistema em cinco camadas principais:
+
+\begin{enumerate}
+    \item \textbf{Apresenta\c{c}\~ao}: frontend Next.js e interfaces HTML renderizadas pelo dashboard.
+    \item \textbf{API}: backend Flask oficial em \texttt{apps/api/app.py} e contrato cl\'inico em \texttt{src/dashboard/clinical\_api.py}.
+    \item \textbf{Dom\'inio cl\'inico}: registros de paciente, les\~ao, imagem, avalia\c{c}\~ao, resultado de IA, plano, \textit{follow-up} e alerta em \texttt{packages/clinical\_domain/}.
+    \item \textbf{IA e processamento}: m\'odulos de vis\~ao computacional, classifica\c{c}\~ao, segmenta\c{c}\~ao e compara\c{c}\~ao longitudinal em \texttt{src/processing/} e \texttt{src/diagnosis/}.
+    \item \textbf{Interoperabilidade}: exporta\c{c}\~ao e publica\c{c}\~ao FHIR R4 em \texttt{src/interoperability/fhir\_r4/}.
+\end{enumerate}
+
+\section{Papel de cada diret\'orio principal}
+
+{\footnotesize
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{5pt}
+\begin{longtable}{L{4.9cm}L{9.2cm}}
+\caption{Pap\'eis dos diret\'orios principais do reposit\'orio}
+\label{tab:diretorios}\\
+\toprule
+\textbf{Diret\'orio} & \textbf{Papel no projeto} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Diret\'orio} & \textbf{Papel no projeto} \\
+\midrule
+\endhead
+\dirpath{apps/api} & Exp\~oe a \textit{app factory} oficial, configura CORS, banco, autentica\c{c}\~ao, cabe\c{c}alhos de seguran\c{c}a e registra as \textit{blueprints} principais. \\
+\dirpath{packages/clinical_domain} & Funciona como camada can\^onica de importa\c{c}\~ao para modelos, fluxo cl\'inico, valida\c{c}\~oes e banco, reduzindo acoplamento direto com \texttt{src/}. \\
+\dirpath{packages/shared} & Centraliza seguran\c{c}a \textit{zero trust}, autentica\c{c}\~ao, autoriza\c{c}\~ao, escopo de paciente/caso e \textit{rate limit}. \\
+\dirpath{src/dashboard} & Cont\'em o contrato da API cl\'inica e o dashboard operacional, incluindo fila, indicadores, relat\'orios, timeline e exporta\c{c}\~ao FHIR. \\
+\dirpath{src/data} & Mant\'em a persist\^encia local, baseada em SQLite, utilizada pelo backend cl\'inico. \\
+\dirpath{src/diagnosis} e \dirpath{src/processing} & Re\'unem a l\'ogica de infer\^encia, classifica\c{c}\~ao, explicabilidade, segmenta\c{c}\~ao tecidual e apoio \`a leitura longitudinal. \\
+\dirpath{src/interoperability} & Re\'une integra\c{c}\~oes e, em especial, a nova camada dedicada de FHIR R4. \\
+\dirpath{web/redisus-frontend} & Implementa o frontend React/Next.js, com integra\c{c}\~ao com Firebase e consumo da API cl\'inica. \\
+\dirpath{docs} & Re\'une arquitetura, requisitos, dados, produto, seguran\c{c}a, pesquisas e relat\'orios t\'ecnicos. \\
+\dirpath{tests} & Formaliza o comportamento esperado do backend, da exporta\c{c}\~ao FHIR e de contratos cl\'inicos importantes. \\
+\bottomrule
+\end{longtable}
+}
+
+\section{Transi\c{c}\~ao arquitetural}
+
+O projeto documenta explicitamente uma fase de transi\c{c}\~ao. A pasta \texttt{packages/} existe precisamente para expor \textit{wrappers} can\^onicos e reduzir depend\^encias diretas do restante do sistema sobre \texttt{src/}. Em outras palavras, o reposit\'orio ainda carrega tra\c{c}os de crescimento incremental, mas j\'a apresenta uma inten\c{c}\~ao clara de estabilizar contratos de importa\c{c}\~ao e consolidar o backend oficial.
+
+\chapter{Backend oficial e funcionamento das APIs}
+
+\section{App factory oficial}
+
+O backend oficial do projeto est\'a concentrado em \texttt{apps/api/app.py}. Esse arquivo n\~ao implementa toda a regra de neg\'ocio, mas cumpre o papel de \textit{composition root}. Ele:
+
+\begin{itemize}
+    \item cria a inst\^ancia Flask;
+    \item configura serializa\c{c}\~ao JSON e limites de upload;
+    \item inicializa o banco SQLite;
+    \item inicializa o dashboard cl\'inico;
+    \item cria a API cl\'inica por meio de \texttt{ClinicalAPI};
+    \item registra a \textit{blueprint} cl\'inica e a \textit{blueprint} de integra\c{c}\~ao;
+    \item aplica autentica\c{c}\~ao obrigat\'oria em \texttt{/api/};
+    \item injeta cabe\c{c}alhos de seguran\c{c}a e \texttt{request id};
+    \item exp\~oe rotas de resumo do dashboard, pacientes, vigil\^ancia, relat\'orios e exporta\c{c}\~ao.
+\end{itemize}
+
+\section{Seguran\c{c}a de borda e postura zero trust}
+
+A camada de seguran\c{c}a em \texttt{packages/shared/security.py} mostra que o backend foi desenhado com uma postura \textit{backend-first} e \textit{zero trust}. Os principais pontos observ\'aveis s\~ao:
+
+\begin{itemize}
+    \item distin\c{c}\~ao de pap\'eis administrativos, cl\'inicos e de pesquisa;
+    \item autentica\c{c}\~ao obrigat\'oria, exceto \textit{healthchecks} e cen\'arios locais explicitamente autorizados;
+    \item controle de acesso por escopo de paciente, avalia\c{c}\~ao, caso, relat\'orio e \textit{job};
+    \item restri\c{c}\~ao de escrita cl\'inica por papel;
+    \item \textit{rate limiting} parametriz\'avel por tipo de opera\c{c}\~ao;
+    \item compatibilidade com Firebase Admin para valida\c{c}\~ao de \textit{bearer token};
+    \item modo local de desenvolvimento com autentica\c{c}\~ao desabilitada por vari\'avel de ambiente.
+\end{itemize}
+
+\section{Contrato principal da API cl\'inica}
+
+O contrato mais importante de backend est\'a em \texttt{src/dashboard/clinical\_api.py}. Esse m\'odulo registra a \textit{blueprint} \texttt{/api/v1}, define o fluxo de cria\c{c}\~ao de avalia\c{c}\~oes, upload de imagem, execu\c{c}\~ao de IA, consulta de timeline, compara\c{c}\~oes, cria\c{c}\~ao de \textit{care plans}, cria\c{c}\~ao de \textit{follow-ups}, gerenciamento de alertas, gera\c{c}\~ao de relat\'orios e exporta\c{c}\~ao FHIR.
+
+O arquivo tamb\'em mostra que o backend centraliza:
+
+\begin{itemize}
+    \item diret\'orios de upload, relat\'orios e exporta\c{c}\~ao FHIR;
+    \item inicializa\c{c}\~ao opcional de Firebase Admin;
+    \item integra\c{c}\~ao com \texttt{ClinicalMLService};
+    \item integra\c{c}\~ao com \texttt{ClinicalCaseFHIRExportService};
+    \item trilha de auditoria em banco para eventos cl\'inicos relevantes;
+    \item m\'etricas operacionais simples de lat\^encia e falhas.
+\end{itemize}
+
+\section{Cat\'alogo das rotas principais}
+
+A tabela a seguir consolida as rotas mais importantes observadas no backend oficial e na \textit{blueprint} cl\'inica.
+
+{\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{L{5.8cm}C{1.1cm}L{6.6cm}}
+\caption{Principais rotas observ\'aveis no projeto}
+\label{tab:rotasapi}\\
+\toprule
+\textbf{Rota} & \textbf{M\'etodo} & \textbf{Fun\c{c}\~ao} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Rota} & \textbf{M\'etodo} & \textbf{Fun\c{c}\~ao} \\
+\midrule
+\endhead
+\route{/} & GET & Retorna metadados b\'asicos da API oficial. \\
+\route{/health} & GET & \textit{Healthcheck} simplificado da aplica\c{c}\~ao oficial. \\
+\route{/api/v1/health} & GET & \textit{Healthcheck} oficial da API cl\'inica, com indicadores operacionais. \\
+\route{/api/v1/evaluations} & POST & Cria uma nova avalia\c{c}\~ao cl\'inica e cria o caso/les\~ao quando necess\'ario. \\
+\route{/api/v1/evaluations/<id>/images} & POST & Faz upload validado de imagem cl\'inica vinculada \`a avalia\c{c}\~ao. \\
+\route{/api/v1/evaluations/<id>/analyze} & POST & Dispara o \textit{job} ass\'incrono de infer\^encia de IA. \\
+\route{/api/v1/images/<imageId>/content} & GET & Serva o conte\'udo bin\'ario da imagem autorizada. \\
+\route{/api/v1/analysis-jobs/<jobId>} & GET & Consulta o estado do processamento da IA. \\
+\route{/api/v1/patients/<id>/evaluations} & GET & Lista avalia\c{c}\~oes de um paciente. \\
+\route{/api/v1/patients/<id>/lesions} & GET & Lista les\~oes/casos do paciente com enriquecimento cl\'inico. \\
+\route{/api/v1/lesions/<caseId>/timeline} & GET & Retorna a timeline cl\'inica consolidada da les\~ao. \\
+\route{/api/v1/lesions/<caseId>/fhir} & GET & Gera um bundle FHIR R4 sob demanda para um caso cl\'inico. \\
+\route{/api/v1/patients/<id>/timeline} & GET & Retorna timeline agregada por paciente. \\
+\route{/api/v1/lesions/<caseId>/claim} & PATCH & Reivindica um caso cl\'inico para um profissional/equipe. \\
+\route{/api/v1/lesions/<caseId>/handoff} & PATCH & Transfere a responsabilidade do caso para outro profissional. \\
+\route{/api/v1/care-plans} & POST & Cria plano de cuidado. \\
+\route{/api/v1/lesions/<caseId>/care-plans} & GET & Lista planos de cuidado do caso. \\
+\route{/api/v1/care-plans/<planId>} & PATCH & Atualiza plano de cuidado, com restri\c{c}\~oes por papel e risco. \\
+\route{/api/v1/follow-ups} & POST & Agenda \textit{follow-up}. \\
+\route{/api/v1/lesions/<caseId>/follow-ups} & GET & Lista \textit{follow-ups} do caso. \\
+\route{/api/v1/follow-ups/<id>/complete} & PATCH & Conclui, marca como perdido ou cancela \textit{follow-up}. \\
+\route{/api/v1/lesions/<caseId>/alerts} & GET & Lista alertas cl\'inicos ativos do caso. \\
+\route{/api/v1/alerts/<id>/claim} & PATCH & Reivindica alerta. \\
+\route{/api/v1/alerts/<id>/handoff} & PATCH & Transfere alerta para outro profissional. \\
+\route{/api/v1/alerts/<id>/acknowledge} & PATCH & Reconhece formalmente um alerta. \\
+\route{/api/v1/alerts/<id>/resolve} & PATCH & Resolve um alerta. \\
+\route{/api/v1/lesions/<caseId>/audit} & GET & Lista trilha de auditoria do caso. \\
+\route{/api/v1/comparisons} & GET & Compara duas avalia\c{c}\~oes e calcula deltas cl\'inicos. \\
+\route{/api/v1/reports/generate} & POST & Gera relat\'orio estruturado a partir do caso/paciente. \\
+\route{/api/v1/reports/<id>/download} & GET & Faz \textit{download} do relat\'orio em JSON, PDF ou DOCX. \\
+\route{/api/dashboard/summary} & GET & Resume o estado operacional do dashboard. \\
+\route{/api/dashboard/clinical-queue} & GET & Exp\~oe a fila cl\'inica priorizada. \\
+\route{/api/patients} & GET & Lista pacientes acess\'iveis ao usu\'ario corrente. \\
+\route{/api/patients/<id>} & GET & Retorna detalhe do paciente. \\
+\route{/api/dashboard/cases/<caseId>} & GET & Retorna detalhe operacional do caso. \\
+\route{/api/patients/<id>/risk} & GET & Retorna resumo de risco do paciente. \\
+\route{/api/indicators} & GET & Retorna indicadores populacionais. \\
+\route{/api/alerts} & GET & Lista alertas em vis\~ao de dashboard. \\
+\route{/api/surveillance/heatmap} & GET & Exp\~oe dados de mapa de calor epidemiol\'ogico. \\
+\route{/api/surveillance/clusters} & GET & Exp\~oe dados de clusters epidemiol\'ogicos. \\
+\route{/api/reports/production} & GET & Gera relat\'orio operacional de produ\c{c}\~ao. \\
+\route{/api/export/fhir/<patientId>} & GET & Mant\'em compatibilidade e orienta a exporta\c{c}\~ao por caso cl\'inico. \\
+\bottomrule
+\end{longtable}
+}
+
+\section{Fluxo operacional da API cl\'inica}
+
+O fluxo principal da API cl\'inica pode ser descrito em oito etapas:
+
+\begin{enumerate}
+    \item o paciente j\'a existe na base ou foi previamente cadastrado;
+    \item o cliente envia um \texttt{POST /api/v1/evaluations} com dados cl\'inicos da ferida;
+    \item o sistema associa a avalia\c{c}\~ao a um caso/les\~ao existente ou cria um novo caso;
+    \item a imagem \'e submetida por \texttt{POST /api/v1/evaluations/<id>/images};
+    \item a IA \'e acionada por \texttt{POST /api/v1/evaluations/<id>/analyze};
+    \item o backend cria um \textit{job}, executa a infer\^encia, normaliza a sa\'ida e persiste o resultado;
+    \item com base nesse resultado, o sistema gera \textit{care plan}, \textit{follow-up} e alertas;
+    \item o caso pode ent\~ao ser consultado em timeline, comparado com avalia\c{c}\~oes anteriores, relatado ou exportado como FHIR.
+\end{enumerate}
+
+Esse encadeamento mostra que a API n\~ao serve apenas para expor dados. Ela organiza um fluxo cl\'inico completo, com persist\^encia, orquestra\c{c}\~ao de IA, auditoria e interoperabilidade.
+
+\chapter{Modelos cl\'inicos, valida\c{c}\~ao e persist\^encia}
+
+\section{Modelo de dom\'inio cl\'inico}
+
+Os registros de dom\'inio em \texttt{packages/clinical\_domain/models.py} permitem entender a gram\'atica cl\'inica do sistema. O projeto hoje trabalha, pelo menos, com as seguintes entidades:
+
+\begin{itemize}
+    \item \texttt{LesionRecord}: representa o caso/les\~ao, com unidade, equipe, estado e dados de atribui\c{c}\~ao;
+    \item \texttt{ClinicalImageRecord}: representa a imagem cl\'inica capturada para uma avalia\c{c}\~ao;
+    \item \texttt{AssessmentRecord}: representa a avalia\c{c}\~ao cl\'inica com scores, descri\c{c}\~ao e composi\c{c}\~ao tecidual;
+    \item \texttt{InferenceResultRecord}: representa a sa\'ida estruturada da IA;
+    \item \texttt{CarePlanRecord}: representa o plano de cuidado;
+    \item \texttt{FollowUpRecord}: representa o seguimento agendado;
+    \item \texttt{AlertRecord}: representa alerta cl\'inico ou operacional.
+\end{itemize}
+
+\section{Valida\c{c}\~ao de payloads}
+
+O m\'odulo \texttt{packages/clinical\_domain/validation.py} demonstra um padr\~ao importante: os \textit{payloads} de entrada s\~ao validados com Pydantic antes de entrarem no fluxo de neg\'ocio. Isso vale para:
+
+\begin{itemize}
+    \item cria\c{c}\~ao de avalia\c{c}\~ao;
+    \item disparo de infer\^encia;
+    \item gera\c{c}\~ao de relat\'orio;
+    \item cria\c{c}\~ao e atualiza\c{c}\~ao de \textit{care plan};
+    \item cria\c{c}\~ao e conclus\~ao de \textit{follow-up};
+    \item a\c{c}\~oes sobre alertas;
+    \item transfer\^encia de casos e alertas;
+    \item valida\c{c}\~ao de imagem enviada por formul\'ario multipart.
+\end{itemize}
+
+Em rela\c{c}\~ao a imagem, o sistema n\~ao valida apenas extens\~ao de arquivo. Ele abre o arquivo com Pillow, verifica formato real, dimens\~oes, \textit{megapixels}, consist\^encia entre MIME e extens\~ao e, se necess\'ario, reserializa a imagem antes de persistir.
+
+\section{Persist\^encia e auditoria}
+
+Embora este relat\'orio n\~ao detalhe todo o \textit{schema} SQLite, o c\'odigo deixa claro que a base local armazena pacientes, casos, avalia\c{c}\~oes, imagens, execu\c{c}\~oes de IA, resultados estruturados, planos, \textit{follow-ups}, alertas e eventos de auditoria. A pr\'opria API utiliza m\'etodos como:
+
+\begin{itemize}
+    \item \texttt{create\_wound\_case};
+    \item \texttt{create\_wound\_evaluation};
+    \item \texttt{add\_wound\_image};
+    \item \texttt{create\_ai\_run};
+    \item \texttt{save\_ai\_result};
+    \item \texttt{create\_care\_plan};
+    \item \texttt{create\_follow\_up};
+    \item \texttt{create\_clinical\_alert};
+    \item \texttt{create\_audit\_event}.
+\end{itemize}
+
+Isso \'e relevante porque mostra que o sistema j\'a tem trilha formal de eventos cl\'inicos e operacionais, o que se conecta diretamente com a futura evolu\c{c}\~ao de auditoria interoper\'avel e \textit{provenance} em FHIR.
+
+\chapter{Pipeline de IA e fluxo cl\'inico derivado}
+
+\section{Normaliza\c{c}\~ao da sa\'ida de IA}
+
+O arquivo \texttt{packages/clinical\_domain/workflow.py} desempenha um papel central no sistema: ele transforma sa\'idas heterog\^eneas da IA em um contrato padronizado. O resultado de infer\^encia normalizado inclui, entre outros, os campos:
+
+\begin{itemize}
+    \item \texttt{contract\_version};
+    \item \texttt{analysis\_type};
+    \item \texttt{model\_version};
+    \item \texttt{generated\_at};
+    \item \texttt{patient\_id};
+    \item \texttt{case\_id};
+    \item \texttt{evaluation\_id};
+    \item \texttt{inference};
+    \item \texttt{interpretation};
+    \item \texttt{metadata}.
+\end{itemize}
+
+Do ponto de vista de interoperabilidade e governan\c{c}a, esse desenho \'e muito positivo. Em vez de depender de uma sa\'ida ad hoc do modelo, o backend passa a trabalhar com um contrato interno mais est\'avel.
+
+\section{C\'alculo de risco e recomenda\c{c}\~oes}
+
+O \textit{workflow} atual deriva o \texttt{risk\_level} a partir de m\'ultiplos sinais, como:
+
+\begin{itemize}
+    \item \'area da ferida;
+    \item profundidade;
+    \item score de dor;
+    \item percentual de necrose;
+    \item percentual de esfacelo;
+    \item confian\c{c}a da IA;
+    \item uso de \textit{fallback}.
+\end{itemize}
+
+Com isso, o backend constr\'oi uma interpreta\c{c}\~ao mais operacional do que meramente classificat\'oria. A sa\'ida inclui \textit{follow-up days}, recomenda\c{c}\~oes, necessidade de revis\~ao especializada e prioridade cl\'inica.
+
+\section{Gera\c{c}\~ao derivada de plano, seguimento e alertas}
+
+Outra caracter\'istica importante do projeto \'e que a infer\^encia n\~ao termina no laudo. O m\'odulo de \textit{workflow} j\'a implementa fun\c{c}\~oes para derivar:
+
+\begin{itemize}
+    \item \texttt{build\_care\_plan\_payload};
+    \item \texttt{build\_follow\_up\_payload};
+    \item \texttt{build\_alert\_payloads};
+    \item \texttt{build\_case\_timeline}.
+\end{itemize}
+
+Na pr\'atica, isso significa que o sistema tenta transformar resultado de IA em a\c{c}\~ao cl\'inica e acompanhamento operacional.
+
+\chapter{Dashboard cl\'inico e intelig\^encia operacional}
+
+\section{Fun\c{c}\~ao do dashboard}
+
+O m\'odulo \texttt{src/dashboard/clinical\_dashboard.py} n\~ao deve ser interpretado apenas como uma interface. Ele funciona como uma camada de composi\c{c}\~ao operacional que agrega dados do banco e exp\~oe vis\~oes de:
+
+\begin{itemize}
+    \item resumo assistencial;
+    \item fila cl\'inica;
+    \item detalhe de paciente;
+    \item detalhe de caso;
+    \item risco;
+    \item indicadores populacionais;
+    \item vigil\^ancia epidemiol\'ogica;
+    \item relat\'orios operacionais.
+\end{itemize}
+
+\section{Fila cl\'inica}
+
+Uma das capacidades mais relevantes observ\'aveis no dashboard \'e a \textit{clinical queue}. Ainda que o arquivo seja extenso, o comportamento geral aponta para uma tentativa de ordenar casos segundo fatores como:
+
+\begin{itemize}
+    \item n\'ivel de risco;
+    \item exist\^encia de alertas;
+    \item atraso de \textit{follow-up};
+    \item necessidade de revis\~ao especializada;
+    \item estado do plano de cuidado;
+    \item situa\c{c}\~ao de atribui\c{c}\~ao do caso.
+\end{itemize}
+
+Isso refor\c{c}a a leitura de que o REDISUS \'e uma plataforma de orquestra\c{c}\~ao cl\'inica assistida, n\~ao somente uma interface de relat\'orios.
+
+\chapter{O que \'e HL7 FHIR R4}
+
+\section{Conceito}
+
+FHIR significa \textit{Fast Healthcare Interoperability Resources}. Segundo a especifica\c{c}\~ao oficial da HL7, trata-se de um padr\~ao para troca eletr\^onica de informa\c{c}\~oes em sa\'ude. O padr\~ao organiza dados em recursos reutiliz\'aveis e define uma forma consistente de represent\'a-los, relacion\'a-los e troc\'a-los entre aplica\c{c}\~oes. A vis\~ao geral oficial do FHIR apresenta esses recursos como a unidade fundamental do interc\^ambio eletr\^onico em sa\'ude.
+
+\section{Recursos como blocos b\'asicos}
+
+Na l\'ogica do FHIR, a unidade central n\~ao \'e um documento monol\'itico, mas o \textit{resource}. A documenta\c{c}\~ao oficial do padr\~ao destaca que os recursos compartilham padr\~oes comuns de representa\c{c}\~ao, metadados e relacionamento. Isso \'e particularmente \'util no contexto do REDISUS porque o projeto j\'a trabalha com entidades claramente alinhadas com essa ideia: paciente, profissional, observa\c{c}\~ao, laudo, plano e imagem.
+
+\section{FHIR n\~ao \'e apenas um JSON}
+
+No contexto do REDISUS, \'e importante evitar uma interpreta\c{c}\~ao simplista de FHIR. O padr\~ao n\~ao \'e apenas um formato JSON. Ele envolve:
+
+\begin{itemize}
+    \item modelo de dados cl\'inico;
+    \item identidade e cardinalidade dos elementos;
+    \item refer\^encias entre recursos;
+    \item terminologias e \textit{value sets};
+    \item mecanismos de extens\~ao;
+    \item API RESTful padronizada;
+    \item \textit{Capability Statement} e \textit{profiles} para conformidade.
+\end{itemize}
+
+\section{API RESTful FHIR}
+
+A especifica\c{c}\~ao R4 define um estilo RESTful no qual cada tipo de recurso compartilha um conjunto consistente de intera\c{c}\~oes. Em termos pr\'aticos, as intera\c{c}\~oes mais importantes s\~ao:
+
+\begin{itemize}
+    \item \texttt{read}: leitura de um recurso por identificador;
+    \item \texttt{create}: cria\c{c}\~ao de recurso;
+    \item \texttt{update}: atualiza\c{c}\~ao de recurso;
+    \item \texttt{search}: busca parametrizada;
+    \item \texttt{transaction} e \texttt{batch}: envio agrupado por \texttt{Bundle};
+    \item \texttt{metadata}: consulta da \textit{Capability Statement} do servidor.
+\end{itemize}
+
+\section{Recursos mais relevantes para o projeto}
+
+Para o dom\'inio de feridas do REDISUS, os recursos mais relevantes s\~ao listados na tabela a seguir.
+
+{\footnotesize
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{5pt}
+\begin{longtable}{L{4.4cm}L{9.6cm}}
+\caption{Recursos FHIR mais relevantes para o REDISUS}
+\label{tab:recursosfhir}\\
+\toprule
+\textbf{Recurso} & \textbf{Fun\c{c}\~ao no contexto do projeto} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Recurso} & \textbf{Fun\c{c}\~ao no contexto do projeto} \\
+\midrule
+\endhead
+\fhirres{Patient} & Identifica o paciente e seus dados demogr\'aficos e administrativos. \\
+\fhirres{Practitioner} & Representa o profissional humano envolvido na avalia\c{c}\~ao. \\
+\fhirres{PractitionerRole} & Representa o papel cl\'inico do profissional e sua lota\c{c}\~ao em equipe/unidade. \\
+\fhirres{Organization} & Representa unidade de sa\'ude, servi\c{c}o ou equipe. \\
+\fhirres{Encounter} & Representa o contato cl\'inico correspondente \`a avalia\c{c}\~ao da ferida. \\
+\fhirres{Condition} & Registra a condi\c{c}\~ao cl\'inica ou etiologia da les\~ao. \\
+\fhirres{Observation} & Carrega medidas, sinais e scores: \'area, profundidade, dor, tecido, PUSH, BWAT, risco e confian\c{c}a. \\
+\fhirres{DiagnosticReport} & Consolida o laudo da avalia\c{c}\~ao, com conclus\~oes e refer\^encias para observa\c{c}\~oes e m\'idias. \\
+\fhirres{Media} & Representa imagens cl\'inicas reutiliz\'aveis e referenci\'aveis. \\
+\fhirres{CarePlan} & Representa plano de cuidado e atividades propostas. \\
+\fhirres{Provenance} & Registra autoria, gera\c{c}\~ao derivada e rastreabilidade dos recursos exportados. \\
+\fhirres{Bundle} & Agrupa m\'ultiplos recursos em uma unidade l\'ogica de interc\^ambio ou transa\c{c}\~ao. \\
+\bottomrule
+\end{longtable}
+}
+
+\chapter{Como o FHIR foi aplicado no REDISUS}
+
+\section{Exist\^encia de uma camada dedicada}
+
+O projeto j\'a possui uma camada dedicada de interoperabilidade FHIR em \texttt{src/interoperability/fhir\_r4/}. A documenta\c{c}\~ao da arquitetura FHIR explica que essa camada foi posicionada dentro da pasta de interoperabilidade para evitar espalhar l\'ogica FHIR pela dashboard, pelo dom\'inio cl\'inico ou pelos m\'odulos de IA.
+
+A estrutura principal dessa camada est\'a organizada da seguinte forma:
+
+\begin{lstlisting}
+src/interoperability/fhir_r4/
+  models/
+  mappers/
+  validators/
+  client/
+  adapters/google_cloud/
+  examples/
+  publication.py
+  case_export.py
+  terminology.py
+\end{lstlisting}
+
+\section{Responsabilidades internas da camada FHIR}
+
+\begin{itemize}
+    \item \texttt{models/}: define estruturas leves para os recursos FHIR usados pelo projeto;
+    \item \texttt{mappers/}: converte \textit{payloads} internos do REDISUS em recursos FHIR R4;
+    \item \texttt{validators/}: executa valida\c{c}\~ao estrutural m\'inima antes do envio;
+    \item \texttt{client/}: define cliente abstrato e cliente HTTP gen\'erico;
+    \item \texttt{adapters/google\_cloud/}: implementa adaptador para FHIR store do Google Cloud;
+    \item \texttt{examples/}: fornece \textit{payloads} sint\'eticos e exemplos JSON versionados;
+    \item \texttt{case\_export.py}: monta a exporta\c{c}\~ao FHIR a partir de uma timeline real do caso;
+    \item \texttt{publication.py}: adiciona publica\c{c}\~ao controlada com valida\c{c}\~ao, \textit{retry}, idempot\^encia e auditoria local.
+\end{itemize}
+
+\section{Recursos atualmente mapeados}
+
+No estado atual, a camada FHIR cobre pelo menos os seguintes recursos do ponto de vista do bundle exportado:
+
+\begin{itemize}
+    \item \texttt{Patient};
+    \item \texttt{Organization};
+    \item \texttt{Practitioner};
+    \item \texttt{PractitionerRole};
+    \item \texttt{Condition};
+    \item \texttt{Encounter};
+    \item \texttt{Media};
+    \item \texttt{Observation};
+    \item \texttt{DiagnosticReport};
+    \item \texttt{CarePlan};
+    \item \texttt{Provenance};
+    \item \texttt{Bundle}.
+\end{itemize}
+
+\section{Mapeamento conceitual do dom\'inio para FHIR}
+
+A tabela a seguir resume o mapeamento conceitual entre entidades internas e recursos FHIR.
+
+{\footnotesize
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{5pt}
+\begin{longtable}{L{5.8cm}L{8.1cm}}
+\caption{Mapeamento conceitual REDISUS $\rightarrow$ FHIR}
+\label{tab:mapeamento}\\
+\toprule
+\textbf{Conceito interno} & \textbf{Recurso FHIR correspondente} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Conceito interno} & \textbf{Recurso FHIR correspondente} \\
+\midrule
+\endhead
+Paciente & \fhirres{Patient} \\
+Profissional avaliador & \fhirres{Practitioner} \\
+Papel cl\'inico do profissional & \fhirres{PractitionerRole} \\
+Unidade e equipe assistencial & \fhirres{Organization} \\
+Avalia\c{c}\~ao cl\'inica & \fhirres{Encounter} \\
+Etiologia/condi\c{c}\~ao da ferida & \fhirres{Condition} \\
+\'Area, profundidade, dor, tecido e scores & \fhirres{Observation} \\
+Imagem cl\'inica & \fhirres{Media} \\
+Laudo consolidado & \fhirres{DiagnosticReport} \\
+Plano assistencial & \fhirres{CarePlan} \\
+Autoria e gera\c{c}\~ao por IA & \fhirres{Provenance} \\
+Pacote export\'avel por caso & \fhirres{Bundle} \\
+\bottomrule
+\end{longtable}
+}
+
+\section{Endpoint de exporta\c{c}\~ao FHIR}
+
+O backend j\'a exp\~oe a rota:
+
+\begin{center}
+\texttt{GET /api/v1/lesions/<caseId>/fhir}
+\end{center}
+
+Essa rota monta um bundle a partir de dados reais persistidos. Pelo comportamento do c\'odigo, a exporta\c{c}\~ao considera:
+
+\begin{itemize}
+    \item o paciente do caso;
+    \item a avalia\c{c}\~ao mais recente ou uma avalia\c{c}\~ao explicitamente selecionada;
+    \item as imagens associadas \`a avalia\c{c}\~ao;
+    \item o resultado de IA vinculado \`a avalia\c{c}\~ao;
+    \item o plano de cuidado correspondente.
+\end{itemize}
+
+Os par\^ametros mais relevantes s\~ao:
+
+\begin{itemize}
+    \item \texttt{bundleType=collection|transaction};
+    \item \texttt{evaluationId=<id>};
+    \item \texttt{download=1}.
+\end{itemize}
+
+\section{Refer\^encias entre recursos}
+
+Os testes do projeto mostram que o bundle n\~ao \'e formado por recursos isolados, mas por recursos conectados semanticamente. Entre as rela\c{c}\~oes verificadas, destacam-se:
+
+\begin{itemize}
+    \item \texttt{Encounter.subject} apontando para \texttt{Patient};
+    \item \texttt{Encounter.participant} apontando para \texttt{Practitioner};
+    \item \texttt{Encounter.serviceProvider} apontando para \texttt{Organization};
+    \item \texttt{PractitionerRole.practitioner} apontando para \texttt{Practitioner};
+    \item \texttt{PractitionerRole.organization} apontando para \texttt{Organization};
+    \item \texttt{Observation.encounter} apontando para \texttt{Encounter};
+    \item \texttt{DiagnosticReport.result} apontando para \texttt{Observation};
+    \item \texttt{DiagnosticReport.media.link} apontando para \texttt{Media};
+    \item \texttt{CarePlan.author} apontando para \texttt{Practitioner};
+    \item \texttt{Provenance.target} apontando para os recursos derivados do caso.
+\end{itemize}
+
+\section{Organiza\c{c}\~ao de terminologia, perfis e c\'odigos}
+
+O projeto j\'a introduziu um m\'odulo espec\'ifico de terminologia em \texttt{terminology.py}. Esse m\'odulo centraliza:
+
+\begin{itemize}
+    \item perfis internos do REDISUS;
+    \item \textit{value sets} locais;
+    \item mapeamentos de papel cl\'inico;
+    \item tipos de organiza\c{c}\~ao;
+    \item tipos de encontro;
+    \item tipos de servi\c{c}o;
+    \item categorias de m\'idia;
+    \item pap\'eis de \textit{provenance};
+    \item conceitos de classifica\c{c}\~ao de ferida e scores.
+\end{itemize}
+
+Essa escolha arquitetural \'e especialmente importante porque evita espalhar c\'odigo terminol\'ogico pelo mapper. Na pr\'atica, o projeto ficou preparado para trocar c\'odigos locais por terminologias do alvo real com menor retrabalho.
+
+\section{Valida\c{c}\~ao antes do envio}
+
+O projeto hoje adota, por padr\~ao, valida\c{c}\~ao estrutural m\'inima. Isso inclui:
+
+\begin{itemize}
+    \item verifica\c{c}\~ao de campos obrigat\'orios por tipo de recurso;
+    \item valida\c{c}\~ao de \texttt{subject.reference}, quando aplic\'avel;
+    \item valida\c{c}\~ao de \texttt{Bundle.entry};
+    \item valida\c{c}\~ao de requisitos espec\'ificos para \texttt{Media}, \texttt{PractitionerRole} e \texttt{Provenance}.
+\end{itemize}
+
+Al\'em disso, quando dispon\'ivel, a camada pode usar \texttt{fhir.resources} para valida\c{c}\~ao por modelos, mas essa n\~ao \'e a estrat\'egia padr\~ao, o que \'e coerente com o fato de que conformance estrita a um IG externo ainda n\~ao est\'a congelada no projeto.
+
+\section{Publica\c{c}\~ao controlada em FHIR store}
+
+Al\'em do exportador, o projeto j\'a possui um \texttt{FHIRPublicationService}. Essa camada acrescenta:
+
+\begin{itemize}
+    \item valida\c{c}\~ao do bundle antes do envio;
+    \item c\'alculo de hash est\'avel ignorando \textit{timestamps} vol\'ateis;
+    \item idempot\^encia baseada em chave derivada do conte\'udo e do destino;
+    \item \textit{retry} com n\'umero controlado de tentativas;
+    \item log de auditoria local em JSONL;
+    \item \'indice local de publica\c{c}\~ao para evitar reenvio desnecess\'ario.
+\end{itemize}
+
+Trata-se de um passo importante para publica\c{c}\~ao real em FHIR store, mesmo que o endpoint exportador ainda n\~ao tenha sido automaticamente ligado a esse servi\c{c}o.
+
+\chapter{Google Cloud Healthcare API no contexto do projeto}
+
+\section{Adaptador existente}
+
+O projeto j\'a inclui um adaptador dedicado para Google Cloud Healthcare API em \texttt{src/interoperability/fhir\_r4/adapters/google\_cloud/healthcare\_api.py}. O adaptador foi desenhado para trabalhar com a URL can\^onica:
+
+\begin{lstlisting}
+https://healthcare.googleapis.com/v1/projects/{project}/locations/{location}/datasets/{dataset}/fhirStores/{store}/fhir
+\end{lstlisting}
+
+\section{Autentica\c{c}\~ao e configura\c{c}\~ao}
+
+O adaptador suporta autentica\c{c}\~ao por vari\'aveis de ambiente, o que \'e coerente com um backend que pretende permanecer desacoplado de segredos em c\'odigo. As principais vari\'aveis observadas s\~ao:
+
+\begin{itemize}
+    \item \texttt{REDISUS\_FHIR\_GCP\_PROJECT\_ID};
+    \item \texttt{REDISUS\_FHIR\_GCP\_LOCATION};
+    \item \texttt{REDISUS\_FHIR\_GCP\_DATASET\_ID};
+    \item \texttt{REDISUS\_FHIR\_GCP\_STORE\_ID};
+    \item \texttt{REDISUS\_FHIR\_GCP\_BEARER\_TOKEN};
+    \item \texttt{GOOGLE\_APPLICATION\_CREDENTIALS};
+    \item \texttt{GOOGLE\_OAUTH\_ACCESS\_TOKEN}.
+\end{itemize}
+
+\section{Rela\c{c}\~ao com a documenta\c{c}\~ao oficial}
+
+A documenta\c{c}\~ao oficial do Cloud Healthcare API afirma que os FHIR stores suportam m\'ultiplas vers\~oes do padr\~ao, incluindo FHIR R4 4.0.1, e que a vers\~ao do store \'e definida no momento da cria\c{c}\~ao, n\~ao podendo ser alterada depois. A mesma documenta\c{c}\~ao tamb\'em informa que o comportamento efetivamente suportado deve ser consultado por meio da \textit{Capability Statement} do servidor.
+
+Para o REDISUS, isso \'e um encaixe natural: o sistema pode gerar bundle localmente, valid\'a-lo, e public\'a-lo para um FHIR store mantendo separados:
+
+\begin{itemize}
+    \item constru\c{c}\~ao do recurso;
+    \item valida\c{c}\~ao;
+    \item l\'ogica de publica\c{c}\~ao;
+    \item credenciais;
+    \item infraestrutura de destino.
+\end{itemize}
+
+\chapter{Como aplicar FHIR corretamente ao projeto}
+
+\section{Estrat\'egia arquitetural recomendada}
+
+A aplica\c{c}\~ao correta de FHIR no REDISUS deve continuar seguindo a dire\c{c}\~ao j\'a iniciada no reposit\'orio:
+
+\begin{enumerate}
+    \item manter o dom\'inio interno desacoplado do padr\~ao externo;
+    \item mapear entidades internas para recursos FHIR em uma camada dedicada;
+    \item validar estrutura e refer\^encias antes de qualquer envio;
+    \item encapsular transporte e autentica\c{c}\~ao em clientes e adaptadores;
+    \item isolar publica\c{c}\~ao, idempot\^encia e auditoria em uma camada pr\'opria.
+\end{enumerate}
+
+\section{Aplica\c{c}\~ao pr\'atica ao fluxo do REDISUS}
+
+No contexto atual do projeto, o caminho mais coerente \'e:
+
+\begin{enumerate}
+    \item gerar o bundle por caso em \texttt{/api/v1/lesions/<caseId>/fhir};
+    \item usar a exporta\c{c}\~ao sob demanda como sa\'ida can\^onica de interoperabilidade;
+    \item conectar essa exporta\c{c}\~ao a um servi\c{c}o de publica\c{c}\~ao controlada;
+    \item evoluir c\'odigos locais para perfis e \textit{value sets} do alvo real;
+    \item somente depois acoplar integra\c{c}\~oes externas com ambientes institucionais.
+\end{enumerate}
+
+\section{O que o projeto j\'a faz corretamente}
+
+\begin{itemize}
+    \item posiciona a camada FHIR fora da regra cl\'inica central;
+    \item usa um \textit{mapper} dedicado, em vez de gerar JSON FHIR diretamente na rota;
+    \item preserva rastreabilidade entre recursos via refer\^encias;
+    \item registra autoria humana e gera\c{c}\~ao por IA com \texttt{Provenance};
+    \item separa transporte, exporta\c{c}\~ao e publica\c{c}\~ao;
+    \item prepara integra\c{c}\~ao com FHIR store por adaptador.
+\end{itemize}
+
+\section{O que evitar}
+
+Do ponto de vista de engenharia e interoperabilidade, o projeto deve evitar:
+
+\begin{itemize}
+    \item gerar FHIR diretamente na camada de interface ou no frontend;
+    \item misturar l\'ogica de seguran\c{c}a, regra cl\'inica e transporte externo na mesma fun\c{c}\~ao;
+    \item tratar resultado de IA apenas como texto livre sem estrutura nem origem;
+    \item considerar conformidade nacional fechada sem IG oficial acordado;
+    \item afirmar integra\c{c}\~ao real com RNDS antes que os requisitos externos estejam definidos e implementados.
+\end{itemize}
+
+\chapter{Limita\c{c}\~oes e riscos atuais}
+
+\section{Limita\c{c}\~oes observ\'aveis no estado atual}
+
+Apesar da base ser tecnicamente forte, ainda existem limita\c{c}\~oes relevantes:
+
+\begin{enumerate}
+    \item a arquitetura ainda convive com componentes legados e transicionais;
+    \item parte importante da l\'ogica continua concentrada em \texttt{src/};
+    \item muitos c\'odigos cl\'inicos ainda pertencem a namespaces locais do REDISUS;
+    \item a valida\c{c}\~ao \'e estrutural primeiro, n\~ao conformidade completa a um IG brasileiro externo;
+    \item a auditoria de publica\c{c}\~ao FHIR \'e atualmente baseada em arquivo local;
+    \item n\~ao h\'a, at\'e o momento, integra\c{c}\~ao RNDS real implementada;
+    \item o fluxo de publica\c{c}\~ao em store ainda n\~ao foi acoplado ao endpoint exportador como comportamento de produ\c{c}\~ao.
+\end{enumerate}
+
+\section{Riscos t\'ecnicos}
+
+Os principais riscos de continuidade e evolu\c{c}\~ao s\~ao:
+
+\begin{itemize}
+    \item diverg\^encia gradual entre contratos internos, frontend e \textit{payloads} de IA;
+    \item aumento do acoplamento entre dashboard e regra cl\'inica se o crescimento continuar sem extra\c{c}\~ao adicional de servi\c{c}os;
+    \item retrabalho terminol\'ogico quando o alvo externo real for fechado;
+    \item depend\^encia de infraestruturas de autentica\c{c}\~ao e armazenamento ainda n\~ao homologadas em ambiente institucional.
+\end{itemize}
+
+\chapter{Pr\'oximos passos recomendados}
+
+Considerando o estado atual do reposit\'orio, os pr\'oximos passos mais coerentes s\~ao:
+
+\begin{enumerate}
+    \item ligar a exporta\c{c}\~ao FHIR a um fluxo opcional de publica\c{c}\~ao controlada pelo backend;
+    \item consolidar a auditoria de publica\c{c}\~ao em camada persistente mais robusta que arquivo local;
+    \item alinhar c\'odigos de papel profissional, tipo de atendimento, \textit{service type}, scores e classifica\c{c}\~oes com perfis e \textit{value sets} do destino real;
+    \item ampliar testes de conformidade contra os perfis externos assim que estiverem definidos;
+    \item continuar extraindo responsabilidades de \texttt{src/dashboard/clinical\_dashboard.py} para servi\c{c}os menores;
+    \item evoluir observabilidade e governan\c{c}a de publica\c{c}\~ao.
+\end{enumerate}
+
+\chapter{Conclus\~ao}
+
+O REDISUS/HEAL+ j\'a apresenta uma base tecnicamente consistente para organizar um fluxo cl\'inico longitudinal de feridas. O projeto possui backend oficial, valida\c{c}\~ao de entradas, seguran\c{c}a por RBAC e escopo, persist\^encia local, processamento ass\'incrono de IA, gera\c{c}\~ao de resultados padronizados, constru\c{c}\~ao de \textit{care plan}, \textit{follow-up}, alertas, dashboard operacional e exporta\c{c}\~ao FHIR.
+
+No que se refere \`a interoperabilidade, o sistema j\'a superou a fase de inten\c{c}\~ao gen\'erica. Existe uma camada FHIR R4 dedicada, com modelos, mapeadores, validadores, cliente abstrato, adaptador de GCP, exemplos, testes, exporta\c{c}\~ao sob demanda, publica\c{c}\~ao controlada e recursos cl\'inicos relevantes para o caso de feridas.
+
+Ao mesmo tempo, ainda \'e tecnicamente importante manter o rigor na comunica\c{c}\~ao do estado do projeto. A base j\'a est\'a preparada para integra\c{c}\~oes reais, mas ainda n\~ao deve ser descrita como integra\c{c}\~ao nacional conclu\'ida. A dire\c{c}\~ao correta permanece sendo a mesma que o pr\'oprio reposit\'orio j\'a sinaliza: dom\'inio interno desacoplado, mapeamento expl\'icito, valida\c{c}\~ao estruturada, transporte abstrato, rastreabilidade e evolu\c{c}\~ao progressiva para o alvo externo verdadeiro.
+
+\apendices
+
+\chapter{Resumo executivo do fluxo principal}
+
+\begin{enumerate}
+    \item O paciente \'e identificado e associado a um caso/les\~ao.
+    \item Uma avalia\c{c}\~ao cl\'inica \'e criada com medidas e descri\c{c}\~ao inicial.
+    \item A imagem cl\'inica \'e validada, persistida e vinculada \`a avalia\c{c}\~ao.
+    \item Um \textit{job} de IA \'e disparado e processa o caso.
+    \item A sa\'ida da IA \'e normalizada em um contrato interno est\'avel.
+    \item O sistema gera \textit{care plan}, \textit{follow-up} e alertas derivados.
+    \item O dashboard passa a enxergar o caso com prioridade, risco e prazos.
+    \item O caso pode ser exportado como bundle FHIR R4 e, futuramente, publicado em FHIR store.
+\end{enumerate}
+
+\chapter{Sugest\~ao de uso deste relat\'orio}
+
+Este documento pode ser usado como:
+
+\begin{itemize}
+    \item base para onboarding t\'ecnico;
+    \item refer\^encia de arquitetura para banca, orienta\c{c}\~ao ou documenta\c{c}\~ao institucional;
+    \item texto-base para proposta de integra\c{c}\~ao com ecossistemas FHIR;
+    \item insumo para reestrutura\c{c}\~ao incremental do backend e da interoperabilidade.
+\end{itemize}
+
+\postextual
+
+\begin{thebibliography}{99}
+
+\bibitem{repo}
+TESCARO, Pedro Antonio Silvestre. \textbf{Reposit\'orio REDISUS}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus}. Acesso em: 19 abr. 2026.
+
+\bibitem{readme}
+TESCARO, Pedro Antonio Silvestre. \textbf{README principal do projeto REDISUS}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/README.md}. Acesso em: 19 abr. 2026.
+
+\bibitem{appfactory}
+TESCARO, Pedro Antonio Silvestre. \textbf{Backend oficial Flask em apps/api/app.py}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/apps/api/app.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{clinicalapi}
+TESCARO, Pedro Antonio Silvestre. \textbf{API cl\'inica em src/dashboard/clinical\_api.py}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/src/dashboard/clinical_api.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{clinicaldashboard}
+TESCARO, Pedro Antonio Silvestre. \textbf{Dashboard cl\'inico em src/dashboard/clinical\_dashboard.py}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/src/dashboard/clinical_dashboard.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{workflow}
+TESCARO, Pedro Antonio Silvestre. \textbf{Workflow cl\'inico e contrato de infer\^encia em packages/clinical\_domain/workflow.py}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/packages/clinical_domain/workflow.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{domainmodels}
+TESCARO, Pedro Antonio Silvestre. \textbf{Modelos de dom\'inio em packages/clinical\_domain/models.py}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/packages/clinical_domain/models.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{validationcode}
+TESCARO, Pedro Antonio Silvestre. \textbf{Valida\c{c}\~oes de payload e upload em packages/clinical\_domain/validation.py}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/packages/clinical_domain/validation.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{securitycode}
+TESCARO, Pedro Antonio Silvestre. \textbf{Camada de seguran\c{c}a em packages/shared/security.py}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/packages/shared/security.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{packagesreadme}
+TESCARO, Pedro Antonio Silvestre. \textbf{README da pasta packages}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/packages/README.md}. Acesso em: 19 abr. 2026.
+
+\bibitem{sysarch}
+TESCARO, Pedro Antonio Silvestre. \textbf{Arquitetura atual do reposit\'orio}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/docs/architecture/system-architecture.md}. Acesso em: 19 abr. 2026.
+
+\bibitem{requirements}
+TESCARO, Pedro Antonio Silvestre. \textbf{Matriz de requisitos e entregas}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/docs/requirements/requirements-matrix.md}. Acesso em: 19 abr. 2026.
+
+\bibitem{fhirarch}
+TESCARO, Pedro Antonio Silvestre. \textbf{Arquitetura FHIR R4 do projeto}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/docs/architecture/fhir-r4-interoperability.md}. Acesso em: 19 abr. 2026.
+
+\bibitem{fhirreadme}
+TESCARO, Pedro Antonio Silvestre. \textbf{README da camada FHIR R4}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/src/interoperability/fhir_r4/README.md}. Acesso em: 19 abr. 2026.
+
+\bibitem{contracttests}
+TESCARO, Pedro Antonio Silvestre. \textbf{Testes de contratos cl\'inicos}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/tests/test_clinical_api_contracts.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{fhirexporttests}
+TESCARO, Pedro Antonio Silvestre. \textbf{Testes de exporta\c{c}\~ao FHIR por caso}. Dispon\'ivel em: \url{https://github.com/pedrotescaro/redisus/blob/main/tests/test_fhir_case_export_api.py}. Acesso em: 19 abr. 2026.
+
+\bibitem{hl7overview}
+HL7 INTERNATIONAL. \textbf{FHIR Overview}. Dispon\'ivel em: \url{https://www.hl7.org/fhir/overview.html}. Acesso em: 19 abr. 2026.
+
+\bibitem{hl7http}
+HL7 INTERNATIONAL. \textbf{FHIR R4 RESTful API}. Dispon\'ivel em: \url{https://www.hl7.org/fhir/R4/http.html}. Acesso em: 19 abr. 2026.
+
+\bibitem{hl7patient}
+HL7 INTERNATIONAL. \textbf{FHIR R4 Patient}. Dispon\'ivel em: \url{https://www.hl7.org/fhir/R4/patient.html}. Acesso em: 19 abr. 2026.
+
+\bibitem{hl7report}
+HL7 INTERNATIONAL. \textbf{FHIR R4 DiagnosticReport}. Dispon\'ivel em: \url{https://www.hl7.org/fhir/R4/diagnosticreport.html}. Acesso em: 19 abr. 2026.
+
+\bibitem{gcpfhir}
+GOOGLE CLOUD. \textbf{FHIR conformance statement -- Cloud Healthcare API}. Dispon\'ivel em: \url{https://cloud.google.com/healthcare-api/docs/fhir}. Acesso em: 19 abr. 2026.
+
+\end{thebibliography}
+
+\end{document}

@@ -34,10 +34,13 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+
+if TYPE_CHECKING:
+    import torch
 
 SEED = 42
 

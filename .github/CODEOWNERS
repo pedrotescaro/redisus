@@ -1,0 +1,19 @@
+# Default repository owner.
+* @pedrotescaro
+
+# Application surfaces.
+/apps/api/ @pedrotescaro
+/web/redisus-frontend/ @pedrotescaro
+/apps/desktop/ @pedrotescaro
+
+# Clinical domain, security, interoperability, and ML.
+/packages/clinical_domain/ @pedrotescaro
+/packages/shared/security.py @pedrotescaro
+/src/interoperability/ @pedrotescaro
+/ml/ @pedrotescaro
+
+# Governance and CI.
+/.github/ @pedrotescaro
+/SECURITY.md @pedrotescaro
+/docs/security/ @pedrotescaro
+/docs/compliance/ @pedrotescaro

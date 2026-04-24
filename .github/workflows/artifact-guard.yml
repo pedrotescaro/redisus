@@ -1,0 +1,40 @@
+name: Artifact Guard
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  block-generated-artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Block generated artifacts tracked by Git
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden="$(
+            git ls-files \
+              'dataset/**' \
+              'models/**' \
+              'runs/**' \
+              'tmp_images/**' \
+              '*.pt' '*.pth' '*.keras' '*.h5' '*.ckpt' '*.onnx' '*.tflite' '*.task' \
+              '*.db' '*.sqlite' '*.sqlite3' \
+              '*.docx' \
+              '*.pb' \
+              | grep -vE '^(examples/synthetic_wound\.jpg|design/logo\.png|web/redisus-frontend/public/images/logo\.(png|svg)|web/redisus-frontend/public/videos/\.gitkeep)$' || true
+          )"
+
+          if [[ -n "$forbidden" ]]; then
+            echo "The following generated, binary, dataset, or model artifacts are tracked by Git:"
+            echo "$forbidden"
+            echo
+            echo "Move them to external storage or keep them local and ignored. Store metadata in ml/registry, ml/model_cards, or data/manifests."
+            exit 1
+          fi

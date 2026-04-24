@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: HEAL+ / REDISUS Clinical API
+  version: 0.1.0
+  description: Initial public contract for the official clinical API. Expand this file as routes are stabilized.
+servers:
+  - url: http://localhost:5000
+paths:
+  /health:
+    get:
+      summary: Root healthcheck
+      responses:
+        "200":
+          description: API is reachable.
+  /api/v1/health:
+    get:
+      summary: Official API healthcheck
+      responses:
+        "200":
+          description: API is healthy.
+  /api/dashboard/summary:
+    get:
+      summary: Authenticated clinical dashboard summary
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard summary payload.
+        "401":
+          description: Missing or invalid authentication.
+        "403":
+          description: Authenticated user cannot access this resource.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error, detail, request_id]
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string

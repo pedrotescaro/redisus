@@ -137,20 +137,15 @@ export default function HomePage() {
 
           <div className="relative z-10 mx-auto mt-14 w-full max-w-6xl">
             <div className="rounded-2xl bg-surface-container-low p-3 shadow-ambient ghost-border">
-              <div className="relative flex aspect-video w-full overflow-hidden rounded-xl bg-surface-container-high ring-1 ring-outline-variant/20 shadow-inner">
-                <video
-                  src="/videos/dashboard-heal.mp4"
-                  className="h-full w-full object-cover pointer-events-none"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                >
-                  <p className="text-center text-sm text-on-surface-variant">
-                    Seu navegador não suporta a tag de vídeo.
-                  </p>
-                </video>
+              <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-surface-container-high ring-1 ring-outline-variant/20 shadow-inner">
+                <Image
+                  src="/images/logo.png"
+                  alt="HEAL+ REDISUS"
+                  width={480}
+                  height={240}
+                  priority
+                  className="h-auto w-full max-w-md object-contain px-8"
+                />
               </div>
             </div>
           </div>

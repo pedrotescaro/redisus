@@ -6,12 +6,13 @@ Plataforma de apoio ao diagnóstico e acompanhamento longitudinal de feridas, co
 [![CI Web](https://github.com/pedrotescaro/redisus/actions/workflows/ci-web.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/ci-web.yml)
 [![CodeQL](https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml)
 [![Secret Scan](https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml)
+[![Artifact Guard](https://github.com/pedrotescaro/redisus/actions/workflows/artifact-guard.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/artifact-guard.yml)
 [![License](https://img.shields.io/github/license/pedrotescaro/redisus)](LICENSE)
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=0A0A0A)
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0A0A0A)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore%20%7C%20Storage-FFCA28?logo=firebase&logoColor=black)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
@@ -57,7 +58,36 @@ O estado atual é:
 - domínio clínico e serviços centrais ainda concentrados em [`src/`](src/);
 - wrappers estáveis em [`packages/`](packages/);
 - frontend web em [`web/redisus-frontend/`](web/redisus-frontend/);
-- ML e artefatos experimentais ainda em consolidação em [`ml/`](ml/), [`models/`](models/), [`dataset/`](dataset/) e [`runs/`](runs/).
+- ML e artefatos experimentais descritos em [`ml/`](ml/), com datasets, checkpoints, runs e imagens temporárias mantidos fora do Git por padrão.
+
+## Trilha Rápida para Desenvolvedores
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements-ci.txt
+python -m pytest tests/test_clinical_api_contracts.py tests/test_fhir_client.py tests/test_risk_stratification.py tests/test_official_api_factory.py tests/test_api_security.py -q
+python -m apps.api.app
+```
+
+Frontend:
+
+```powershell
+cd web\redisus-frontend
+npm ci
+npm run lint
+npx tsc --noEmit
+npm run build
+npm run dev
+```
+
+Documentação operacional:
+
+- setup local: [`docs/dev/setup.md`](docs/dev/setup.md)
+- testes: [`docs/dev/testing.md`](docs/dev/testing.md)
+- política de artefatos: [`docs/data/artifact-policy.md`](docs/data/artifact-policy.md)
+- releases: [`docs/operations/release.md`](docs/operations/release.md)
 
 ## Fluxo Clínico Principal
 
@@ -144,8 +174,8 @@ Essa é a trilha mais importante do projeto neste momento. Novas features devem 
 
 ### Frontend
 
-- Next.js 14
-- React 18
+- Next.js 16
+- React 19
 - TypeScript
 - Tailwind CSS
 - Firebase
@@ -247,6 +277,8 @@ O projeto não retorna apenas um rótulo. Hoje ele já expõe diferentes camadas
 - **overlays visuais**: detecção, segmentação, sobreposição tecidual, Grad-CAM e comparação longitudinal.
 
 ### Dados, Treino e Artefatos
+
+Checkpoints, datasets completos, runs de treino e bancos locais não devem ser versionados no Git. O repositório mantém código, manifests, model cards e documentação; os binários devem ficar em cache local ou storage externo com checksum, conforme [`docs/data/artifact-policy.md`](docs/data/artifact-policy.md).
 
 #### 1. Classificador local base (`EfficientNet-B0`)
 

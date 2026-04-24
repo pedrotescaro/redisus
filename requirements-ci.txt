@@ -1,0 +1,19 @@
+# Minimal dependencies used by GitHub Actions smoke checks.
+# Full ML/runtime dependencies remain in requirements.txt.
+coverage[toml]>=7.4.0
+pytest>=7.4.0
+pytest-cov>=4.1.0
+ruff>=0.8.0
+mypy>=1.8.0
+numpy>=1.24.0
+opencv-python-headless>=4.8.0
+Pillow>=10.0.0
+flask>=3.0.0
+flask-cors>=4.0.1
+loguru>=0.7.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+reportlab>=4.0.0
+fpdf2>=2.7.0
+fhir.resources>=7.0.0

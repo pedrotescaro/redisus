@@ -8,6 +8,8 @@ on:
 jobs:
   python-smoke:
     runs-on: ubuntu-latest
+    env:
+      REDISUS_COVERAGE_MIN: "45"
 
     steps:
       - name: Checkout
@@ -17,15 +19,47 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
 
-      - name: Install smoke dependencies
+      - name: Install CI dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest numpy opencv-python-headless flask flask-cors loguru requests python-dotenv pillow reportlab fpdf2 pydantic fhir.resources
+          python -m pip install -r requirements-ci.txt
 
       - name: Compile sources
         run: python -m compileall apps packages src backend scripts main.py heal_platform.py realtime_app.py
 
+      - name: Fatal lint
+        run: python -m ruff check apps packages src tests scripts main.py heal_platform.py realtime_app.py
+
+      - name: Format check advisory
+        run: python -m ruff format --check apps packages src tests scripts main.py heal_platform.py realtime_app.py
+        continue-on-error: true
+
+      - name: Type check
+        run: python -m mypy apps packages src
+        continue-on-error: true
+
       - name: Run smoke tests
         run: |
-          python -m pytest tests/test_clinical_api_contracts.py tests/test_fhir_client.py tests/test_risk_stratification.py tests/test_official_api_factory.py tests/test_api_security.py -q
+          python -m pytest \
+            tests/test_clinical_api_contracts.py \
+            tests/test_fhir_client.py \
+            tests/test_risk_stratification.py \
+            tests/test_official_api_factory.py \
+            tests/test_api_security.py \
+            -q \
+            --cov=apps \
+            --cov=packages \
+            --cov=src/interoperability \
+            --cov=src/risk \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under="${REDISUS_COVERAGE_MIN}"
+
+      - name: Upload coverage XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-xml
+          path: coverage.xml
