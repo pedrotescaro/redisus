@@ -50,3 +50,11 @@ Se você identificar uma vulnerabilidade:
 - manter Artifact Guard ativo para impedir dados, modelos e bancos rastreados em PRs;
 - restringir CORS e validar autenticação por ambiente;
 - formalizar política de retenção e anonimização de dados.
+
+## Controles automatizados
+
+- Dependabot deve abrir PRs semanais para GitHub Actions, Python e frontend.
+- CodeQL deve rodar em pull requests, pushes na `main` e agenda semanal.
+- Gitleaks deve bloquear segredos reais em pull requests, pushes e varreduras semanais.
+- Falhas de seguranca nao devem ser tratadas como advisory sem decisao explicita do mantenedor.
+- Falsos positivos precisam ser registrados em `.gitleaks.toml` com escopo estreito e justificativa.

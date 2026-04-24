@@ -1,0 +1,16 @@
+title = "Redisus secret scanning policy"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation and tests may mention placeholder token names without real secret material."
+paths = [
+  '''docs/research/deep-research-report\.md''',
+  '''tests/.*''',
+]
+regexes = [
+  '''token-123''',
+  '''GITHUB_TOKEN''',
+  '''REDISUS_FHIR_GCP_BEARER_TOKEN''',
+]
