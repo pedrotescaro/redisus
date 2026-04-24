@@ -11,6 +11,8 @@ from src.interoperability.fhir_r4.examples import (
 )
 from src.interoperability.fhir_r4.validators import FHIRValidationError, validate_bundle
 
+pytestmark = [pytest.mark.contract, pytest.mark.fhir]
+
 
 def test_mapper_creates_complete_wound_case_bundle():
     mapper = RedisusFHIRMapper()
@@ -83,6 +85,76 @@ def test_validate_bundle_rejects_missing_entry_resource():
             },
             strict=False,
         )
+
+
+def test_mapper_creates_transaction_bundle_with_put_requests():
+    mapper = RedisusFHIRMapper()
+    bundle = mapper.map_case_to_bundle(
+        patient_data=sample_patient_data(),
+        evaluation_data=sample_evaluation_data(),
+        inference_result=sample_inference_result(),
+        care_plan_data=sample_care_plan_data(),
+        bundle_type="transaction",
+    )
+
+    assert bundle["type"] == "transaction"
+    validate_bundle(bundle, strict=False)
+
+    for entry in bundle["entry"]:
+        resource = entry["resource"]
+        assert entry["fullUrl"] == f"urn:uuid:{resource['resourceType'].lower()}-{resource['id']}"
+        assert entry["request"] == {
+            "method": "PUT",
+            "url": f"{resource['resourceType']}/{resource['id']}",
+        }
+
+
+def test_mapper_normalizes_portuguese_clinical_aliases():
+    mapper = RedisusFHIRMapper()
+    patient_data = sample_patient_data()
+    patient_data["gender"] = "feminino"
+
+    evaluation_data = sample_evaluation_data()
+    evaluation_data["wound_type"] = "lesao_pressao"
+
+    inference_result = sample_inference_result()
+    inference_result["inference"]["etiology"] = "lesao_pressao"
+    inference_result["inference"]["tissue_percentages"] = {
+        "granulacao": 50,
+        "esfacelo": 25,
+        "necrose": 25,
+    }
+    inference_result["etiology"] = {"primary": "lesao_pressao", "confidence": 0.9}
+
+    bundle = mapper.map_case_to_bundle(
+        patient_data=patient_data,
+        evaluation_data=evaluation_data,
+        inference_result=inference_result,
+        care_plan_data=sample_care_plan_data(),
+        bundle_type="collection",
+    )
+    resources_by_type: dict[str, list[dict]] = {}
+    for entry in bundle["entry"]:
+        resources_by_type.setdefault(entry["resource"]["resourceType"], []).append(entry["resource"])
+
+    patient = resources_by_type["Patient"][0]
+    condition = resources_by_type["Condition"][0]
+    observation = resources_by_type["Observation"][0]
+
+    assert patient["gender"] == "female"
+    assert condition["code"]["coding"][0]["code"] == "399912005"
+    assert condition["code"]["coding"][-1]["code"] == "pressure_injury"
+
+    tissue_components = {
+        component["code"]["coding"][-1]["code"]: component["valueQuantity"]["value"]
+        for component in observation["component"]
+        if component["code"]["coding"][-1]["code"] in {"granulation", "slough", "necrosis"}
+    }
+    assert tissue_components == {
+        "granulation": 50.0,
+        "slough": 25.0,
+        "necrosis": 25.0,
+    }
 
 
 def test_google_adapter_uses_env_configuration(monkeypatch):

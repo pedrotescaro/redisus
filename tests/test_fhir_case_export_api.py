@@ -7,6 +7,8 @@ from PIL import Image
 from src.dashboard.clinical_dashboard import ClinicalDashboard
 from src.data.database import Database, PatientRecord
 
+pytestmark = [pytest.mark.contract, pytest.mark.fhir]
+
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
@@ -174,3 +176,31 @@ def test_case_fhir_export_rejects_evaluation_from_other_case(client):
     )
     assert response.status_code == 404
     assert response.get_json()["error"] == "fhir_export_evaluation_not_found_for_case"
+
+
+def test_case_fhir_export_rejects_invalid_bundle_type_before_lookup(client):
+    create_response = client.post(
+        "/api/v1/evaluations",
+        json={
+            "patient_id": "p001",
+            "evaluation_date": "2026-04-21",
+            "wound_type": "venous_ulcer",
+            "wound_location": "perna direita",
+            "clinical_description": "contrato de bundle invalido",
+            "wound_area_cm2": 7.0,
+            "depth_mm": 1.0,
+            "pain_score": 2,
+            "tissue_composition": {"granulation": 70, "slough": 20, "necrosis": 10},
+        },
+    )
+    assert create_response.status_code == 201
+    case_id = create_response.get_json()["case_id"]
+
+    response = client.get(f"/api/v1/lesions/{case_id}/fhir?bundleType=batch")
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload == {
+        "error": "bundle_type_invalido",
+        "detail": "bundleType must be collection or transaction",
+    }
