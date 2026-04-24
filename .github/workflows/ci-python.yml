@@ -9,7 +9,7 @@ jobs:
   python-smoke:
     runs-on: ubuntu-latest
     env:
-      REDISUS_COVERAGE_MIN: "45"
+      REDISUS_COVERAGE_MIN: "55"
 
     steps:
       - name: Checkout
@@ -45,7 +45,9 @@ jobs:
         run: |
           python -m pytest \
             tests/test_clinical_api_contracts.py \
+            tests/test_fhir_case_export_api.py \
             tests/test_fhir_client.py \
+            tests/test_fhir_r4_layer.py \
             tests/test_risk_stratification.py \
             tests/test_official_api_factory.py \
             tests/test_api_security.py \

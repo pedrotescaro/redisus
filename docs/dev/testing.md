@@ -26,7 +26,7 @@ python -m pytest
 python -m pytest -m "not slow and not ml"
 python -m pytest -m contract
 python -m pytest -m fhir
-python -m pytest tests/test_clinical_api_contracts.py tests/test_fhir_client.py tests/test_risk_stratification.py tests/test_official_api_factory.py tests/test_api_security.py -q
+python -m pytest tests/test_clinical_api_contracts.py tests/test_fhir_case_export_api.py tests/test_fhir_client.py tests/test_fhir_r4_layer.py tests/test_risk_stratification.py tests/test_official_api_factory.py tests/test_api_security.py -q
 python -m pytest --cov=apps --cov=packages --cov=src/interoperability --cov=src/risk --cov-report=term-missing --cov-report=xml
 ```
 
@@ -34,8 +34,8 @@ python -m pytest --cov=apps --cov=packages --cov=src/interoperability --cov=src/
 
 Meta inicial:
 
-- 45% no smoke gate da CI, para não bloquear a limpeza inicial do repositório.
-- 60% após remover artefatos e estabilizar fixtures.
+- 55% no smoke gate da CI apos ampliar contratos FHIR/API.
+- 60% apos remover artefatos e estabilizar fixtures.
 - 80% nos módulos críticos: segurança, domínio clínico, contratos FHIR e validação de payloads.
 
 Cobertura baixa em código legado não deve bloquear a migração, mas código novo em API, segurança, FHIR e domínio clínico deve entrar com teste.
