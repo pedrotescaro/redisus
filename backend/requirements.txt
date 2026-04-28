@@ -1,5 +1,5 @@
 # Backend API - Additional dependencies
-firebase-admin>=6.0.0
+firebase-admin>=7.4.0
 flask>=3.0.0
 flask-cors>=5.0.0
 python-dotenv>=1.0.0
