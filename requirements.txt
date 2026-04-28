@@ -34,7 +34,7 @@ albumentations>=1.3.0
 matplotlib>=3.7.0
 
 # Threading e Async
-concurrent-log-handler>=0.9.0
+concurrent-log-handler>=0.9.29
 
 # ============================================================
 # Configuração e Infraestrutura
