@@ -96,7 +96,7 @@ mediapipe>=0.10.0
 # Camada Adicional de IA (Ensemble Multi-Modelo)
 # ============================================================
 # DermaIntel ViT - Classificador de feridas (Hugging Face)
-transformers>=4.35.0
+transformers>=5.6.2
 
 # BiomedCLIP - Análise zero-shot multimodal (Microsoft)
 open_clip_torch>=2.23.0
