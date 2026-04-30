@@ -269,16 +269,16 @@ export default function HomePage() {
                 </a>
               </div>
 
-              <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-8 grid max-w-[680px] grid-cols-2 gap-3 sm:grid-cols-4">
                 {heroStats.map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-2xl border border-white/12 bg-white/[0.075] p-3.5 backdrop-blur-xl"
+                    className="min-h-[96px] rounded-[14px] border border-white/10 bg-[#21106f]/70 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl"
                   >
-                    <p className="text-2xl font-black text-[#73a8ff] font-headline">
+                    <p className="text-xl font-black text-[#73a8ff] font-headline">
                       {item.value}
                     </p>
-                    <p className="mt-2 text-xs font-bold leading-5 text-white/64">
+                    <p className="mt-2 text-[11px] font-extrabold leading-4 text-white/82">
                       {item.label}
                     </p>
                   </div>
@@ -299,7 +299,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="border-y border-[#dbeafe] bg-white py-8">
+        <section className="border-y border-[#dbeafe] bg-white py-6">
           <div className="mx-auto grid max-w-7xl gap-4 px-5 md:grid-cols-4 md:px-8">
             {[
               "Pacientes em ordem",
@@ -307,7 +307,7 @@ export default function HomePage() {
               "Comparativo fotográfico",
               "Relatórios exportáveis",
             ].map((item) => (
-              <div key={item} className="flex items-center justify-center gap-2 rounded-2xl bg-[#f7faff] px-4 py-4 text-center text-sm font-black text-[#1d4ed8]">
+              <div key={item} className="flex items-center justify-center gap-2 rounded-2xl bg-[#f7faff] px-4 py-3 text-center text-sm font-black text-[#1d4ed8]">
                 <BadgeCheck size={18} />
                 {item}
               </div>
@@ -315,8 +315,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="plataforma" className="bg-[#f7faff] py-24 text-[#101828]">
-          <div className="mx-auto grid max-w-7xl gap-12 px-5 md:px-8 lg:grid-cols-[0.82fr_1.18fr]">
+        <section id="plataforma" className="bg-[#f7faff] py-[4.5rem] text-[#101828]">
+          <div className="mx-auto grid max-w-7xl gap-9 px-5 md:px-8 lg:grid-cols-[0.82fr_1.18fr]">
             <div>
               <p className="text-sm font-black uppercase tracking-[0.24em] text-[#3b82f6]">
                 Plataforma
@@ -329,7 +329,7 @@ export default function HomePage() {
                 tecnologia. Por isso, o Heal+ aparece como uma solução real para
                 reduzir retrabalho, organizar evidências e tornar a evolução mais visível.
               </p>
-              <div className="mt-8 rounded-[2rem] border border-[#bfdbfe] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+              <div className="mt-6 rounded-[2rem] border border-[#bfdbfe] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
                 <div className="flex items-start gap-4">
                   <div className="rounded-2xl bg-[#3b82f6]/10 p-3 text-[#3b82f6]">
                     <Target size={28} />
@@ -349,12 +349,12 @@ export default function HomePage() {
               {clinicalFlow.map((item) => (
                 <article
                   key={item.title}
-                  className="group rounded-[2rem] border border-[#dbeafe] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-1 hover:border-[#93c5fd] hover:shadow-[0_30px_80px_rgba(59,130,246,0.16)]"
+                  className="group rounded-[2rem] border border-[#dbeafe] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-1 hover:border-[#93c5fd] hover:shadow-[0_30px_80px_rgba(59,130,246,0.16)]"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#3b82f6]/10 text-[#3b82f6] transition-colors group-hover:bg-[#3b82f6] group-hover:text-white">
                     <item.icon size={26} />
                   </div>
-                  <h3 className="mt-6 text-2xl font-black tracking-[-0.03em] font-headline">
+                  <h3 className="mt-5 text-2xl font-black tracking-[-0.03em] font-headline">
                     {item.title}
                   </h3>
                   <p className="mt-3 text-sm leading-7 text-[#667085]">
@@ -366,7 +366,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="fluxo" className="bg-white py-24 text-[#101828]">
+        <section id="fluxo" className="bg-white py-[4.5rem] text-[#101828]">
           <div className="mx-auto max-w-7xl px-5 md:px-8">
             <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
               <div>
@@ -384,17 +384,17 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="mt-12 grid gap-4 lg:grid-cols-4">
+            <div className="mt-9 grid gap-4 lg:grid-cols-4">
               {journeySteps.map((item) => (
                 <article
                   key={item.step}
-                  className="relative overflow-hidden rounded-[2rem] border border-[#dbeafe] bg-[#f7faff] p-6"
+                  className="relative overflow-hidden rounded-[2rem] border border-[#dbeafe] bg-[#f7faff] p-5"
                 >
                   <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[#3b82f6]/10" />
                   <p className="text-5xl font-black text-[#3b82f6] font-headline">
                     {item.step}
                   </p>
-                  <h3 className="mt-7 text-xl font-black tracking-[-0.02em] font-headline">
+                  <h3 className="mt-5 text-xl font-black tracking-[-0.02em] font-headline">
                     {item.title}
                   </h3>
                   <p className="mt-3 text-sm leading-7 text-[#667085]">
@@ -406,10 +406,10 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="landing-deep-blue relative overflow-hidden py-24 text-white">
+        <section className="landing-deep-blue relative overflow-hidden py-[4.5rem] text-white">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(105,169,255,0.22),transparent_28%),radial-gradient(circle_at_78%_30%,rgba(88,52,235,0.24),transparent_30%)]" />
           <div className="relative mx-auto max-w-7xl px-5 md:px-8">
-            <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.24em] text-[#9fc8ff]">
                   Cluster REDI-SUS
@@ -427,7 +427,7 @@ export default function HomePage() {
                 {platformHighlights.map((item) => (
                   <article
                     key={item.title}
-                    className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-6 backdrop-blur-xl"
+                    className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl"
                   >
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#3b82f6]/18 text-[#9fc8ff]">
                       <item.icon size={26} />
@@ -445,9 +445,9 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="tecnologia" className="bg-[#f7faff] py-24 text-[#101828]">
+        <section id="tecnologia" className="bg-[#f7faff] py-[4.5rem] text-[#101828]">
           <div className="mx-auto max-w-7xl px-5 md:px-8">
-            <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div className="mb-9 flex flex-col justify-between gap-6 md:flex-row md:items-end">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.24em] text-[#3b82f6]">
                   Base técnica
@@ -469,7 +469,7 @@ export default function HomePage() {
               {techItems.map((item) => (
                 <article
                   key={item.label}
-                  className="rounded-[2rem] border border-[#dbeafe] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.07)]"
+                  className="rounded-[2rem] border border-[#dbeafe] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.07)]"
                 >
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#3b82f6]/10 text-[#3b82f6]">
@@ -490,8 +490,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="bg-[#f7faff] px-5 py-20 md:px-8">
-          <div className="landing-deep-blue mx-auto max-w-7xl overflow-hidden rounded-[2.4rem] p-8 text-white shadow-[0_30px_90px_rgba(6,16,28,0.22)] md:p-12">
+        <section className="bg-[#f7faff] px-5 py-[3.75rem] md:px-8">
+          <div className="landing-deep-blue mx-auto max-w-7xl overflow-hidden rounded-[2.4rem] p-6 text-white shadow-[0_30px_90px_rgba(6,16,28,0.22)] md:p-9">
             <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.24em] text-[#9fc8ff]">
@@ -512,17 +512,22 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="faq" className="bg-white py-24 text-[#101828]">
-          <div className="mx-auto max-w-4xl px-5 md:px-8">
+        <section id="faq" className="bg-[linear-gradient(180deg,#eef6ff_0%,#ffffff_42%,#f7fbff_100%)] py-[4.5rem] text-[#101828]">
+          <div className="mx-auto max-w-5xl px-5 md:px-8">
             <div className="text-center">
-              <p className="text-sm font-black uppercase tracking-[0.24em] text-[#3b82f6]">
-                Dúvidas Frequentes
-              </p>
-              <h2 className="mt-4 text-4xl font-black leading-tight tracking-[-0.04em] font-headline md:text-5xl">
-                Tire suas dúvidas sobre o Heal+
+              <div className="mx-auto inline-flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.28em] text-[#2563eb]">
+                <span className="h-px w-10 bg-[#93c5fd]" />
+                <span>FAQ</span>
+                <span className="h-px w-10 bg-[#93c5fd]" />
+              </div>
+              <h2 className="mt-6 text-4xl font-black leading-tight tracking-[-0.04em] font-headline md:text-6xl">
+                Perguntas frequentes.
               </h2>
+              <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[#667085] md:text-lg">
+                Respostas rápidas sobre o Heal+, acesso ao módulo e uso na rotina clínica.
+              </p>
             </div>
-            <div className="mt-12 grid gap-4">
+            <div className="mx-auto mt-10 grid max-w-4xl gap-3.5">
               {[
                 {
                   question: "O Heal+ é gratuito?",
@@ -541,14 +546,14 @@ export default function HomePage() {
                   answer: "No momento, preparamos a base da inteligência. Os modelos e segmentações estão em desenvolvimento, e a documentação serve de alicerce para tal."
                 }
               ].map((faq, idx) => (
-                <details key={idx} className="group rounded-[1.5rem] border border-[#dbeafe] bg-[#f7faff] p-6 open:bg-white open:shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-                  <summary className="flex cursor-pointer items-center justify-between text-lg font-black font-headline">
+                <details key={idx} className="group rounded-[1.25rem] border border-[#dbeafe] bg-white px-6 py-5 shadow-[0_18px_45px_rgba(59,130,246,0.06)] transition-shadow open:shadow-[0_24px_70px_rgba(59,130,246,0.12)] md:px-8">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-base font-bold text-[#061235] [&::-webkit-details-marker]:hidden md:text-lg">
                     {faq.question}
-                    <span className="ml-4 transition-transform group-open:rotate-180 text-[#3b82f6]">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"/></svg>
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#bfdbfe] bg-[#f3f8ff] text-xl font-medium leading-none text-[#3b82f6] transition-transform group-open:rotate-45">
+                      +
                     </span>
                   </summary>
-                  <p className="mt-4 text-sm leading-7 text-[#667085]">
+                  <p className="mt-4 max-w-3xl text-sm leading-7 text-[#667085]">
                     {faq.answer}
                   </p>
                 </details>
@@ -561,7 +566,7 @@ export default function HomePage() {
       <footer className="landing-deep-blue relative overflow-hidden text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(105,169,255,0.16),transparent_22%),radial-gradient(circle_at_85%_22%,rgba(88,52,235,0.22),transparent_28%)]" />
 
-        <div className="relative z-10 mx-auto max-w-7xl px-5 py-16 md:px-8">
+        <div className="relative z-10 mx-auto max-w-7xl px-5 py-12 md:px-8">
           <div className="grid gap-10 border-b border-white/12 pb-12 lg:grid-cols-[0.8fr_1.2fr]">
             <div>
               <div className="flex items-center gap-3">
@@ -633,14 +638,14 @@ export default function HomePage() {
       <section
         id="instituicoes"
         aria-labelledby="institutional-support-title"
-        className="border-t border-[#e5eefc] bg-white py-14 text-[#11113d]"
+        className="border-t border-[#e5eefc] bg-white py-[2.625rem] text-[#11113d]"
       >
         <div className="mx-auto max-w-7xl px-5 md:px-8">
           <div className="mx-auto max-w-3xl text-center">
       
           </div>
 
-          <div className="mt-10">
+          <div className="mt-8">
             <div className="grid grid-cols-1 divide-y divide-[#dbeafe] md:grid-cols-4 md:divide-x md:divide-y-0">
               {institutionalLogos.map((logo) => (
                 <div
