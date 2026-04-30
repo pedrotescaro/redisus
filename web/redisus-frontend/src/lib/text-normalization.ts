@@ -1,4 +1,5 @@
-const MOJIBAKE_PATTERN = /(?:Ã.|Â.|â€|�)/;
+const MOJIBAKE_PATTERN =
+  /(?:\u00c3.|\u00c2.|\u00e2\u20ac|\ufffd)/;
 
 function humanizeSlug(value: string) {
   return value

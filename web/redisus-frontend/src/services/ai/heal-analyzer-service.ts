@@ -1,17 +1,18 @@
-import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, type User } from "firebase/auth";
+
+import { auth } from "../../lib/firebase";
 import {
   toHealAnalyzerRoiRequestPayloads,
   type HealAnalyzerRoiSummary,
   toHealAnalyzerRoiRequestPayload,
   type HealAnalyzerRoiSelection,
-} from "@/lib/heal-analyzer-roi";
-import { deepRepairMojibake } from "@/lib/text-normalization";
-import { waitForAuthenticatedUser } from "@/services/firebase/auth-service";
+} from "../../lib/heal-analyzer-roi";
+import { deepRepairMojibake } from "../../lib/text-normalization";
 
 const ANALYZER_API_BASE =
-  process.env.NEXT_PUBLIC_CLINICAL_API_URL ?? "/api/clinical";
+  import.meta.env.VITE_CLINICAL_API_URL ?? "/api/clinical";
 const LOCAL_ANALYZER_MODE =
-  process.env.NEXT_PUBLIC_HEAL_ANALYZER_LOCAL_MODE === "true";
+  import.meta.env.VITE_HEAL_ANALYZER_LOCAL_MODE === "true";
 
 export type HealAnalyzerVisualAsset = {
   label: string;
@@ -80,6 +81,27 @@ export type HealAnalyzerResult = {
   roi?: HealAnalyzerRoiSummary | null;
   rois?: HealAnalyzerRoiSelection[] | null;
 };
+
+async function waitForAuthenticatedUser(timeoutMs = 5000) {
+  if (auth.currentUser) {
+    return auth.currentUser;
+  }
+
+  return new Promise<User | null>((resolve) => {
+    let unsubscribe: () => void = () => {};
+    const timer = window.setTimeout(() => {
+      unsubscribe();
+      resolve(null);
+    }, timeoutMs);
+
+    unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      window.clearTimeout(timer);
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
 
 async function buildAuthorizedHeaders(): Promise<HeadersInit> {
   if (LOCAL_ANALYZER_MODE) {
@@ -168,3 +190,4 @@ export async function analyzeWithHealAnalyzer(
 
   return deepRepairMojibake(payload as HealAnalyzerResult);
 }
+

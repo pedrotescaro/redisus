@@ -3,7 +3,7 @@
 
 import type { ComponentType } from "react";
 import { BrainCircuit, Layers3, Maximize2, ScanSearch } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 type ViewerTab = {
   id: "original" | "segmentation" | "combined" | "attention";
@@ -229,3 +229,4 @@ export function AnalyzerViewer({
     </section>
   );
 }
+

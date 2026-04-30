@@ -1,12 +1,12 @@
 import type {
   HealAnalyzerResult,
   HealAnalyzerTissueEntry,
-} from "@/services/ai/heal-analyzer-service";
+} from "../../services/ai/heal-analyzer-service";
 import {
   presentHealAnalyzerModelDetails,
   presentHealAnalyzerModelName,
   repairMojibakeText,
-} from "@/lib/text-normalization";
+} from "../../lib/text-normalization";
 
 export type WorkflowState =
   | "idle"
@@ -27,10 +27,10 @@ type TissueBreakdown = {
 };
 
 const TISSUE_LABELS: Record<string, string> = {
-  granulation: "Tecido de granulação",
+  granulation: "Tecido de granulaÃ§Ã£o",
   slough: "Esfacelo (fibrina)",
-  necrosis: "Necrose de coagulação",
-  epithelialization: "Epitelização",
+  necrosis: "Necrose de coagulaÃ§Ã£o",
+  epithelialization: "EpitelizaÃ§Ã£o",
 };
 
 const TISSUE_COLORS: Record<string, string> = {
@@ -84,7 +84,7 @@ export function inferTissueKey(value: string) {
 
 export function presentClinicalLabel(value: string) {
   const key = inferTissueKey(value);
-  return TISSUE_LABELS[key] || repairMojibakeText(value) || "Sem classificação";
+  return TISSUE_LABELS[key] || repairMojibakeText(value) || "Sem classificaÃ§Ã£o";
 }
 
 function normalizeTissueEntry(entry: HealAnalyzerTissueEntry): TissueBreakdown {
@@ -222,3 +222,4 @@ export function getStatusCopy(
     tone: "border-outline-variant/30 bg-surface-container text-on-surface-variant dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
   };
 }
+

@@ -1,0 +1,145 @@
+/* ============================================
+   Heal+ Design System - Visual Tokens
+   Based on the mobile app palette
+   ============================================ */
+
+:root {
+  color-scheme: light;
+
+  /* Primary palette */
+  --color-primary: #3B82F6;
+  --color-primary-dark: #2563EB;
+  --color-primary-light: #DBEAFE;
+  --color-soft-blue: #DBEAFE;
+
+  /* Secondary / Teal */
+  --color-teal: #10B981;
+  --color-teal-dark: #059669;
+  --color-teal-soft: #D1FAE5;
+
+  /* Semantic */
+  --color-success: #10B981;
+  --color-success-soft: #D1FAE5;
+  --color-danger: #EF4444;
+  --color-danger-soft: #FEE2E2;
+  --color-warning: #F59E0B;
+  --color-warning-soft: #FEF3C7;
+
+  /* Surfaces */
+  --color-background: #F2F2F7;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #EFEFF4;
+  --color-border: #E5E5EA;
+  --color-border-strong: #C7C7CC;
+
+  /* Text */
+  --color-text: #1C1C1E;
+  --color-text-secondary: #3A3A3C;
+  --color-muted: #6B6B70;
+  --color-muted-light: #A0A0A5;
+
+  /* Shape */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-card: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgba(28, 28, 30, 0.04);
+  --shadow-soft: 0 6px 20px rgba(28, 28, 30, 0.06);
+  --shadow-md: 0 10px 28px rgba(28, 28, 30, 0.08);
+  --shadow-lg: 0 18px 40px rgba(28, 28, 30, 0.1);
+  --shadow-blue: 0 5px 18px rgba(59, 130, 246, 0.2);
+
+  /* Motion */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Typography */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Compatibility tokens used by the preserved HEAL Analyzer */
+  --surface: #f7f9fc;
+  --surface-dim: #d8dadd;
+  --surface-bright: #f7f9fc;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f2f4f7;
+  --surface-container: #eceef1;
+  --surface-container-high: #f8fafc;
+  --surface-container-highest: #ffffff;
+  --surface-variant: #e0e3e6;
+  --background: #f7f9fc;
+  --primary: var(--color-primary);
+  --primary-container: #2196f3;
+  --on-primary: #ffffff;
+  --on-primary-container: #ffffff;
+  --secondary: #416084;
+  --secondary-container: #b4d4fe;
+  --error: var(--color-danger);
+  --error-container: var(--color-danger-soft);
+  --on-error: #ffffff;
+  --on-error-container: #93000a;
+  --on-surface: var(--color-text);
+  --on-surface-variant: #2c3e50;
+  --on-background: var(--color-text);
+  --outline: #707883;
+  --outline-variant: #bfc7d4;
+  --shadow-ambient: 0px 4px 24px rgba(33, 150, 243, 0.08);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --color-background: #1E1E20;
+  --color-surface: #2A2A2C;
+  --color-surface-hover: #1E1E20;
+  --color-border: #2A2A2C;
+  --color-border-strong: #4A4A4C;
+
+  --color-text: #FFFFFF;
+  --color-text-secondary: #D1D1D6;
+  --color-muted: #8E8E93;
+  --color-muted-light: #6A6A70;
+
+  --color-soft-blue: rgba(59, 130, 246, 0.15);
+  --color-teal-soft: rgba(16, 185, 129, 0.15);
+  --color-success-soft: rgba(16, 185, 129, 0.15);
+  --color-danger-soft: rgba(239, 68, 68, 0.12);
+  --color-warning-soft: rgba(245, 158, 11, 0.12);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 20px 45px rgba(0, 0, 0, 0.32);
+  --shadow-blue: 0 4px 20px rgba(59, 130, 246, 0.3);
+
+  --surface: #131313;
+  --surface-dim: #131313;
+  --surface-bright: #393939;
+  --surface-container-lowest: #0e0e0e;
+  --surface-container-low: #1c1b1b;
+  --surface-container: #20201f;
+  --surface-container-high: #2a2a2a;
+  --surface-container-highest: #353535;
+  --surface-variant: #353535;
+  --background: #131313;
+  --primary: #9ecaff;
+  --primary-container: #2196f3;
+  --on-primary: #003258;
+  --on-primary-container: #ffffff;
+  --secondary: #a9c9f2;
+  --secondary-container: #2b4b6e;
+  --error: #ffb4ab;
+  --error-container: #93000a;
+  --on-error: #690005;
+  --on-error-container: #ffdad6;
+  --on-surface: #e5e2e1;
+  --on-surface-variant: #bfc7d4;
+  --on-background: #e5e2e1;
+  --outline: #89919d;
+  --outline-variant: #404752;
+  --shadow-ambient: 0px 10px 40px rgba(229, 226, 225, 0.06);
+}

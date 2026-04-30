@@ -1,80 +1,79 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
+import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import {
+  browserLocalPersistence,
+  connectAuthEmulator,
+  getAuth,
+  setPersistence
+} from 'firebase/auth';
+import {
+  connectFirestoreEmulator,
+  getFirestore
+} from 'firebase/firestore';
+import {
+  connectStorageEmulator,
+  getStorage
+} from 'firebase/storage';
 
-const firebaseEnv = {
-  NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-} as const;
-
-const missingEnvVars = Object.entries(firebaseEnv)
-  .filter(([, value]) => !value?.trim())
-  .map(([key]) => key);
-
-if (missingEnvVars.length > 0) {
-  throw new Error(
-    [
-      "Configuracao Firebase ausente no frontend.",
-      "Preencha as variaveis em .env.local e reinicie o servidor Next.js.",
-      `Campos faltando: ${missingEnvVars.join(", ")}`,
-    ].join(" "),
-  );
-}
-
-const firebaseConfig = {
-  apiKey: firebaseEnv.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: firebaseEnv.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: firebaseEnv.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: firebaseEnv.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: firebaseEnv.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: firebaseEnv.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+const requiredEnv = {
+  VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const missingFirebaseEnv = Object.entries(requiredEnv)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
 
-let analytics: Analytics | null = null;
+export const isFirebaseConfigured = missingFirebaseEnv.length === 0;
 
-if (typeof window !== "undefined") {
-  void isSupported().then((supported) => {
-    if (supported) {
-      analytics = getAnalytics(app);
-    }
-  });
+const firebaseConfig = {
+  apiKey: requiredEnv.VITE_FIREBASE_API_KEY || 'missing-firebase-api-key',
+  authDomain: requiredEnv.VITE_FIREBASE_AUTH_DOMAIN || 'missing-firebase-auth-domain',
+  projectId: requiredEnv.VITE_FIREBASE_PROJECT_ID || 'missing-firebase-project',
+  storageBucket: requiredEnv.VITE_FIREBASE_STORAGE_BUCKET || 'missing-firebase-storage',
+  messagingSenderId: requiredEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000',
+  appId: requiredEnv.VITE_FIREBASE_APP_ID || '1:000000000000:web:0000000000000000000000',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+};
+
+function resolveStorageBucketUrl(storageBucket: string) {
+  if (!storageBucket) return undefined;
+  return `gs://${storageBucket.replace(/^gs:\/\//, '')}`;
 }
 
-// App Check initialization
-if (typeof window !== "undefined") {
-  // Ativa modo debug se configurado (essencial para localhost)
-  if (process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG === "true") {
-    // @ts-ignore
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-  }
-
-  const siteKey = process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY;
-  if (siteKey) {
-    initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(siteKey),
-      isTokenAutoRefreshEnabled: true,
-    });
-  } else if (process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG === "true") {
-    // Inicializa sem siteKey apenas se estiver em debug
-    // O Debug Provider sera usado automaticamente se FIREBASE_APPCHECK_DEBUG_TOKEN estiver definido
-    initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider("DEBUG_MODE"), // Valor dummy, debug token sera usado
-      isTokenAutoRefreshEnabled: true,
-    });
-  }
-}
-
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
-export { app, analytics };
+export const storageBucketName = firebaseConfig.storageBucket.replace(/^gs:\/\//, '');
+const storageBucketUrl = resolveStorageBucketUrl(firebaseConfig.storageBucket);
+export const storage = storageBucketUrl ? getStorage(app, storageBucketUrl) : getStorage(app);
+
+setPersistence(auth, browserLocalPersistence).catch(() => undefined);
+storage.maxUploadRetryTime = 5000;
+
+const useEmulators = import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
+const emulatorHost = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
+
+if (isFirebaseConfigured && useEmulators) {
+  connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+  connectFirestoreEmulator(db, emulatorHost, 8080);
+  connectStorageEmulator(storage, emulatorHost, 9199);
+}
+
+const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY;
+
+if (isFirebaseConfigured && !useEmulators && appCheckSiteKey && typeof window !== 'undefined') {
+  const debugToken = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN;
+  if (debugToken) {
+    (window as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN: string }).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+  }
+
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+    isTokenAutoRefreshEnabled: true
+  });
+}

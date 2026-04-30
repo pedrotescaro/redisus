@@ -7,8 +7,8 @@ import {
   PanelRightOpen,
   Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import type { HealAnalyzerResult } from "@/services/ai/heal-analyzer-service";
+import { Button } from "../ui/Button";
+import type { HealAnalyzerResult } from "../../services/ai/heal-analyzer-service";
 import {
   getConfidencePercent,
   getRiskTone,
@@ -17,7 +17,7 @@ import {
   getStatusCopy,
   presentClinicalLabel,
   type WorkflowState,
-} from "@/components/heal-analyzer/presenter";
+} from "./presenter";
 
 type AnalyzerSummaryProps = {
   analysis: HealAnalyzerResult | null;
@@ -201,3 +201,4 @@ export function AnalyzerSummary({
     </aside>
   );
 }
+

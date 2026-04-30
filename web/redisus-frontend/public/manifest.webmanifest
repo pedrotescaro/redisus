@@ -1,0 +1,8 @@
+{
+  "name": "Heal+ Web",
+  "short_name": "Heal+",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F2F2F7",
+  "theme_color": "#3B82F6"
+}

@@ -1,116 +1,111 @@
-import type { Config } from "tailwindcss";
+import type { Config } from 'tailwindcss';
 
-const config: Config = {
-  darkMode: "class",
-  content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+export default {
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
-      colors: {
-        // Using CSS variables for theme support
-        surface: "var(--surface)",
-        "surface-dim": "var(--surface-dim)",
-        "surface-bright": "var(--surface-bright)",
-        "surface-container-lowest": "var(--surface-container-lowest)",
-        "surface-container-low": "var(--surface-container-low)",
-        "surface-container": "var(--surface-container)",
-        "surface-container-high": "var(--surface-container-high)",
-        "surface-container-highest": "var(--surface-container-highest)",
-        "surface-variant": "var(--surface-variant)",
-        background: "var(--background)",
-
-        // Primary colors
-        primary: "var(--primary)",
-        "primary-container": "var(--primary-container)",
-        "primary-fixed": "var(--primary-fixed)",
-        "primary-fixed-dim": "var(--primary-fixed-dim)",
-        "on-primary": "var(--on-primary)",
-        "on-primary-container": "var(--on-primary-container)",
-        "on-primary-fixed": "var(--on-primary-fixed)",
-        "on-primary-fixed-variant": "var(--on-primary-fixed-variant)",
-        "inverse-primary": "var(--inverse-primary)",
-
-        // Secondary colors
-        secondary: "var(--secondary)",
-        "secondary-container": "var(--secondary-container)",
-        "secondary-fixed": "var(--secondary-fixed)",
-        "secondary-fixed-dim": "var(--secondary-fixed-dim)",
-        "on-secondary": "var(--on-secondary)",
-        "on-secondary-container": "var(--on-secondary-container)",
-        "on-secondary-fixed": "var(--on-secondary-fixed)",
-        "on-secondary-fixed-variant": "var(--on-secondary-fixed-variant)",
-
-        // Tertiary colors (warnings/alerts)
-        tertiary: "var(--tertiary)",
-        "tertiary-container": "var(--tertiary-container)",
-        "tertiary-fixed": "var(--tertiary-fixed)",
-        "tertiary-fixed-dim": "var(--tertiary-fixed-dim)",
-        "on-tertiary": "var(--on-tertiary)",
-        "on-tertiary-container": "var(--on-tertiary-container)",
-        "on-tertiary-fixed": "var(--on-tertiary-fixed)",
-        "on-tertiary-fixed-variant": "var(--on-tertiary-fixed-variant)",
-
-        // Error colors
-        error: "var(--error)",
-        "error-container": "var(--error-container)",
-        "on-error": "var(--on-error)",
-        "on-error-container": "var(--on-error-container)",
-
-        // Surface text colors
-        "on-surface": "var(--on-surface)",
-        "on-surface-variant": "var(--on-surface-variant)",
-        "on-background": "var(--on-background)",
-        "inverse-surface": "var(--inverse-surface)",
-        "inverse-on-surface": "var(--inverse-on-surface)",
-
-        // Outline colors
-        outline: "var(--outline)",
-        "outline-variant": "var(--outline-variant)",
-
-        // Surface tint
-        "surface-tint": "var(--surface-tint)",
-
-        // Legacy brand colors (for backward compatibility)
-        brand: {
-          50: "#edf9f8",
-          100: "#c9f0eb",
-          200: "#9fe3dc",
-          300: "#6ccfc7",
-          400: "#38b4ae",
-          500: "#1f9995",
-          600: "#157a78",
-          700: "#135f5e",
-          800: "#144d4d",
-          900: "#153f40",
-        },
-      },
       fontFamily: {
-        // Manrope para design editorial
-        nav: ["Manrope", "Inter", "sans-serif"],
-        main: ["Manrope", "Poppins", "sans-serif"],
-        headline: ["Manrope", "Poppins", "sans-serif"],
-        body: ["Manrope", "Poppins", "sans-serif"],
-        label: ["Manrope", "Inter", "sans-serif"],
-        sans: ["Manrope", "Poppins", "sans-serif"],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+      },
+      colors: {
+        heal: {
+          blue: '#3B82F6',
+          blueDark: '#2563EB',
+          blueLight: '#DBEAFE',
+          teal: '#10B981',
+          tealDark: '#059669',
+          tealSoft: '#D1FAE5',
+          ink: '#1C1C1E',
+          inkSecondary: '#3A3A3C',
+          muted: '#6B6B70',
+          mutedLight: '#A0A0A5',
+          line: '#E5E5EA',
+          lineStrong: '#C7C7CC',
+          canvas: '#F2F2F7',
+          surface: '#FFFFFF',
+          surfaceHover: '#EFEFF4',
+          softBlue: '#DBEAFE',
+          success: '#10B981',
+          successSoft: '#D1FAE5',
+          danger: '#EF4444',
+          dangerSoft: '#FEE2E2',
+          warning: '#F59E0B',
+          warningSoft: '#FEF3C7',
+        },
+        surface: 'var(--surface)',
+        'surface-dim': 'var(--surface-dim)',
+        'surface-bright': 'var(--surface-bright)',
+        'surface-container-lowest': 'var(--surface-container-lowest)',
+        'surface-container-low': 'var(--surface-container-low)',
+        'surface-container': 'var(--surface-container)',
+        'surface-container-high': 'var(--surface-container-high)',
+        'surface-container-highest': 'var(--surface-container-highest)',
+        'surface-variant': 'var(--surface-variant)',
+        background: 'var(--background)',
+        primary: 'var(--primary)',
+        'primary-container': 'var(--primary-container)',
+        'on-primary': 'var(--on-primary)',
+        'on-primary-container': 'var(--on-primary-container)',
+        secondary: 'var(--secondary)',
+        'secondary-container': 'var(--secondary-container)',
+        error: 'var(--error)',
+        'error-container': 'var(--error-container)',
+        'on-error': 'var(--on-error)',
+        'on-error-container': 'var(--on-error-container)',
+        'on-surface': 'var(--on-surface)',
+        'on-surface-variant': 'var(--on-surface-variant)',
+        'on-background': 'var(--on-background)',
+        outline: 'var(--outline)',
+        'outline-variant': 'var(--outline-variant)',
       },
       borderRadius: {
-        DEFAULT: "0.5rem",
-        lg: "0.5rem",
-        xl: "0.75rem",
-        "2xl": "1rem",
-        "3xl": "1.5rem",
-        full: "9999px",
+        card: 'var(--radius-card)',
+        xl: 'var(--radius-xl)',
+        '2xl': 'var(--radius-2xl)',
       },
       boxShadow: {
-        soft: "0 16px 32px -16px rgba(9, 60, 68, 0.15)",
-        ambient: "var(--shadow-ambient)",
+        xs: 'var(--shadow-xs)',
+        soft: 'var(--shadow-soft)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+        blue: 'var(--shadow-blue)',
+        ambient: 'var(--shadow-ambient)',
+      },
+      animation: {
+        'fade-in': 'heal-fade-in 250ms ease-out',
+        'slide-up': 'heal-slide-up 250ms ease-out',
+        'slide-down': 'heal-slide-down 250ms ease-out',
+        'scale-in': 'heal-scale-in 250ms ease-out',
+        'spin-slow': 'heal-spin 1.5s linear infinite',
+        'pulse-soft': 'heal-pulse 2s ease-in-out infinite',
+      },
+      keyframes: {
+        'heal-fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'heal-slide-up': {
+          from: { opacity: '0', transform: 'translateY(12px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'heal-slide-down': {
+          from: { opacity: '0', transform: 'translateY(-8px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'heal-scale-in': {
+          from: { opacity: '0', transform: 'scale(0.95)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+        'heal-spin': {
+          to: { transform: 'rotate(360deg)' },
+        },
+        'heal-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.5' },
+        },
       },
     },
   },
   plugins: [],
-};
-
-export default config;
+} satisfies Config;

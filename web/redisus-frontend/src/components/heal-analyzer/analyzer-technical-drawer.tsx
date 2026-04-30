@@ -3,13 +3,13 @@
 
 import type { ReactNode } from "react";
 import { Activity, BrainCircuit, FileBarChart2, X } from "lucide-react";
-import type { HealAnalyzerResult } from "@/services/ai/heal-analyzer-service";
+import type { HealAnalyzerResult } from "../../services/ai/heal-analyzer-service";
 import {
   getConfidencePercent,
   getTissueBreakdown,
   presentClinicalLabel,
   presentModelDetails,
-} from "@/components/heal-analyzer/presenter";
+} from "./presenter";
 
 type AnalyzerTechnicalDrawerProps = {
   analysis: HealAnalyzerResult | null;
@@ -318,3 +318,4 @@ export function AnalyzerTechnicalDrawer({
     </>
   );
 }
+

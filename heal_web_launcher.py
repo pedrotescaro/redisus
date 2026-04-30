@@ -44,7 +44,7 @@ def _resolve_npm_command() -> str:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved
-    raise RuntimeError("Node.js/npm nao encontrado. Instale o Node.js para abrir o frontend Next.js.")
+    raise RuntimeError("Node.js/npm nao encontrado. Instale o Node.js para abrir o frontend Vite.")
 
 
 def _popen_kwargs() -> dict[str, object]:
@@ -83,8 +83,8 @@ def _start_backend() -> subprocess.Popen[bytes]:
 def _start_frontend() -> subprocess.Popen[bytes]:
     env = os.environ.copy()
     env.setdefault("CLINICAL_API_URL", FRONTEND_UPSTREAM_URL)
-    env.setdefault("NEXT_PUBLIC_CLINICAL_API_URL", "/api/clinical")
-    env["NEXT_PUBLIC_HEAL_ANALYZER_LOCAL_MODE"] = "true"
+    env.setdefault("VITE_CLINICAL_API_URL", "/api/clinical")
+    env["VITE_HEAL_ANALYZER_LOCAL_MODE"] = "true"
 
     command = [
         _resolve_npm_command(),
@@ -100,7 +100,7 @@ def _start_frontend() -> subprocess.Popen[bytes]:
 
 
 def launch_heal_analyzer_web() -> int:
-    print("[HEAL+] Abrindo HEAL Analyzer em Next.js...")
+    print("[HEAL+] Abrindo HEAL Analyzer em Vite...")
 
     started_backend = False
     started_frontend = False
@@ -127,7 +127,7 @@ def launch_heal_analyzer_web() -> int:
     if started_backend:
         print("[HEAL+] API clinica pronta.")
     if started_frontend:
-        print("[HEAL+] Frontend Next.js pronto.")
+        print("[HEAL+] Frontend Vite pronto.")
 
     webbrowser.open(ANALYZER_URL)
     print(f"[HEAL+] HEAL Analyzer aberto em {ANALYZER_URL}")

@@ -1,0 +1,192 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function optionalString(data, key) {
+      return !(key in data) || data[key] == null || data[key] is string;
+    }
+
+    function validSettings(settings) {
+      return settings is map
+        && settings.keys().hasOnly([
+          'theme',
+          'notificationsEnabled',
+          'emailNotificationsEnabled',
+          'agendaRemindersEnabled',
+          'hideEmailPreview',
+          'showProfilePhoto'
+        ])
+        && settings.theme in ['light', 'dark']
+        && settings.notificationsEnabled is bool
+        && (!('emailNotificationsEnabled' in settings) || settings.emailNotificationsEnabled is bool)
+        && (!('agendaRemindersEnabled' in settings) || settings.agendaRemindersEnabled is bool)
+        && (!('hideEmailPreview' in settings) || settings.hideEmailPreview is bool)
+        && (!('showProfilePhoto' in settings) || settings.showProfilePhoto is bool);
+    }
+
+    function validStringList(items) {
+      return items is list && items.size() <= 12;
+    }
+
+    function validUserDoc() {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'email',
+          'photoURL',
+          'providerIds',
+          'professionalArea',
+          'clinicName',
+          'phone',
+          'onboardingCompleted',
+          'role',
+          'createdAt',
+          'updatedAt',
+          'settings'
+        ])
+        && data.keys().hasAll(['displayName', 'email', 'role', 'settings'])
+        && (!('uid' in data) || data.uid == request.auth.uid)
+        && data.displayName is string
+        && data.displayName.size() >= 2
+        && data.email is string
+        && data.role == 'professional'
+        && optionalString(data, 'photoURL')
+        && optionalString(data, 'professionalArea')
+        && optionalString(data, 'clinicName')
+        && optionalString(data, 'phone')
+        && (!('providerIds' in data) || validStringList(data.providerIds))
+        && (!('onboardingCompleted' in data) || data.onboardingCompleted is bool)
+        && validSettings(data.settings)
+        && (!('createdAt' in data) || data.createdAt is timestamp)
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function validPatientDoc() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['name', 'phone', 'email', 'birthDate', 'notes', 'archived', 'createdAt', 'updatedAt'])
+        && data.keys().hasAll(['name', 'phone', 'email', 'birthDate', 'archived'])
+        && data.name is string
+        && data.name.size() >= 2
+        && data.phone is string
+        && data.birthDate is string
+        && data.email is string
+        && data.notes is string
+        && data.archived is bool
+        && (!('createdAt' in data) || data.createdAt is timestamp)
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function validTimers(timers) {
+      return timers is map
+        && timers.keys().hasOnly(['tissue', 'infection', 'moisture', 'edge', 'repair', 'social'])
+        && timers.tissue is string
+        && timers.infection is string
+        && timers.moisture is string
+        && timers.edge is string
+        && timers.repair is string
+        && timers.social is string;
+    }
+
+    function validEvaluationDoc(patientId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'patientId',
+          'patientName',
+          'date',
+          'woundLocation',
+          'woundEtiology',
+          'painLevel',
+          'exudateAmount',
+          'exudateType',
+          'borderCharacteristics',
+          'periwoundSkin',
+          'infectionSigns',
+          'timers',
+          'comorbidities',
+          'medications',
+          'notes',
+          'images',
+          'imageUploadStatus',
+          'imageUploadError',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasAll(['patientId', 'patientName', 'date', 'woundLocation', 'woundEtiology', 'painLevel', 'timers', 'images'])
+        && data.patientId == patientId
+        && data.patientName is string
+        && data.date is string
+        && data.woundLocation is string
+        && data.woundEtiology is string
+        && data.painLevel is number
+        && data.painLevel >= 0
+        && data.painLevel <= 10
+        && data.exudateAmount is string
+        && data.exudateType is string
+        && data.borderCharacteristics is string
+        && data.periwoundSkin is string
+        && data.infectionSigns is list
+        && validTimers(data.timers)
+        && data.comorbidities is list
+        && data.medications is list
+        && data.notes is string
+        && data.images is list
+        && data.images.size() <= 12
+        && (!('imageUploadStatus' in data) || data.imageUploadStatus in ['complete', 'failed'])
+        && (!('imageUploadError' in data) || data.imageUploadError == null || data.imageUploadError is string)
+        && (!('createdAt' in data) || data.createdAt is timestamp)
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function validAppointmentDoc() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['patientId', 'patientName', 'date', 'time', 'type', 'status', 'notes', 'createdAt', 'updatedAt'])
+        && data.keys().hasAll(['patientId', 'patientName', 'date', 'time', 'type', 'status'])
+        && data.patientId is string
+        && data.patientName is string
+        && data.date is string
+        && data.time is string
+        && data.type is string
+        && data.status in ['Confirmado', 'Pendente', 'Cancelado', 'Realizado']
+        && data.notes is string
+        && (!('createdAt' in data) || data.createdAt is timestamp)
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId) && validUserDoc();
+      allow read: if isOwner(userId);
+      allow delete: if false;
+      allow update: if isOwner(userId) && validUserDoc() && request.resource.data.role == resource.data.role;
+
+      match /patients/{patientId} {
+        allow read: if isOwner(userId);
+        allow delete: if false;
+        allow create, update: if isOwner(userId) && validPatientDoc();
+
+        match /evaluations/{evaluationId} {
+          allow read: if isOwner(userId);
+          allow delete: if false;
+          allow create, update: if isOwner(userId) && validEvaluationDoc(patientId);
+        }
+      }
+
+      match /appointments/{appointmentId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validAppointmentDoc();
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

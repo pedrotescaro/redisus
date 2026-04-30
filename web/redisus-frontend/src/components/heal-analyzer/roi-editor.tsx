@@ -11,7 +11,7 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "../ui/Button";
 import {
   approximateEllipseAsPolygon,
   buildHealAnalyzerRoiSelection,
@@ -21,8 +21,8 @@ import {
   type HealAnalyzerRoiPoint,
   type HealAnalyzerRoiSelection,
   type HealAnalyzerRoiTool,
-} from "@/lib/heal-analyzer-roi";
-import { cn } from "@/lib/utils";
+} from "../../lib/heal-analyzer-roi";
+import { cn } from "../../lib/utils";
 
 type AnalyzerRoiEditorProps = {
   activeSavedSelectionIndex?: number | null;
@@ -644,3 +644,4 @@ export function AnalyzerRoiEditor({
     </section>
   );
 }
+

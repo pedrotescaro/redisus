@@ -20,27 +20,27 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { AnalyzerRoiEditor } from "@/components/heal-analyzer/roi-editor";
-import { AnalyzerSummary } from "@/components/heal-analyzer/analyzer-summary";
-import { AnalyzerTechnicalDrawer } from "@/components/heal-analyzer/analyzer-technical-drawer";
-import { AnalyzerViewer } from "@/components/heal-analyzer/analyzer-viewer";
+import { Button } from "../ui/Button";
+import { Input } from "../ui/Input";
+import { AnalyzerRoiEditor } from "./roi-editor";
+import { AnalyzerSummary } from "./analyzer-summary";
+import { AnalyzerTechnicalDrawer } from "./analyzer-technical-drawer";
+import { AnalyzerViewer } from "./analyzer-viewer";
 import {
   getStatusCopy,
   getTissueBreakdown,
   type AnalyzerTabId,
   type WorkflowState,
-} from "@/components/heal-analyzer/presenter";
+} from "./presenter";
 import {
   isHealAnalyzerRoiSelection,
   roiToolLabel,
   type HealAnalyzerRoiSelection,
-} from "@/lib/heal-analyzer-roi";
+} from "../../lib/heal-analyzer-roi";
 import {
   analyzeWithHealAnalyzer,
   type HealAnalyzerResult,
-} from "@/services/ai/heal-analyzer-service";
+} from "../../services/ai/heal-analyzer-service";
 
 const stepCards = [
   {
@@ -524,7 +524,7 @@ export function AnalyzerWorkbench() {
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="text-sm font-semibold text-on-surface">
-                                  ROI {index + 1} • {roiToolLabel(selection.tool)}
+                                  ROI {index + 1} â€¢ {roiToolLabel(selection.tool)}
                                 </p>
                                 <p className="mt-1 text-xs text-on-surface-variant">
                                   Area aproximada: {Math.round((selection.area_ratio || 0) * 100)}% da imagem.
@@ -687,3 +687,4 @@ export function AnalyzerWorkbench() {
     </>
   );
 }
+
