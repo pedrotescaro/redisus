@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 const references = [
   {
@@ -196,117 +195,130 @@ const references = [
 
 export default function ReferenciasPage() {
   return (
-    <div className="min-h-screen bg-surface text-on-surface">
-      <nav className="fixed top-0 z-50 w-full bg-surface/80 backdrop-blur-xl shadow-ambient border-b border-outline-variant/10">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6">
-          <Link href="/" className="group flex items-center gap-2">
+    <div className="min-h-screen overflow-x-hidden bg-[#f7faff] text-[#101828]">
+      <nav className="fixed left-0 top-0 z-50 w-full border-b border-gray-200 bg-white/90 text-gray-900 shadow-sm backdrop-blur-2xl">
+        <div className="mx-auto flex h-[76px] w-full max-w-[1530px] items-center justify-between px-5 md:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
             <Image
               src="/images/logo.png"
               alt="Heal+ Logo"
-              width={56}
-              height={56}
-              className="transition-transform group-hover:scale-105"
+              width={54}
+              height={54}
+              className="h-12 w-12 shrink-0"
             />
-            <div className="-ml-1">
-              <h1 className="text-2xl font-extrabold leading-none tracking-tight text-primary font-headline">
+            <div className="min-w-0 leading-none">
+              <h1 className="text-2xl font-black text-[#3b82f6] font-headline">
                 Heal+
               </h1>
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Plataforma Clínica</p>
+              <p className="mt-1 hidden text-[10px] font-extrabold uppercase tracking-[0.24em] text-gray-500 sm:block">REDI-SUS Module</p>
             </div>
           </Link>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <Link href="/" className="inline-flex items-center gap-2 pl-4 border-l border-outline-variant/20 text-sm font-semibold hover:text-primary transition-colors">
-              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-              Voltar
+          <div className="hidden items-center gap-7 lg:flex">
+            <a href="/#projeto" className="text-sm font-extrabold text-gray-600 transition-colors hover:text-[#3b82f6]">O projeto</a>
+            <a href="/#plataforma" className="text-sm font-extrabold text-gray-600 transition-colors hover:text-[#3b82f6]">Plataforma</a>
+            <a href="/#fluxo" className="text-sm font-extrabold text-gray-600 transition-colors hover:text-[#3b82f6]">Fluxo</a>
+            <a href="/#tecnologia" className="text-sm font-extrabold text-gray-600 transition-colors hover:text-[#3b82f6]">Tecnologia</a>
+            <a href="/#instituicoes" className="text-sm font-extrabold text-gray-600 transition-colors hover:text-[#3b82f6]">Instituições</a>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/login" className="hidden rounded-full px-4 py-2 text-sm font-extrabold text-gray-600 transition-colors hover:text-[#3b82f6] sm:inline-flex">
+              Entrar
+            </Link>
+            <Link href="/login" className="landing-blue-button inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white transition-transform hover:-translate-y-0.5">
+              Acessar
+              <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
             </Link>
           </div>
         </div>
       </nav>
 
-      <main className="mx-auto max-w-4xl px-6 pt-36 pb-24">
-        <div className="mb-14 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary mb-6">
+      <main className="pt-[76px]">
+        <div className="landing-deep-blue px-5 py-[4.5rem] text-center text-white md:px-8">
+          <div className="mx-auto max-w-4xl">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#73a8ff]/25 bg-[#3b82f6]/12 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#cfe3ff]">
             <span className="material-symbols-outlined text-sm">library_books</span>
             Fundamentação e Tecnologia
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight font-headline md:text-5xl text-on-surface">
+          <h1 className="text-4xl font-black tracking-[-0.04em] font-headline md:text-6xl">
             Referências do Trabalho
           </h1>
-          <p className="mt-4 text-lg text-on-surface-variant max-w-2xl mx-auto">
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-white/78">
             Base teórica, protocolos clínicos e arquitetura tecnológica completa que estruturam a plataforma HEAL+.
           </p>
+          </div>
         </div>
 
-        <section className="mb-16">
-          <h2 className="text-2xl font-bold font-headline mb-8 border-b border-outline-variant/20 pb-4 text-primary">Stack Tecnológico e IA</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="rounded-2xl border border-outline-variant/20 bg-surface-container p-6">
-              <span className="material-symbols-outlined text-tertiary text-3xl mb-3">developer_board</span>
+        <div className="mx-auto max-w-5xl px-5 py-[4.5rem] md:px-8">
+
+        <section className="mb-[4.5rem]">
+          <h2 className="mb-8 border-b border-[#dbeafe] pb-4 text-2xl font-black text-[#3b82f6] font-headline">Stack Tecnológico e IA</h2>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div className="rounded-[2rem] border border-[#dbeafe] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.07)]">
+              <span className="material-symbols-outlined mb-3 text-3xl text-[#3b82f6]">developer_board</span>
               <h3 className="text-lg font-bold">Frontend (Web Portal)</h3>
-              <p className="mt-2 text-sm text-on-surface-variant">Desenvolvido em Next.js 14, React 18 e Tailwind CSS, oferecendo uma experiência moderna com App Router e design adaptativo (Light/Dark mode).</p>
+              <p className="mt-2 text-sm leading-7 text-[#667085]">Desenvolvido em Next.js 14, React 18 e Tailwind CSS, oferecendo uma experiência moderna com App Router e design adaptativo (Light/Dark mode).</p>
             </div>
             
-            <div className="rounded-2xl border border-outline-variant/20 bg-surface-container p-6">
-              <span className="material-symbols-outlined text-secondary text-3xl mb-3">dns</span>
+            <div className="rounded-[2rem] border border-[#dbeafe] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.07)]">
+              <span className="material-symbols-outlined mb-3 text-3xl text-[#3b82f6]">dns</span>
               <h3 className="text-lg font-bold">Backend & Infraestrutura</h3>
-              <p className="mt-2 text-sm text-on-surface-variant">Arquitetura sustentada por Python (Flask API), banco de dados em tempo real NoSQL (Firebase Firestore) e Storage na nuvem do Google Cloud.</p>
+              <p className="mt-2 text-sm leading-7 text-[#667085]">Arquitetura sustentada por Python (Flask API), banco de dados em tempo real NoSQL (Firebase Firestore) e Storage na nuvem do Google Cloud.</p>
             </div>
             
-            <div className="rounded-2xl border border-outline-variant/20 bg-surface-container p-6">
-              <span className="material-symbols-outlined text-primary text-3xl mb-3">robot_2</span>
+            <div className="rounded-[2rem] border border-[#dbeafe] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.07)]">
+              <span className="material-symbols-outlined mb-3 text-3xl text-[#3b82f6]">robot_2</span>
               <h3 className="text-lg font-bold">Modelos de Visão Computacional</h3>
-              <p className="mt-2 text-sm text-on-surface-variant">Implementação de algoritmos de Deep Learning e Visão Computacional (OpenCV, YOLOv8 e ResNet50) para avaliação tecidual clínica.</p>
+              <p className="mt-2 text-sm leading-7 text-[#667085]">Implementação de algoritmos de Deep Learning e Visão Computacional (OpenCV, YOLOv8 e ResNet50) para avaliação tecidual clínica.</p>
             </div>
             
-            <div className="rounded-2xl border border-outline-variant/20 bg-surface-container p-6">
-              <span className="material-symbols-outlined text-primary text-3xl mb-3">psychology</span>
+            <div className="rounded-[2rem] border border-[#dbeafe] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.07)]">
+              <span className="material-symbols-outlined mb-3 text-3xl text-[#3b82f6]">psychology</span>
               <h3 className="text-lg font-bold">Inteligência Artificial (LLM)</h3>
-              <p className="mt-2 text-sm text-on-surface-variant">Uso avançado de IA Generativa (Google Gemini 2.0 Flash) processando análise multimodal (dados e texto) integrado como agente de apoio à decisão.</p>
+              <p className="mt-2 text-sm leading-7 text-[#667085]">Uso avançado de IA Generativa (Google Gemini 2.0 Flash) processando análise multimodal (dados e texto) integrado como agente de apoio à decisão.</p>
             </div>
           </div>
         </section>
 
-        <section className="mb-16">
-          <h2 className="text-2xl font-bold font-headline mb-8 border-b border-outline-variant/20 pb-4 text-primary">Ferramentas e Arquiteturas Open-Source</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low p-5 shadow-ambient hover:border-primary/30 transition-colors">
-               <h4 className="font-bold text-on-surface text-sm">YOLOv8 & Ultralytics</h4>
-               <p className="mt-1 text-xs text-on-surface-variant leading-relaxed">Detecção de objetos em tempo real em duas vias para identificação estrutural e localização primária da lesão no quadro.</p>
+        <section className="mb-[4.5rem]">
+          <h2 className="mb-8 border-b border-[#dbeafe] pb-4 text-2xl font-black text-[#3b82f6] font-headline">Ferramentas e Arquiteturas Open-Source</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-[1.25rem] border border-[#dbeafe] bg-white p-5 shadow-[0_18px_45px_rgba(59,130,246,0.06)] transition-colors hover:border-[#93c5fd]">
+               <h4 className="text-sm font-black text-[#061235]">YOLOv8 & Ultralytics</h4>
+               <p className="mt-2 text-xs leading-relaxed text-[#667085]">Detecção de objetos em tempo real em duas vias para identificação estrutural e localização primária da lesão no quadro.</p>
             </div>
-            <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low p-5 shadow-ambient hover:border-primary/30 transition-colors">
-               <h4 className="font-bold text-on-surface text-sm">BiomedCLIP (Microsoft)</h4>
-               <p className="mt-1 text-xs text-on-surface-variant leading-relaxed">Análise zero-shot multimodal construída com base em linguagem de visão unificada adaptada exclusivamente para o domínio biomédico.</p>
+            <div className="rounded-[1.25rem] border border-[#dbeafe] bg-white p-5 shadow-[0_18px_45px_rgba(59,130,246,0.06)] transition-colors hover:border-[#93c5fd]">
+               <h4 className="text-sm font-black text-[#061235]">BiomedCLIP (Microsoft)</h4>
+               <p className="mt-2 text-xs leading-relaxed text-[#667085]">Análise zero-shot multimodal construída com base em linguagem de visão unificada adaptada exclusivamente para o domínio biomédico.</p>
             </div>
-            <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low p-5 shadow-ambient hover:border-primary/30 transition-colors">
-               <h4 className="font-bold text-on-surface text-sm">MedSAM</h4>
-               <p className="mt-1 text-xs text-on-surface-variant leading-relaxed">Modelo base de IA adaptado da arquitetura genérica SAM (Segment Anything) voltado à segmentação granular de bordas em imagens médicas.</p>
+            <div className="rounded-[1.25rem] border border-[#dbeafe] bg-white p-5 shadow-[0_18px_45px_rgba(59,130,246,0.06)] transition-colors hover:border-[#93c5fd]">
+               <h4 className="text-sm font-black text-[#061235]">MedSAM</h4>
+               <p className="mt-2 text-xs leading-relaxed text-[#667085]">Modelo base de IA adaptado da arquitetura genérica SAM (Segment Anything) voltado à segmentação granular de bordas em imagens médicas.</p>
             </div>
-            <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low p-5 shadow-ambient hover:border-primary/30 transition-colors">
-               <h4 className="font-bold text-on-surface text-sm">DermaIntel ViT</h4>
-               <p className="mt-1 text-xs text-on-surface-variant leading-relaxed">Classificador de ferimentos cutâneos baseado em arquitetura moderna de Transformadores Visuais (Vision Transformers - Hugging Face).</p>
+            <div className="rounded-[1.25rem] border border-[#dbeafe] bg-white p-5 shadow-[0_18px_45px_rgba(59,130,246,0.06)] transition-colors hover:border-[#93c5fd]">
+               <h4 className="text-sm font-black text-[#061235]">DermaIntel ViT</h4>
+               <p className="mt-2 text-xs leading-relaxed text-[#667085]">Classificador de ferimentos cutâneos baseado em arquitetura moderna de Transformadores Visuais (Vision Transformers - Hugging Face).</p>
             </div>
-            <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low p-5 shadow-ambient hover:border-primary/30 transition-colors">
-               <h4 className="font-bold text-on-surface text-sm">MediaPipe</h4>
-               <p className="mt-1 text-xs text-on-surface-variant leading-relaxed">Framework rápido para rastreamento holístico e detecção de pontos articulares para enquadramento do paciente acamado.</p>
+            <div className="rounded-[1.25rem] border border-[#dbeafe] bg-white p-5 shadow-[0_18px_45px_rgba(59,130,246,0.06)] transition-colors hover:border-[#93c5fd]">
+               <h4 className="text-sm font-black text-[#061235]">MediaPipe</h4>
+               <p className="mt-2 text-xs leading-relaxed text-[#667085]">Framework rápido para rastreamento holístico e detecção de pontos articulares para enquadramento do paciente acamado.</p>
             </div>
-            <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low p-5 shadow-ambient hover:border-primary/30 transition-colors">
-               <h4 className="font-bold text-on-surface text-sm">HL7 FHIR R4</h4>
-               <p className="mt-1 text-xs text-on-surface-variant leading-relaxed">Conjunto de padrões internacionais de interoperabilidade semântica (em estruturação) para troca de dados de prontuário com o DATASUS.</p>
+            <div className="rounded-[1.25rem] border border-[#dbeafe] bg-white p-5 shadow-[0_18px_45px_rgba(59,130,246,0.06)] transition-colors hover:border-[#93c5fd]">
+               <h4 className="text-sm font-black text-[#061235]">HL7 FHIR R4</h4>
+               <p className="mt-2 text-xs leading-relaxed text-[#667085]">Conjunto de padrões internacionais de interoperabilidade semântica (em estruturação) para troca de dados de prontuário com o DATASUS.</p>
             </div>
           </div>
         </section>
 
         <section>
-          <h2 className="text-2xl font-bold font-headline mb-8 border-b border-outline-variant/20 pb-4 text-primary">Bibliografia Científica</h2>
+          <h2 className="mb-8 border-b border-[#dbeafe] pb-4 text-2xl font-black text-[#3b82f6] font-headline">Bibliografia Científica</h2>
           <div className="space-y-4">
             {references.map((ref) => (
-              <div key={ref.id} className="group rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 hover:border-primary/30 transition-colors">
-                <p className="text-sm leading-relaxed text-on-surface-variant text-justify">
+              <div key={ref.id} className="group overflow-hidden rounded-[1.25rem] border border-[#dbeafe] bg-white p-5 shadow-[0_18px_45px_rgba(59,130,246,0.05)] transition-colors hover:border-[#93c5fd]">
+                <p className="break-words text-justify text-sm leading-relaxed text-[#667085]">
                   {ref.text}
                 </p>
                 {ref.link && (
-                  <a href={ref.link} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                  <a href={ref.link} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#2563eb] hover:underline">
                     Ver documento <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                   </a>
                 )}
@@ -315,10 +327,11 @@ export default function ReferenciasPage() {
           </div>
         </section>
 
+        </div>
       </main>
       
-      <footer className="border-t border-outline-variant/10 bg-surface-container-lowest py-8 text-center">
-        <p className="text-sm text-on-surface-variant">© {new Date().getFullYear()} HEAL+ REDISUS.</p>
+      <footer className="landing-deep-blue py-8 text-center text-white">
+        <p className="text-sm font-bold text-white/70">© {new Date().getFullYear()} HEAL+ REDISUS.</p>
       </footer>
     </div>
   );
