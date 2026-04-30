@@ -134,12 +134,12 @@ export function LoginPage() {
       <div className="flex min-h-screen flex-col pt-[76px] md:flex-row">
         <section className="landing-deep-blue relative isolate hidden min-h-[calc(100vh-76px)] w-full overflow-hidden px-[1.875rem] py-[3.375rem] text-white md:flex md:w-3/5 md:items-center lg:px-[3.75rem]">
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(rgba(141,176,255,0.16)_1px,transparent_1px)] bg-[length:34px_34px] opacity-25" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[52%] overflow-hidden xl:block">
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[52%] xl:block">
             <img
               src="/images/Hero imagem.png"
               alt=""
               aria-hidden="true"
-              className="absolute bottom-0 right-[-38%] w-[170%] max-w-none object-contain object-bottom drop-shadow-[0_30px_58px_rgba(0,0,0,0.22)]"
+              className="absolute bottom-0 right-0 w-[142%] max-w-none object-contain object-bottom drop-shadow-[0_30px_58px_rgba(0,0,0,0.22)]"
             />
           </div>
 
@@ -147,28 +147,30 @@ export function LoginPage() {
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#73a8ff]/25 bg-[#3b82f6]/12 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#cfe3ff]">
               <span className="material-symbols-outlined text-sm">verified</span>
               <span>
-                Plataforma Clínica Segura
+                Módulo clínico | Acesso seguro | REDI-SUS
               </span>
             </div>
             <h1 className="font-headline text-3xl font-black leading-[1.02] tracking-[-0.04em] md:text-[3rem]">
-              Monitoramento inteligente para <span className="text-[#9fc8ff]">equipes clínicas</span>
+              Cuidado inteligente. <span className="text-[#9fc8ff]">Acesso seguro.</span>
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-white/78">
-              Acesse avaliações, acompanhe evolução de lesões e centralize dados assistenciais com mais clareza e foco.
+              Entre no Heal+ para acompanhar feridas em um fluxo claro: cadastro,
+              avaliação, imagem, ROI, comparativo e relatórios em uma base
+              preparada para integrar o ecossistema REDI-SUS.
             </p>
 
             <div className="mt-7 rounded-[1.25rem] border border-white/10 bg-[#21106f]/70 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="font-headline text-2xl font-black text-[#73a8ff]">98.4%</div>
+                  <div className="font-headline text-2xl font-black text-[#73a8ff]">01</div>
                   <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">
-                    Rastreamento de Casos
+                    Fluxo clínico centralizado
                   </div>
                 </div>
                 <div>
-                  <div className="font-headline text-2xl font-black text-[#73a8ff]">24/7</div>
+                  <div className="font-headline text-2xl font-black text-[#73a8ff]">ROI</div>
                   <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">
-                    Operação Contínua
+                    Imagens e evidências visuais
                   </div>
                 </div>
               </div>
