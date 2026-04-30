@@ -7,7 +7,8 @@ export function App() {
   const location = useLocation();
   const localAnalyzerMode = import.meta.env.VITE_HEAL_ANALYZER_LOCAL_MODE === 'true';
   const standaloneAnalyzer = localAnalyzerMode && location.pathname === '/analyzer';
+  const publicRoute = ['/', '/referencias', '/login', '/register', '/forgot-password'].includes(location.pathname);
 
-  if (!isFirebaseConfigured && !standaloneAnalyzer) return <FirebaseConfigError />;
+  if (!isFirebaseConfigured && !standaloneAnalyzer && !publicRoute) return <FirebaseConfigError />;
   return <Outlet />;
 }

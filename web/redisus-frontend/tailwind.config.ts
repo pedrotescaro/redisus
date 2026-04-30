@@ -7,6 +7,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        headline: ['Manrope', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        body: ['Manrope', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
         heal: {
@@ -49,6 +51,8 @@ export default {
         'on-primary-container': 'var(--on-primary-container)',
         secondary: 'var(--secondary)',
         'secondary-container': 'var(--secondary-container)',
+        tertiary: 'var(--tertiary)',
+        'tertiary-container': 'var(--tertiary-container)',
         error: 'var(--error)',
         'error-container': 'var(--error-container)',
         'on-error': 'var(--on-error)',

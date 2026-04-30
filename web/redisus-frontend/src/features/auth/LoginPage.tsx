@@ -1,172 +1,285 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Mail, Lock } from 'lucide-react';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { useState } from "react";
+import { Link, Navigate } from "react-router-dom";
 
-import { useAuth } from '../../app/providers/AuthProvider';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { AuthLayout } from '../../components/layout/AuthLayout';
-import { SocialLoginButton } from '../../components/layout/SocialLoginButton';
+import { useAuth } from "../../app/providers/AuthProvider";
+import { ThemeToggle } from "../../components/theme-toggle";
 import {
   friendlyAuthError,
-  loginWithEmail,
+  resetPassword,
+  signInWithEmail,
   signInWithGoogle,
-  signInWithMicrosoft,
-  signInWithApple
-} from './authService';
-import { loginSchema, type LoginFormValues } from './authSchema';
-
-const GoogleIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-  </svg>
-);
-
-const MicrosoftIcon = () => (
-  <svg viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M10 0H0V10H10V0Z" fill="#F25022"/>
-    <path d="M21 0H11V10H21V0Z" fill="#7FBA00"/>
-    <path d="M10 11H0V21H10V11Z" fill="#00A4EF"/>
-    <path d="M21 11H11V21H21V11Z" fill="#FFB900"/>
-  </svg>
-);
-
-const AppleIcon = () => (
-  <svg viewBox="0 0 384 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-    <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
-  </svg>
-);
+  signUpWithEmail,
+} from "./authService";
 
 export function LoginPage() {
   const { user } = useAuth();
-  const location = useLocation();
-  const [error, setError] = useState('');
-  const [socialLoading, setSocialLoading] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting }
-  } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
+  if (user) return <Navigate to="/dashboard" replace />;
 
-  if (user) {
-    const redirect = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
-    return <Navigate to={redirect} replace />;
-  }
+  const title = mode === "login" ? "Entrar no Heal+" : "Cadastrar profissional";
+  const actionLabel = mode === "login" ? "Entrar" : "Criar conta";
 
-  const onSubmit = async (values: LoginFormValues) => {
-    setError('');
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+
     try {
-      await loginWithEmail(values);
-    } catch (err) {
-      setError(friendlyAuthError(err));
-    }
-  };
-
-  const handleSocial = async (provider: 'google' | 'microsoft' | 'apple') => {
-    setError('');
-    setSocialLoading(provider);
-    try {
-      if (provider === 'google') await signInWithGoogle();
-      else if (provider === 'microsoft') await signInWithMicrosoft();
-      else await signInWithApple();
+      if (mode === "login") {
+        await signInWithEmail(email, password);
+      } else {
+        const name = email.split("@")[0] || "Profissional";
+        await signUpWithEmail(name, email, password);
+      }
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {
-      setSocialLoading(null);
+      setLoading(false);
     }
   };
 
-  const busy = isSubmitting || !!socialLoading;
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setError(null);
+
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      setError(friendlyAuthError(err));
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setError(null);
+    setResetSent(false);
+
+    if (!email) {
+      setError("Por favor, preencha o campo de e-mail antes para recuperar a senha.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await resetPassword(email);
+      setResetSent(true);
+    } catch (err) {
+      setError(friendlyAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <AuthLayout title="Acesse sua conta" subtitle="Entre na plataforma web para continuar seus atendimentos, avaliacoes e relatorios.">
-      <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-        <Input
-          label="E-mail profissional"
-          type="email"
-          autoComplete="email"
-          icon={<Mail className="h-4 w-4" />}
-          error={errors.email?.message}
-          {...register('email')}
-          disabled={busy}
-        />
-
-        <div>
-          <Input
-            label="Senha"
-            type="password"
-            autoComplete="current-password"
-            icon={<Lock className="h-4 w-4" />}
-            error={errors.password?.message}
-            {...register('password')}
-            disabled={busy}
+    <main className="relative min-h-screen overflow-hidden bg-surface text-on-surface">
+      <header className="absolute left-0 top-0 z-30 flex w-full items-center justify-between px-6 py-6 md:px-10">
+        <Link to="/" className="group flex items-center gap-2">
+          <img
+            src="/images/logo.png"
+            alt="Heal+ Logo"
+            className="h-14 w-14 transition-transform group-hover:scale-105"
           />
-          <div className="mt-2 text-right">
-            <Link to="/forgot-password" className="text-sm font-medium text-heal-blue hover:text-heal-blueDark transition-colors">
-              Esqueci minha senha
-            </Link>
+          <div className="-ml-1">
+            <h1 className="font-headline text-2xl font-extrabold leading-none tracking-tight text-primary">
+              Heal+
+            </h1>
+            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">
+              REDI-SUS
+            </p>
           </div>
-        </div>
+        </Link>
+        <ThemeToggle />
+      </header>
 
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/30 dark:bg-red-950/30">
-            <p className="text-sm font-medium text-red-800 dark:text-red-300">{error}</p>
+      <div className="flex min-h-screen flex-col md:flex-row">
+        <section className="relative hidden min-h-screen w-full overflow-hidden bg-surface px-10 py-24 md:flex md:w-3/5 md:items-center lg:px-20">
+          <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface-container-high/90 to-surface-container/80" />
+          <div className="absolute left-10 top-36 h-40 w-40 rounded-full bg-primary/10 blur-[96px]" />
+          <div className="absolute bottom-24 right-14 h-56 w-56 rounded-full bg-primary-container/15 blur-[120px]" />
+
+          <div className="relative z-10 max-w-2xl">
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-primary-container/10 px-3 py-1.5 ghost-border">
+              <span className="material-symbols-outlined text-sm text-primary">verified</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
+                Plataforma Clínica Segura
+              </span>
+            </div>
+            <h1 className="font-headline text-4xl font-extrabold leading-[1.05] tracking-tight text-on-surface md:text-5xl">
+              Monitoramento inteligente para <span className="text-primary">equipes clínicas</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-on-surface-variant">
+              Acesse avaliações, acompanhe evolução de lesões e centralize dados assistenciais com mais clareza e foco.
+            </p>
+
+            <div className="mt-12 rounded-3xl bg-surface-container-high/80 p-6 shadow-ambient backdrop-blur-md ghost-border">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <div className="font-headline text-2xl font-bold text-on-surface md:text-3xl">98.4%</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-on-surface-variant">
+                    Rastreamento de Casos
+                  </div>
+                </div>
+                <div>
+                  <div className="font-headline text-2xl font-bold text-on-surface md:text-3xl">24/7</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-on-surface-variant">
+                    Operação Contínua
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
+        </section>
 
-        <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting} disabled={busy}>
-          Entrar na plataforma
-        </Button>
-      </form>
+        <section className="relative z-30 flex min-h-screen w-full flex-col justify-center bg-surface-container-low p-8 shadow-ambient md:w-2/5 md:border-l md:border-black/[0.05] md:p-14 dark:md:border-white/[0.05]">
+          <Link
+            to="/"
+            className="mb-8 inline-flex w-fit items-center gap-2 rounded-xl border border-outline-variant/15 bg-surface-container-low/70 px-4 py-2.5 text-sm font-semibold text-on-surface-variant shadow-ambient transition-all hover:border-primary/30 hover:bg-surface-container hover:text-on-surface"
+          >
+            <span className="material-symbols-outlined text-base">arrow_back</span>
+            Voltar para página principal
+          </Link>
 
-      {/* Divider */}
-      <div className="mt-8">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-heal-line dark:border-zinc-700" />
+          <div className="mb-6">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary/80">Acesso Profissional</p>
           </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-white px-3 font-medium text-heal-muted">ou continue com</span>
-          </div>
-        </div>
 
-        <div className="mt-6 space-y-3">
-          <SocialLoginButton
-            provider="google"
-            disabled={busy}
-            isLoading={socialLoading === 'google'}
-            onClick={() => handleSocial('google')}
-            icon={<GoogleIcon />}
-          />
-          <SocialLoginButton
-            provider="microsoft"
-            disabled={busy}
-            isLoading={socialLoading === 'microsoft'}
-            onClick={() => handleSocial('microsoft')}
-            icon={<MicrosoftIcon />}
-          />
-          <SocialLoginButton
-            provider="apple"
-            disabled={busy}
-            isLoading={socialLoading === 'apple'}
-            onClick={() => handleSocial('apple')}
-            icon={<AppleIcon />}
-          />
-        </div>
+          <div className="w-full max-w-md">
+            <div className="mb-8">
+              <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface md:text-4xl">
+                {title}
+              </h2>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-on-surface-variant">
+                Acesse os dados clínicos e gerencie o histórico de modo seguro.
+              </p>
+            </div>
+
+            <div className="rounded-3xl bg-surface-container-highest/95 p-8 shadow-ambient backdrop-blur-md ghost-border md:p-10">
+              <form className="space-y-5" onSubmit={handleSubmit}>
+                <label className="block space-y-2">
+                  <span className="ml-1 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+                    E-mail profissional
+                  </span>
+                  <div className="group relative">
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base text-outline transition-colors group-hover:text-primary">
+                      mail
+                    </span>
+                    <input
+                      type="email"
+                      className="h-16 w-full rounded-xl border border-outline-variant/20 bg-surface-container-low pl-14 pr-4 text-sm text-on-surface outline-none transition-all placeholder:text-outline/50 hover:border-outline-variant/40 hover:bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/25"
+                      placeholder="seu.nome@hospital.org"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      required
+                    />
+                  </div>
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="ml-1 flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+                      Senha
+                    </span>
+                    {mode === "login" ? (
+                      <button
+                        type="button"
+                        onClick={handleResetPassword}
+                        className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary transition-colors hover:text-primary/80 disabled:opacity-50"
+                        disabled={loading}
+                      >
+                        Esqueceu?
+                      </button>
+                    ) : null}
+                  </span>
+                  <div className="group relative">
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base text-outline transition-colors group-hover:text-primary">
+                      lock
+                    </span>
+                    <input
+                      type="password"
+                      className="h-16 w-full rounded-xl border border-outline-variant/20 bg-surface-container-low pl-14 pr-4 text-sm text-on-surface outline-none transition-all placeholder:text-outline/50 hover:border-outline-variant/40 hover:bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/25"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      required
+                    />
+                  </div>
+                </label>
+
+                {error ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-error/30 bg-error-container/20 p-3 text-sm font-medium text-error">
+                    <span className="material-symbols-outlined text-sm">error</span>
+                    {error}
+                  </div>
+                ) : null}
+
+                {resetSent ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-sm font-medium text-green-700 dark:text-green-400">
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    E-mail de recuperação enviado!
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  className="mt-2 flex h-16 w-full items-center justify-center gap-2 rounded-xl bg-primary-gradient text-base font-bold text-on-primary-container shadow-[0_12px_32px_rgba(33,150,243,0.32)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={loading}
+                >
+                  {loading ? "Processando..." : actionLabel}
+                  {!loading ? (
+                    <span className="material-symbols-outlined text-base">
+                      {mode === "login" ? "login" : "person_add"}
+                    </span>
+                  ) : null}
+                </button>
+
+                <div className="flex items-center gap-4 py-5">
+                  <div className="h-px flex-1 bg-outline-variant/30" />
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                    Ou continuar com
+                  </span>
+                  <div className="h-px flex-1 bg-outline-variant/30" />
+                </div>
+
+                <button
+                  type="button"
+                  className="group flex h-14 w-full items-center justify-center gap-3 rounded-xl border border-outline-variant/20 bg-surface-container-low text-base font-semibold transition-all hover:border-outline-variant/40 hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={googleLoading || loading}
+                  onClick={handleGoogleSignIn}
+                >
+                  {googleLoading ? "Conectando..." : "Google"}
+                </button>
+              </form>
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-2 text-sm">
+              <span className="text-on-surface-variant">
+                {mode === "login" ? "Novo na plataforma?" : "Já possui uma conta?"}
+              </span>
+              <button
+                type="button"
+                className="font-semibold text-primary transition-colors hover:text-primary/80"
+                onClick={() => setMode((current) => (current === "login" ? "register" : "login"))}
+              >
+                {mode === "login" ? "Crie sua conta" : "Entre agora"}
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <p className="mt-8 text-center text-sm text-heal-muted">
-        Ainda nao tem conta?{' '}
-        <Link to="/register" className="font-semibold text-heal-blue hover:text-heal-blueDark transition-colors">
-          Cadastre-se
-        </Link>
-      </p>
-    </AuthLayout>
+      <footer className="absolute bottom-0 left-0 z-20 hidden w-full items-center justify-start px-10 py-5 md:flex">
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-outline">
+          © 2026 Redisus Heal+.
+        </div>
+      </footer>
+    </main>
   );
 }

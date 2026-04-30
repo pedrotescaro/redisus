@@ -46,7 +46,7 @@ export function OnboardingPage() {
   }, [profile, reset, user]);
 
   if (!loading && !user) return <Navigate to="/login" replace />;
-  if (profile?.onboardingCompleted) return <Navigate to="/" replace />;
+  if (profile?.onboardingCompleted) return <Navigate to="/dashboard" replace />;
 
   const onSubmit = async (values: OnboardingFormValues) => {
     if (!user) return;
@@ -67,7 +67,7 @@ export function OnboardingPage() {
         theme: values.theme
       }
     });
-    navigate('/', { replace: true });
+    navigate('/dashboard', { replace: true });
   };
 
   return (

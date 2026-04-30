@@ -22,7 +22,7 @@ interface SidebarProps {
 }
 
 const primaryItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/patients', label: 'Pacientes', icon: Users },
   { to: '/evaluations/new', label: 'Avaliações', icon: ClipboardPlus },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
@@ -77,7 +77,7 @@ function NavItem({
   return (
     <NavLink
       to={item.to}
-      end={item.to === '/'}
+      end={item.to === '/dashboard'}
       onClick={onNavigate}
       className={({ isActive }) =>
         `group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition ${

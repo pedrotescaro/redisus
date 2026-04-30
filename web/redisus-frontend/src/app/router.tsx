@@ -11,6 +11,7 @@ import { AnalyzerPage, StandaloneAnalyzerPage } from '../features/analyzer/Analy
 import { ChatPage } from '../features/chat/ChatPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { EvaluationPage } from '../features/evaluations/EvaluationPage';
+import HomePage from '../features/home/HomePage';
 import { PatientDetailsPage } from '../features/patients/PatientDetailsPage';
 import { PatientsPage } from '../features/patients/PatientsPage';
 import { EditProfilePage } from '../features/profile/EditProfilePage';
@@ -22,6 +23,7 @@ import { NotificationsPage } from '../features/settings/NotificationsPage';
 import { PrivacyPage } from '../features/settings/PrivacyPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { App } from './App';
+import ReferenciasPage from './referencias/page';
 
 const localAnalyzerMode = import.meta.env.VITE_HEAL_ANALYZER_LOCAL_MODE === 'true';
 
@@ -30,6 +32,8 @@ export const router = createBrowserRouter(
     {
       element: <App />,
       children: [
+        { index: true, element: <HomePage /> },
+        { path: '/referencias', element: <ReferenciasPage /> },
         { path: '/login', element: <LoginPage /> },
         { path: '/register', element: <RegisterPage /> },
         { path: '/forgot-password', element: <ForgotPasswordPage /> },
@@ -41,7 +45,7 @@ export const router = createBrowserRouter(
             {
               element: <AppShell />,
               children: [
-                { index: true, element: <DashboardPage /> },
+                { path: '/dashboard', element: <DashboardPage /> },
                 { path: '/patients', element: <PatientsPage /> },
                 { path: '/patients/:patientId', element: <PatientDetailsPage /> },
                 { path: '/evaluations/new', element: <EvaluationPage /> },

@@ -54,7 +54,7 @@ export function RegisterPage() {
     formState: { errors, isSubmitting }
   } = useForm<RegisterFormValues>({ resolver: zodResolver(registerSchema), defaultValues: { acceptedTerms: false } });
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to="/dashboard" replace />;
 
   const onSubmit = async (values: RegisterFormValues) => {
     setError('');
@@ -73,7 +73,7 @@ export function RegisterPage() {
       if (provider === 'google') await signInWithGoogle();
       else if (provider === 'microsoft') await signInWithMicrosoft();
       else await signInWithApple();
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {
