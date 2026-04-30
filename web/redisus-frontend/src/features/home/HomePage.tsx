@@ -165,7 +165,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#f7faff] text-[#101828]">
       <nav className="fixed left-0 top-0 z-50 w-full border-b border-gray-200 bg-white/90 text-gray-900 shadow-sm backdrop-blur-2xl">
-        <div className="mx-auto flex h-[76px] w-full max-w-7xl items-center justify-between px-5 md:px-8">
+        <div className="mx-auto flex h-[76px] w-full max-w-[1530px] items-center justify-between px-5 md:px-8">
           <Link href="/" className="flex min-w-0 items-center gap-3">
             <Image
               src="/images/logo.png"
@@ -206,7 +206,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#3b82f6,#73a8ff)] px-5 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(59,130,246,0.34)] transition-transform hover:-translate-y-0.5"
+              className="landing-blue-button inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white transition-transform hover:-translate-y-0.5"
             >
               Acessar
               <ArrowRight size={18} strokeWidth={3} />
@@ -218,53 +218,62 @@ export default function HomePage() {
       <main className="pt-[76px]">
         <section
           id="projeto"
-          className="relative isolate overflow-hidden bg-[radial-gradient(circle_at_18%_12%,rgba(59,130,246,0.34),transparent_28%),radial-gradient(circle_at_86%_18%,rgba(115,168,255,0.22),transparent_24%),linear-gradient(135deg,#06101c_0%,#07111d_42%,#0d1b2e_100%)] text-white"
+          className="landing-deep-blue relative isolate overflow-hidden text-white"
         >
-          <div className="absolute inset-0 -z-10 bg-[radial-gradient(rgba(115,168,255,0.16)_1px,transparent_1px)] bg-[length:34px_34px] opacity-30" />
-          <div className="absolute left-1/2 top-24 -z-10 h-80 w-80 -translate-x-1/2 rounded-full bg-[#3b82f6]/20 blur-3xl" />
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(rgba(141,176,255,0.16)_1px,transparent_1px)] bg-[length:34px_34px] opacity-25" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[56%] lg:block">
+            <Image
+              src="/images/Hero imagem.png"
+              alt="Profissionais de saÃºde do Heal+"
+              width={1000}
+              height={800}
+              className="absolute bottom-0 right-0 h-[92%] w-auto max-w-none object-contain object-bottom drop-shadow-[0_30px_58px_rgba(0,0,0,0.22)] 2xl:right-[calc((100vw-1440px)/2)]"
+              priority
+            />
+          </div>
 
-          <div className="mx-auto grid min-h-[760px] max-w-7xl items-center gap-12 px-5 py-20 md:px-8 lg:grid-cols-[1.02fr_0.98fr]">
-            <div className="max-w-3xl">
+          <div className="relative z-10 mx-auto grid min-h-[570px] max-w-[1530px] items-center gap-8 px-5 py-10 md:px-8 md:py-12 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="max-w-[700px]">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#73a8ff]/25 bg-[#3b82f6]/12 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#cfe3ff] shadow-[0_16px_45px_rgba(59,130,246,0.16)]">
                 <Sparkles size={16} />
                 App clínico | Inteligência aplicada | REDI-SUS
               </div>
 
-              <h1 className="mt-7 max-w-5xl text-5xl font-black leading-[0.94] tracking-[-0.055em] font-headline md:text-7xl lg:text-[5.4rem]">
+              <h1 className="mt-6 max-w-5xl text-4xl font-black leading-[0.96] tracking-[-0.04em] font-headline md:text-6xl lg:text-[3.95rem] xl:text-[4.25rem]">
                 Cuidado inteligente.
-                <span className="block bg-[linear-gradient(135deg,#f8fbff_0%,#9fc8ff_44%,#3b82f6_100%)] bg-clip-text text-transparent">
+                <span className="block bg-[linear-gradient(135deg,#f8fbff_0%,#b8d7ff_48%,#69a9ff_100%)] bg-clip-text text-transparent">
                   Evolução visível.
                 </span>
               </h1>
 
-              <p className="mt-6 max-w-2xl text-lg font-medium leading-8 text-white/78 md:text-xl">
+              <p className="mt-5 max-w-[620px] text-base font-medium leading-8 text-white/82 md:text-lg">
                 O Heal+ transforma o acompanhamento de feridas em um fluxo
                 claro: cadastro, avaliação, imagem, ROI, comparativo e relatório
                 em uma base preparada para integrar o ecossistema REDI-SUS.
               </p>
 
-              <div className="mt-9 flex flex-col gap-4 sm:flex-row">
+              <div className="mt-7 flex flex-col gap-4 sm:flex-row">
                 <Link
                   href="/login"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#3b82f6,#73a8ff)] px-8 py-4 text-base font-black text-white shadow-[0_20px_42px_rgba(59,130,246,0.32)] transition-transform hover:-translate-y-0.5"
+                  className="landing-blue-button inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-base font-black text-white transition-transform hover:-translate-y-0.5"
                 >
                   Acessar área clínica
                   <ArrowRight size={20} strokeWidth={3} />
                 </Link>
                 <a
                   href="#plataforma"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/14 bg-white/[0.07] px-8 py-4 text-base font-black text-[#eef5ff] backdrop-blur-xl transition-colors hover:bg-white/[0.11]"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/28 bg-white/[0.06] px-7 py-3.5 text-base font-black text-[#eef5ff] backdrop-blur-xl transition-colors hover:bg-white/[0.11]"
                 >
                   Conhecer plataforma
                   <ArrowUpRight size={19} strokeWidth={3} />
                 </a>
               </div>
 
-              <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {heroStats.map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-3xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-xl"
+                    className="rounded-2xl border border-white/12 bg-white/[0.075] p-3.5 backdrop-blur-xl"
                   >
                     <p className="text-2xl font-black text-[#73a8ff] font-headline">
                       {item.value}
@@ -277,13 +286,13 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative mt-12 flex w-full justify-center lg:mt-0 lg:justify-start">
+            <div className="relative mt-8 flex w-full justify-center lg:hidden">
               <Image
                 src="/images/Hero imagem.png"
                 alt="Heal+ Dashboard Preview"
                 width={1000}
                 height={800}
-                className="h-auto w-full max-w-2xl rounded-2xl drop-shadow-2xl lg:max-w-none lg:w-[150%] xl:w-[160%] lg:translate-x-4 xl:translate-x-12 lg:rounded-l-2xl lg:rounded-r-none"
+                className="h-auto w-full max-w-xl object-contain object-bottom drop-shadow-2xl"
                 priority
               />
             </div>
@@ -397,8 +406,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="relative overflow-hidden bg-[linear-gradient(135deg,#08111d_0%,#0b1728_100%)] py-24 text-white">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.28),transparent_28%),radial-gradient(circle_at_78%_30%,rgba(115,168,255,0.18),transparent_24%)]" />
+        <section className="landing-deep-blue relative overflow-hidden py-24 text-white">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(105,169,255,0.22),transparent_28%),radial-gradient(circle_at_78%_30%,rgba(88,52,235,0.24),transparent_30%)]" />
           <div className="relative mx-auto max-w-7xl px-5 md:px-8">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
               <div>
@@ -482,7 +491,7 @@ export default function HomePage() {
         </section>
 
         <section className="bg-[#f7faff] px-5 py-20 md:px-8">
-          <div className="mx-auto max-w-7xl overflow-hidden rounded-[2.4rem] bg-[radial-gradient(circle_at_18%_20%,rgba(115,168,255,0.34),transparent_30%),linear-gradient(135deg,#06101c_0%,#0b1728_100%)] p-8 text-white shadow-[0_30px_90px_rgba(6,16,28,0.22)] md:p-12">
+          <div className="landing-deep-blue mx-auto max-w-7xl overflow-hidden rounded-[2.4rem] p-8 text-white shadow-[0_30px_90px_rgba(6,16,28,0.22)] md:p-12">
             <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.24em] text-[#9fc8ff]">
@@ -494,7 +503,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#3b82f6,#73a8ff)] px-8 py-4 text-base font-black text-white shadow-[0_20px_42px_rgba(59,130,246,0.32)] transition-transform hover:-translate-y-0.5"
+                className="landing-blue-button inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-base font-black text-white transition-transform hover:-translate-y-0.5"
               >
                 Acessar módulo
                 <ArrowRight size={20} strokeWidth={3} />
@@ -549,8 +558,8 @@ export default function HomePage() {
         </section>
       </main>
 
-      <footer className="relative overflow-hidden bg-[#06101c] text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(59,130,246,0.16),transparent_22%),radial-gradient(circle_at_85%_22%,rgba(124,168,255,0.14),transparent_20%)]" />
+      <footer className="landing-deep-blue relative overflow-hidden text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(105,169,255,0.16),transparent_22%),radial-gradient(circle_at_85%_22%,rgba(88,52,235,0.22),transparent_28%)]" />
 
         <div className="relative z-10 mx-auto max-w-7xl px-5 py-16 md:px-8">
           <div className="grid gap-10 border-b border-white/12 pb-12 lg:grid-cols-[0.8fr_1.2fr]">

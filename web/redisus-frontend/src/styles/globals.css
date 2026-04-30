@@ -71,6 +71,22 @@ textarea {
   background: linear-gradient(15deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
 }
 
+.landing-deep-blue {
+  background:
+    radial-gradient(circle at 86% 18%, rgba(82, 37, 232, 0.74) 0%, rgba(82, 37, 232, 0.42) 28%, transparent 54%),
+    linear-gradient(102deg, #06014f 0%, #090160 42%, #1b0895 72%, #4a23e5 100%);
+}
+
+.landing-blue-button {
+  background: linear-gradient(135deg, #3f8df6 0%, #72adff 100%);
+  box-shadow: 0 16px 34px rgba(63, 141, 246, 0.34);
+}
+
+.landing-blue-button:hover,
+.landing-blue-button:focus {
+  background: linear-gradient(135deg, #347feb 0%, #66a4fb 100%);
+}
+
 .landing-nav-link {
   position: relative;
   font-size: 0.875rem;
