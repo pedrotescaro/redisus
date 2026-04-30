@@ -132,10 +132,18 @@ export function LoginPage() {
       </header>
 
       <div className="flex min-h-screen flex-col pt-[76px] md:flex-row">
-        <section className="landing-deep-blue relative hidden min-h-[calc(100vh-76px)] w-full overflow-hidden px-[1.875rem] py-[3.375rem] text-white md:flex md:w-3/5 md:items-center lg:px-[3.75rem]">
-          <div className="absolute inset-0 bg-[radial-gradient(rgba(141,176,255,0.16)_1px,transparent_1px)] bg-[length:34px_34px] opacity-25" />
+        <section className="landing-deep-blue relative isolate hidden min-h-[calc(100vh-76px)] w-full overflow-hidden px-[1.875rem] py-[3.375rem] text-white md:flex md:w-3/5 md:items-center lg:px-[3.75rem]">
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(rgba(141,176,255,0.16)_1px,transparent_1px)] bg-[length:34px_34px] opacity-25" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[52%] overflow-hidden xl:block">
+            <img
+              src="/images/Hero imagem.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute bottom-0 right-[-38%] w-[170%] max-w-none object-contain object-bottom drop-shadow-[0_30px_58px_rgba(0,0,0,0.22)]"
+            />
+          </div>
 
-          <div className="relative z-10 max-w-2xl">
+          <div className="relative z-10 max-w-[520px]">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#73a8ff]/25 bg-[#3b82f6]/12 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#cfe3ff]">
               <span className="material-symbols-outlined text-sm">verified</span>
               <span>
