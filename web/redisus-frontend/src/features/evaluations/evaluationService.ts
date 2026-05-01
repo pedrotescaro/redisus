@@ -68,21 +68,21 @@ function friendlyImageUploadError(error: unknown) {
   const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : '';
 
   if (code === 'storage/unauthorized') {
-    return 'A avaliacao foi salva, mas as regras do Firebase Storage bloquearam o envio das imagens.';
+    return 'A avaliação foi salva, mas as regras do Firebase Storage bloquearam o envio das imagens.';
   }
 
   if (code === 'storage/canceled') {
-    return 'A avaliacao foi salva, mas o envio das imagens foi cancelado.';
+    return 'A avaliação foi salva, mas o envio das imagens foi cancelado.';
   }
 
-  return 'A avaliacao foi salva sem imagens porque o Firebase Storage nao esta disponivel para este projeto. Crie/ative o bucket do Storage e tente enviar as imagens novamente.';
+  return 'A avaliação foi salva sem imagens porque o Firebase Storage não está disponível para este projeto. Crie/ative o bucket do Storage e tente enviar as imagens novamente.';
 }
 
 let storageBucketCheck: Promise<string | null> | null = null;
 
 async function getStorageBucketError() {
   if (!storageBucketName || storageBucketName.startsWith('missing-')) {
-    return 'A avaliacao foi salva sem imagens porque o bucket do Firebase Storage nao esta configurado.';
+    return 'A avaliação foi salva sem imagens porque o bucket do Firebase Storage não está configurado.';
   }
 
   if (typeof fetch === 'undefined') return null;
@@ -90,7 +90,7 @@ async function getStorageBucketError() {
   storageBucketCheck ??= fetch(`https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(storageBucketName)}/o?maxResults=1`)
     .then(response => {
       if (response.status === 404) {
-        return `A avaliacao foi salva sem imagens porque o bucket ${storageBucketName} ainda nao existe. Ative o Firebase Storage no plano Blaze e tente enviar as imagens novamente.`;
+        return `A avaliação foi salva sem imagens porque o bucket ${storageBucketName} ainda não existe. Ative o Firebase Storage no plano Blaze e tente enviar as imagens novamente.`;
       }
       return null;
     })

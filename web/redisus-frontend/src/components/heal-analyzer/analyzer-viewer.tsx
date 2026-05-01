@@ -54,7 +54,7 @@ export function AnalyzerViewer({
             Painel visual
           </p>
           <h2 className="mt-2 text-2xl font-extrabold text-on-surface">
-            Imagem principal da analise
+            Imagem principal da análise
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
             A tela central mostra a foto original e as camadas geradas pela IA. As
@@ -140,11 +140,11 @@ export function AnalyzerViewer({
                   <Layers3 className="h-7 w-7 text-primary dark:text-slate-300" />
                 </div>
                 <p className="mt-5 text-lg font-semibold text-slate-900 dark:text-white">
-                  Esta vista sera preenchida apos a analise
+                  Esta vista será preenchida após a análise
                 </p>
                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                  A foto original aparece assim que voce selecionar o arquivo. Segmentacao,
-                  visualizacao combinada e mapa de atencao chegam junto com o resultado.
+                  A foto original aparece assim que você selecionar o arquivo. Segmentação,
+                  visualização combinada e mapa de atenção chegam junto com o resultado.
                 </p>
               </div>
             )}
@@ -191,7 +191,7 @@ export function AnalyzerViewer({
           <div className="rounded-[24px] border border-outline-variant/20 bg-surface-container p-4 dark:border-white/10">
             <p className="text-sm font-semibold text-on-surface">Legenda de tecidos</p>
             <p className="mt-1 text-xs text-on-surface-variant">
-              As cores ajudam a ler a segmentacao e a visualizacao combinada.
+              As cores ajudam a ler a segmentação e a visualização combinada.
             </p>
 
             <div className="mt-4 space-y-3">

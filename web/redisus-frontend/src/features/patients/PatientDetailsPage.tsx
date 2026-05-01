@@ -99,7 +99,7 @@ export function PatientDetailsPage() {
                   <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">{evaluation.woundEtiology} · {evaluation.exudateAmount} · {evaluation.exudateType}</p>
                   {evaluation.imageUploadStatus === 'failed' ? (
                     <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-                      {evaluation.imageUploadError || 'Imagens nao enviadas ao Firebase Storage.'}
+                      {evaluation.imageUploadError || 'Imagens não enviadas ao Firebase Storage.'}
                     </div>
                   ) : null}
                   {evaluation.notes ? <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-zinc-300">{evaluation.notes}</p> : null}

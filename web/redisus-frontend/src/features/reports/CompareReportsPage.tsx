@@ -59,10 +59,10 @@ export function CompareReportsPage() {
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Comparar relatorio</p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-heal-ink dark:text-white">Evolucao antes e agora</h1>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Comparar relatório</p>
+          <h1 className="mt-1 text-3xl font-black tracking-tight text-heal-ink dark:text-white">Evolução antes e agora</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-heal-muted dark:text-zinc-400">
-            Selecione um paciente e duas avaliacoes salvas. A estrutura clinica continua usando o modelo atual do Heal+ Web.
+            Selecione um paciente e duas avaliações salvas. A estrutura clínica continua usando o modelo atual do Heal+ Web.
           </p>
         </div>
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
@@ -90,14 +90,14 @@ export function CompareReportsPage() {
         </div>
         <Select
           label="Antes"
-          placeholder="Avaliacao inicial"
+          placeholder="Avaliação inicial"
           options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
           value={evalAId}
           onChange={event => setEvalAId(event.target.value)}
         />
         <Select
           label="Agora"
-          placeholder="Avaliacao recente"
+          placeholder="Avaliação recente"
           options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
           value={evalBId}
           onChange={event => setEvalBId(event.target.value)}
@@ -107,7 +107,7 @@ export function CompareReportsPage() {
       {selectedPatient && evalA && evalB && evalA.id !== evalB.id ? (
         <ComparisonView patient={selectedPatient} evaluationA={evalA} evaluationB={evalB} allEvaluations={evaluations} />
       ) : (
-        <EmptyState title="Escolha duas avaliacoes diferentes" description="O comparativo aparece quando o paciente possui pelo menos duas avaliacoes salvas." />
+        <EmptyState title="Escolha duas avaliações diferentes" description="O comparativo aparece quando o paciente possui pelo menos duas avaliações salvas." />
       )}
     </div>
   );

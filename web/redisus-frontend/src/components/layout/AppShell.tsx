@@ -3,7 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { useTheme } from '../../app/providers/ThemeProvider';
 import type { ThemePreference } from '../../lib/types';
-import { Sidebar } from './Sidebar';
+import { Sidebar } from './sidebar';
 import { Topbar } from './Topbar';
 
 export function AppShell() {

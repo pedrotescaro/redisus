@@ -68,7 +68,7 @@ export function PatientsPage() {
       <PageHeader
         eyebrow="Pacientes"
         title="Central de pacientes"
-        description="Cadastre, busque, edite e arquive pacientes. Por regra de negocio, pacientes nao sao excluidos."
+        description="Cadastre, busque, edite e arquive pacientes. Por regra de negócio, pacientes não são excluídos."
         action={
           <Button type="button" size="lg" icon={<Plus className="h-4 w-4" />} onClick={openCreate}>
             Novo paciente
@@ -122,7 +122,7 @@ export function PatientsPage() {
 
           <Card className="overflow-hidden p-0">
             <div className="border-b border-heal-line px-5 py-4 dark:border-zinc-800">
-              <h2 className="text-sm font-black uppercase tracking-[0.16em] text-heal-muted">Tabela rapida</h2>
+              <h2 className="text-sm font-black uppercase tracking-[0.16em] text-heal-muted">Tabela rápida</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -139,7 +139,7 @@ export function PatientsPage() {
                     <tr key={patient.id} className="hover:bg-heal-canvas/70 dark:hover:bg-zinc-950">
                       <td className="px-5 py-3 font-bold text-heal-ink dark:text-white">{patient.name}</td>
                       <td className="px-5 py-3 text-heal-muted">{patient.phone}</td>
-                      <td className="px-5 py-3 text-heal-muted">{patient.email || 'Nao informado'}</td>
+                      <td className="px-5 py-3 text-heal-muted">{patient.email || 'Não informado'}</td>
                       <td className="px-5 py-3 text-heal-muted">{patient.archived ? 'Arquivado' : 'Ativo'}</td>
                     </tr>
                   ))}
@@ -152,7 +152,7 @@ export function PatientsPage() {
         <EmptyState
           icon={<Users className="h-7 w-7 text-heal-blue" />}
           title="Nenhum paciente encontrado"
-          description="Cadastre seu primeiro paciente para testar leitura, edicao, arquivamento e regras do Firestore."
+          description="Cadastre seu primeiro paciente para testar leitura, edição, arquivamento e regras do Firestore."
           action={<Button type="button" onClick={openCreate}>Cadastrar paciente</Button>}
         />
       )}

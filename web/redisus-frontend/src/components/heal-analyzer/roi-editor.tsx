@@ -49,7 +49,7 @@ const TOOL_OPTIONS: Array<{ description: string; tool: HealAnalyzerRoiTool }> = 
   },
   {
     tool: "freehand",
-    description: "Desenhe a area da lesao em um traco continuo.",
+    description: "Desenhe a área da lesão em um traço contínuo.",
   },
   {
     tool: "circle",
@@ -361,18 +361,18 @@ export function AnalyzerRoiEditor({
 
   const instruction = useMemo(() => {
     if (confirmed) {
-      return "Selecao confirmada. Voce pode analisar a imagem ou refazer a marcacao.";
+      return "Seleção confirmada. Você pode analisar a imagem ou refazer a marcação.";
     }
     if (tool === "polygon") {
       if (polygonClosed) {
-        return "Poligono fechado. Revise o contorno, arraste os pontos se precisar e confirme.";
+      return "Polígono fechado. Revise o contorno, arraste os pontos se precisar e confirme.";
       }
       return "Clique ao redor da ferida. Feche no primeiro ponto ou use duplo clique.";
     }
     if (tool === "freehand") {
-      return "Pressione e arraste sobre a ferida em um traco continuo, depois solte.";
+      return "Pressione e arraste sobre a ferida em um traço contínuo, depois solte.";
     }
-    return "Pressione e arraste para desenhar um circulo ou oval sobre a area da lesao.";
+    return "Pressione e arraste para desenhar um círculo ou oval sobre a área da lesão.";
   }, [confirmed, polygonClosed, tool]);
 
   const canResetDraft = Boolean(points.length || circleDraft);
@@ -383,7 +383,7 @@ export function AnalyzerRoiEditor({
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-blue">
-              Delimitacao manual
+              Delimitação manual
             </p>
             <h2 className="mt-1 text-xl font-black text-heal-ink dark:text-white">
               Marque a ROI na imagem
@@ -422,7 +422,7 @@ export function AnalyzerRoiEditor({
             <img
               ref={imgRef}
               src={imageSrc}
-              alt="Imagem para delimitacao manual da ferida"
+              alt="Imagem para delimitação manual da ferida"
               className="max-h-[70vh] w-auto max-w-full rounded-xl object-contain"
               onLoad={(event) =>
                 setImageSize({
@@ -634,7 +634,7 @@ function RoiToolbar({
           className={cn(actionClass, quietActionClass)}
           disabled={disabled || !canResetDraft}
           onClick={onResetDraft}
-          title="Refazer marcacao atual"
+          title="Refazer marcação atual"
         >
           <Redo2 className="h-4 w-4" />
           <span>Refazer</span>
@@ -644,7 +644,7 @@ function RoiToolbar({
           className={cn(actionClass, quietActionClass)}
           disabled={disabled || !canResetDraft}
           onClick={onClear}
-          title="Limpar marcacao atual"
+          title="Limpar marcação atual"
         >
           <Eraser className="h-4 w-4" />
           <span>Limpar</span>

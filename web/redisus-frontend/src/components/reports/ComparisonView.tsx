@@ -26,13 +26,13 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
       <section className="rounded-[1.75rem] border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Comparativo clinico</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Comparativo clínico</p>
             <h2 className="mt-1 text-2xl font-black text-heal-ink dark:text-white">{patient.name}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-heal-muted dark:text-zinc-400">{buildEvolutionText(evaluationA, evaluationB)}</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:min-w-[260px]">
             <DeltaPill label="Dor" value={formatDelta(painDelta, ' ponto')} trend={painDelta} />
-            <DeltaPill label="Area" value={areaDelta === null ? 'sem ROI' : formatDelta(areaDelta, '%')} trend={areaDelta || 0} />
+            <DeltaPill label="Área" value={areaDelta === null ? 'sem ROI' : formatDelta(areaDelta, '%')} trend={areaDelta || 0} />
           </div>
         </div>
 
@@ -51,7 +51,7 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
             </div>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Sequencia</p>
-              <h3 className="text-lg font-black text-heal-ink dark:text-white">Area visual estimada</h3>
+              <h3 className="text-lg font-black text-heal-ink dark:text-white">Área visual estimada</h3>
             </div>
           </div>
           <div className="mt-5 flex h-44 items-end gap-3 overflow-x-auto rounded-2xl bg-heal-canvas p-4 dark:bg-zinc-950">
@@ -71,10 +71,10 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
 
         <div className="rounded-[1.75rem] border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">TIMERS</p>
-          <h3 className="mt-1 text-lg font-black text-heal-ink dark:text-white">Comparativo clinico</h3>
+          <h3 className="mt-1 text-lg font-black text-heal-ink dark:text-white">Comparativo clínico</h3>
           <div className="mt-4 space-y-3">
             <ClinicalRow label="T" title="Tecido" before={evaluationA.timers.tissue} after={evaluationB.timers.tissue} />
-            <ClinicalRow label="I" title="Inflamacao / infeccao" before={evaluationA.timers.infection} after={evaluationB.timers.infection} />
+            <ClinicalRow label="I" title="Inflamação / infecção" before={evaluationA.timers.infection} after={evaluationB.timers.infection} />
             <ClinicalRow label="M" title="Umidade" before={evaluationA.timers.moisture} after={evaluationB.timers.moisture} />
             <ClinicalRow label="E" title="Bordas" before={evaluationA.timers.edge} after={evaluationB.timers.edge} />
           </div>
@@ -144,7 +144,7 @@ function ClinicalRow({ label, title, before, after }: { label: string; title: st
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-heal-softBlue text-sm font-black text-heal-blue dark:bg-blue-950/40">{label}</span>
           <p className="text-sm font-black text-heal-ink dark:text-white">{title}</p>
         </div>
-        {changed ? <ArrowRight className="h-4 w-4 text-heal-blue" /> : <span className="text-xs font-black text-heal-muted">Estavel</span>}
+        {changed ? <ArrowRight className="h-4 w-4 text-heal-blue" /> : <span className="text-xs font-black text-heal-muted">Estável</span>}
       </div>
       <p className="text-xs leading-5 text-heal-muted dark:text-zinc-400">
         <strong>Antes:</strong> {summarize(before)}
@@ -180,19 +180,19 @@ function DeltaPill({ label, value, trend }: { label: string; value: string; tren
 }
 
 function formatDelta(value: number, suffix: string) {
-  if (value === 0) return 'estavel';
+  if (value === 0) return 'estável';
   const formatted = Math.abs(value).toFixed(suffix === '%' ? 1 : 0);
   if (suffix === '%') return `${value > 0 ? '+' : '-'}${formatted}%`;
   return `${value > 0 ? '+' : '-'}${formatted}${suffix}${formatted === '1' ? '' : 's'}`;
 }
 
 function summarize(value: string) {
-  if (!value) return 'Nao informado';
+  if (!value) return 'Não informado';
   const firstParts = value
     .split('|')
     .map(item => item.trim())
     .filter(Boolean)
     .slice(0, 2)
     .join(' | ');
-  return firstParts || 'Nao informado';
+  return firstParts || 'Não informado';
 }

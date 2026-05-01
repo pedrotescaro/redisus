@@ -20,8 +20,8 @@ type AnalyzerTechnicalDrawerProps = {
 
 const termDefinitions = [
   {
-    title: "Mapa de atencao da IA",
-    body: "Mostra as regioes que tiveram maior peso para a decisao automatica. Areas mais quentes tendem a influenciar mais a classificacao.",
+    title: "Mapa de atenção da IA",
+    body: "Mostra as regiões que tiveram maior peso para a decisão automática. Áreas mais quentes tendem a influenciar mais a classificação.",
   },
   {
     title: "Margem de confianca",
@@ -29,11 +29,11 @@ const termDefinitions = [
   },
   {
     title: "Entropia de confianca",
-    body: "Resume o nivel de dispersao entre as probabilidades do modelo. Valores mais altos sugerem maior incerteza.",
+    body: "Resume o nível de dispersão entre as probabilidades do modelo. Valores mais altos sugerem maior incerteza.",
   },
   {
     title: "Fallback",
-    body: "Sinaliza quando o pipeline precisou usar uma rota de seguranca porque o classificador principal nao entregou uma resposta forte o suficiente.",
+    body: "Sinaliza quando o pipeline precisou usar uma rota de segurança porque o classificador principal não entregou uma resposta forte o suficiente.",
   },
 ];
 
@@ -115,14 +115,14 @@ export function AnalyzerTechnicalDrawer({
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
             {!analysis ? (
               <div className="rounded-[22px] border border-dashed border-outline-variant/20 bg-surface-container px-5 py-6 text-sm text-on-surface-variant dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                Execute uma analise para liberar os dados tecnicos desta gaveta.
+                Execute uma análise para liberar os dados técnicos desta gaveta.
               </div>
             ) : (
               <>
                 <DetailSection
                   defaultOpen
                   title="Probabilidades completas"
-                  subtitle="Distribuicao por tecido com base na segmentacao e no classificador."
+                  subtitle="Distribuição por tecido com base na segmentação e no classificador."
                 >
                   <div className="space-y-3">
                     {tissueBreakdown.map((item) => (
@@ -175,7 +175,7 @@ export function AnalyzerTechnicalDrawer({
                         onClick={() =>
                           onOpenLightbox(
                             analysis.visuals?.attention?.data_url as string,
-                            analysis.visuals?.attention?.label || "Mapa de atencao da IA",
+                            analysis.visuals?.attention?.label || "Mapa de atenção da IA",
                           )
                         }
                         className="overflow-hidden rounded-[20px] border border-outline-variant/20 bg-surface-container text-left transition-transform hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/5"
@@ -227,11 +227,11 @@ export function AnalyzerTechnicalDrawer({
                   <div className="mt-4 rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-4 dark:border-white/10">
                     <p className="flex items-center gap-2 text-sm font-semibold text-on-surface dark:text-white">
                       <BrainCircuit className="h-4 w-4 text-primary" />
-                      Como interpretar o mapa de atencao
+                      Como interpretar o mapa de atenção
                     </p>
                     <p className="mt-2 text-sm leading-7 text-on-surface-variant dark:text-slate-300">
-                      Areas mais quentes indicam as regioes que pesaram mais na decisao.
-                      O mapa de atencao nao substitui a avaliacao clinica, mas ajuda a
+                      Áreas mais quentes indicam as regiões que pesaram mais na decisão.
+                      O mapa de atenção não substitui a avaliação clínica, mas ajuda a
                       explicar por que a IA destacou um tecido como predominante.
                     </p>
                   </div>

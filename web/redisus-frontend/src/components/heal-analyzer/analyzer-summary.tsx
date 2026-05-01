@@ -49,8 +49,8 @@ export function AnalysisResultPanel({
   const primaryLabel = analysis
     ? analysis.is_valid_wound
       ? presentClinicalLabel(analysis.primary_tissue)
-      : "Imagem precisa de revisao"
-    : "Resultado ainda nao gerado";
+      : "Imagem precisa de revisão"
+    : "Resultado ainda não gerado";
 
   return (
     <aside className="2xl:sticky 2xl:top-24 2xl:self-start">
@@ -61,7 +61,7 @@ export function AnalysisResultPanel({
               Resultado
             </p>
             <h2 className="mt-2 text-xl font-black text-heal-ink dark:text-white">
-              Analise clinica
+              Análise clínica
             </h2>
           </div>
           <div
@@ -87,8 +87,8 @@ export function AnalysisResultPanel({
           </div>
           <p className="mt-2 text-sm leading-6 text-heal-muted dark:text-zinc-400">
             {hasConfirmedRoi
-              ? "A analise usara somente as areas marcadas."
-              : "Marque e salve uma ROI para liberar a analise."}
+              ? "A análise usará somente as áreas marcadas."
+              : "Marque e salve uma ROI para liberar a análise."}
           </p>
         </div>
 
@@ -115,7 +115,7 @@ export function AnalysisResultPanel({
                 </span>
                 {analysis.interpretation.requires_expert_review ? (
                   <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300">
-                    Revisao profissional recomendada
+                    Revisão profissional recomendada
                   </span>
                 ) : null}
               </div>
@@ -143,9 +143,9 @@ export function AnalysisResultPanel({
             <div className="mt-4 rounded-2xl border border-heal-line bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-black text-heal-ink dark:text-white">Confianca da IA</p>
+                  <p className="text-sm font-black text-heal-ink dark:text-white">Confiança da IA</p>
                   <p className="mt-1 text-xs text-heal-muted dark:text-zinc-400">
-                    Percentual de seguranca do modelo no padrao encontrado.
+                    Percentual de segurança do modelo no padrão encontrado.
                   </p>
                 </div>
                 <span className="text-lg font-black text-heal-ink dark:text-white">{confidence}%</span>
@@ -161,18 +161,18 @@ export function AnalysisResultPanel({
             <div className="mt-4 rounded-2xl border border-heal-line bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-center gap-2 text-heal-ink dark:text-white">
                 <BrainCircuit className="h-4 w-4" />
-                <p className="text-sm font-black">Resumo clinico</p>
+                <p className="text-sm font-black">Resumo clínico</p>
               </div>
               <p className="mt-3 text-sm leading-6 text-heal-muted dark:text-zinc-400">
                 {analysis.interpretation.summary ||
-                  "A IA gerou um resumo clinico da imagem analisada."}
+                  "A IA gerou um resumo clínico da imagem analisada."}
               </p>
             </div>
 
             {analysis.interpretation.recommendations?.length ? (
               <div className="mt-4 rounded-2xl border border-heal-line bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
                 <p className="text-sm font-black text-heal-ink dark:text-white">
-                  Proximos cuidados sugeridos
+                  Próximos cuidados sugeridos
                 </p>
                 <ul className="mt-3 space-y-2 text-sm text-heal-muted dark:text-zinc-400">
                   {analysis.interpretation.recommendations.slice(0, 3).map((item) => (
@@ -200,7 +200,7 @@ export function AnalysisResultPanel({
                 disabled={loading}
               >
                 {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                Reexecutar analise
+                Reexecutar análise
               </Button>
               <p className="text-center text-xs text-heal-muted dark:text-zinc-400">
                 Tempo de processamento: {Math.round(analysis.processing_time_ms || 0)} ms
@@ -213,10 +213,10 @@ export function AnalysisResultPanel({
               {loading ? <LoaderCircle className="h-6 w-6 animate-spin" /> : <ClipboardCheck className="h-6 w-6" />}
             </div>
             <p className="mt-4 text-lg font-black text-heal-ink dark:text-white">
-              Resultado ainda nao gerado
+              Resultado ainda não gerado
             </p>
             <p className="mx-auto mt-2 max-w-[260px] text-sm leading-6 text-heal-muted dark:text-zinc-400">
-              Marque a ROI e inicie a analise para visualizar os dados clinicos.
+              Marque a ROI e inicie a análise para visualizar os dados clínicos.
             </p>
             {error ? (
               <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-left text-sm text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200">
@@ -231,7 +231,7 @@ export function AnalysisResultPanel({
                 disabled={loading}
               >
                 {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
-                Iniciar analise com {roiCount} ROI{roiCount === 1 ? "" : "s"}
+                Iniciar análise com {roiCount} ROI{roiCount === 1 ? "" : "s"}
               </Button>
             ) : null}
           </div>

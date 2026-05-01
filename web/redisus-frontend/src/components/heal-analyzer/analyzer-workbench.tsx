@@ -141,8 +141,8 @@ export function AnalyzerWorkbench() {
     },
     {
       id: "segmentation" as const,
-      label: "Segmentacao",
-      description: "Mapa de tecidos identificado pelo pipeline clinico.",
+      label: "Segmentação",
+      description: "Mapa de tecidos identificado pelo pipeline clínico.",
       src: analysis?.visuals?.segmentation?.data_url ?? null,
     },
     {
@@ -153,8 +153,8 @@ export function AnalyzerWorkbench() {
     },
     {
       id: "attention" as const,
-      label: "Atencao da IA",
-      description: "Regioes de maior relevancia para a decisao do modelo.",
+      label: "Atenção da IA",
+      description: "Regiões de maior relevância para a decisão do modelo.",
       src: analysis?.visuals?.attention?.data_url ?? null,
     },
   ];
@@ -208,7 +208,7 @@ export function AnalyzerWorkbench() {
   const handleResetRoi = () => {
     if (
       roiSelections.length &&
-      !window.confirm("Limpar todas as ROIs marcadas? Essa acao remove as delimitacoes salvas nesta analise.")
+      !window.confirm("Limpar todas as ROIs marcadas? Essa ação remove as delimitações salvas nesta análise.")
     ) {
       return;
     }
@@ -281,7 +281,7 @@ export function AnalyzerWorkbench() {
     if (!selectedFile) return;
 
     if (!roiSelections.length) {
-      setError("Confirme pelo menos uma area marcada da ferida antes de iniciar a analise.");
+      setError("Confirme pelo menos uma área marcada da ferida antes de iniciar a análise.");
       setWorkflowState("marking");
       setActiveMobilePanel("roi");
       return;
@@ -306,7 +306,7 @@ export function AnalyzerWorkbench() {
       const message =
         analysisError instanceof Error
           ? analysisError.message
-          : "Falha ao executar a analise da imagem.";
+          : "Falha ao executar a análise da imagem.";
       setError(message);
       setWorkflowState("error");
       setActiveMobilePanel("result");
@@ -323,10 +323,10 @@ export function AnalyzerWorkbench() {
                 HEAL analyzer
               </p>
               <h1 className="mt-2 text-2xl font-black text-heal-ink dark:text-white sm:text-3xl">
-                Analise de imagem com ROI manual
+                Análise de imagem com ROI manual
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-heal-muted dark:text-zinc-400">
-                Escolha a imagem, delimite uma ou mais regioes da ferida e execute a IA
+                Escolha a imagem, delimite uma ou mais regiões da ferida e execute a IA
                 usando somente as areas confirmadas.
               </p>
             </div>
@@ -505,8 +505,8 @@ function ImageInfoPanel({
   const analyzeLabel = loading
     ? "Analisando imagem"
     : hasConfirmedRoi
-      ? `Iniciar analise com ${roiCount} ROI${roiCount === 1 ? "" : "s"}`
-      : "Iniciar analise";
+      ? `Iniciar análise com ${roiCount} ROI${roiCount === 1 ? "" : "s"}`
+      : "Iniciar análise";
 
   return (
     <aside className={cn("space-y-4 lg:sticky lg:top-24 lg:self-start", className)}>
@@ -559,8 +559,8 @@ function ImageInfoPanel({
             disabled={!selectedFile || !roiCount || loading}
             title={
               roiCount
-                ? "Executar analise usando as ROIs salvas."
-                : "Salve pelo menos 1 ROI para iniciar a analise."
+                ? "Executar análise usando as ROIs salvas."
+                : "Salve pelo menos 1 ROI para iniciar a análise."
             }
           >
             {loading ? (
@@ -572,7 +572,7 @@ function ImageInfoPanel({
           </Button>
           {!roiCount ? (
             <p className="rounded-xl bg-heal-canvas px-3 py-2 text-xs leading-5 text-heal-muted dark:bg-zinc-950 dark:text-zinc-400">
-              Marque e salve pelo menos 1 ROI para liberar a analise.
+              Marque e salve pelo menos 1 ROI para liberar a análise.
             </p>
           ) : null}
         </div>
@@ -583,7 +583,7 @@ function ImageInfoPanel({
           ID do paciente
         </label>
         <p className="mt-1 text-xs leading-5 text-heal-muted dark:text-zinc-400">
-          Campo opcional para vincular esta analise.
+          Campo opcional para vincular esta análise.
         </p>
         <Input
           className="mt-3"
@@ -639,13 +639,13 @@ function ImageInfoPanel({
         <div className="flex items-start gap-3">
           <ShieldAlert className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-300" />
           <p className="text-sm leading-6 text-amber-900 dark:text-amber-50">
-            Apoio a decisao clinica, sem substituir avaliacao profissional.
+            Apoio à decisão clínica, sem substituir avaliação profissional.
           </p>
         </div>
       </section>
 
       <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-sm font-black text-heal-ink dark:text-white">Dicas de marcacao</p>
+        <p className="text-sm font-black text-heal-ink dark:text-white">Dicas de marcação</p>
         <div className="mt-3 space-y-2">
           {captureTips.map((tip) => (
             <p
@@ -778,7 +778,7 @@ function EmptyCanvasPanel() {
           Selecione uma imagem para iniciar
         </h2>
         <p className="mt-2 text-sm leading-6 text-heal-muted dark:text-zinc-400">
-          O canvas de marcacao aparece aqui assim que a foto da ferida for carregada.
+          O canvas de marcação aparece aqui assim que a foto da ferida for carregada.
         </p>
       </div>
     </section>

@@ -40,7 +40,7 @@ export function EvaluationPage() {
         : {
             evaluationNotice: {
               type: 'success',
-              message: 'Avaliacao salva com sucesso.'
+              message: 'Avaliação salva com sucesso.'
             }
           }
     });

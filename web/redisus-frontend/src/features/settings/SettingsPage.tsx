@@ -16,7 +16,7 @@ export function SettingsPage() {
   const settings = profile?.settings;
   const isDark = theme === 'dark';
   const displayName = profile?.displayName || user?.displayName || 'Profissional Heal+';
-  const email = profile?.email || user?.email || 'email nao informado';
+  const email = profile?.email || user?.email || 'e-mail não informado';
 
   const saveSetting = (key: string, value: boolean | string) => {
     if (user) void updateSettings(user.uid, { [key]: value });
@@ -66,13 +66,13 @@ export function SettingsPage() {
               icon={<UserRound className="h-5 w-5" />}
               iconClassName="bg-blue-50 text-heal-blue dark:bg-blue-950/40"
               title="Editar perfil"
-              description="Nome, area profissional, clinica e telefone"
+              description="Nome, área profissional, clínica e telefone"
             />
             <SettingsLink
               to="/notifications"
               icon={<Bell className="h-5 w-5" />}
               iconClassName="bg-emerald-50 text-heal-teal dark:bg-emerald-950/40"
-              title="Notificacoes"
+              title="Notificações"
               description={settings?.notificationsEnabled === false ? 'Avisos pausados' : 'Alertas e lembretes ativos'}
             />
             <SettingsLink
@@ -80,14 +80,14 @@ export function SettingsPage() {
               icon={<ShieldCheck className="h-5 w-5" />}
               iconClassName="bg-amber-50 text-heal-warning dark:bg-amber-950/40"
               title="Privacidade"
-              description="Previews, foto de perfil e separacao por UID"
+              description="Previews, foto de perfil e separação por UID"
             />
             <SettingsLink
               to="/about"
               icon={<Info className="h-5 w-5" />}
               iconClassName="bg-pink-50 text-pink-500 dark:bg-pink-950/40"
               title="Sobre App"
-              description="Versao, arquitetura e proposta academica"
+              description="Versão, arquitetura e proposta acadêmica"
             />
           </div>
         </Card>
@@ -99,7 +99,7 @@ export function SettingsPage() {
                 {isDark ? <Moon className="h-6 w-6" /> : <Sun className="h-6 w-6" />}
               </div>
               <div>
-                <h2 className="text-lg font-black text-heal-ink dark:text-white">Aparencia</h2>
+                <h2 className="text-lg font-black text-heal-ink dark:text-white">Aparência</h2>
                 <p className="text-sm font-semibold text-heal-muted dark:text-zinc-400">Sincronizada no seu perfil</p>
               </div>
             </div>
@@ -122,9 +122,9 @@ export function SettingsPage() {
           </Card>
 
           <Card>
-            <h2 className="text-lg font-black text-heal-ink dark:text-white">Preferencias rapidas</h2>
+            <h2 className="text-lg font-black text-heal-ink dark:text-white">Preferências rápidas</h2>
             <div className="mt-4 space-y-3">
-              <ToggleRow label="Notificacoes gerais" checked={settings?.notificationsEnabled ?? true} onChange={value => saveSetting('notificationsEnabled', value)} />
+              <ToggleRow label="Notificações gerais" checked={settings?.notificationsEnabled ?? true} onChange={value => saveSetting('notificationsEnabled', value)} />
               <ToggleRow label="Mostrar foto de perfil" checked={settings?.showProfilePhoto ?? true} onChange={value => saveSetting('showProfilePhoto', value)} />
               <ToggleRow label="Ocultar e-mail no topo" checked={settings?.hideEmailPreview ?? false} onChange={value => saveSetting('hideEmailPreview', value)} />
               <ToggleRow label="Lembretes da agenda" checked={settings?.agendaRemindersEnabled ?? true} onChange={value => saveSetting('agendaRemindersEnabled', value)} />

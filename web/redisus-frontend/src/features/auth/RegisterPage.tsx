@@ -84,7 +84,7 @@ export function RegisterPage() {
   const busy = isSubmitting || !!socialLoading;
 
   return (
-    <AuthLayout title="Criar conta" subtitle="Junte-se ao Heal+ e organize seu cuidado clinico.">
+    <AuthLayout title="Criar conta" subtitle="Junte-se ao Heal+ e organize seu cuidado clínico.">
       <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
         <Input
           label="Nome profissional"
@@ -133,7 +133,7 @@ export function RegisterPage() {
             {...register('acceptedTerms')}
           />
           <label htmlFor="terms" className="leading-relaxed">
-            Eu concordo com os Termos de Uso e a Politica de Privacidade do Heal+.
+            Eu concordo com os Termos de Uso e a Política de Privacidade do Heal+.
           </label>
         </div>
 
@@ -169,7 +169,7 @@ export function RegisterPage() {
       </div>
 
       <p className="mt-8 text-center text-sm text-heal-muted">
-        Ja tem uma conta?{' '}
+        Já tem uma conta?{' '}
         <Link to="/login" className="font-semibold text-heal-blue hover:text-heal-blueDark transition-colors">
           Fazer login
         </Link>

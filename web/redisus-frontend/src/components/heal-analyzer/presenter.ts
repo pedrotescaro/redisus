@@ -132,7 +132,7 @@ export function getSimpleExplanation(analysis: HealAnalyzerResult) {
     repairMojibakeText(analysis.interpretation.summary || "") ||
     "A IA encontrou sinais visuais compativeis com o tecido destacado.";
   const caution = analysis.interpretation.requires_expert_review
-    ? " Recomenda-se revisao profissional antes de qualquer decisao."
+    ? " Recomenda-se revisão profissional antes de qualquer decisão."
     : "";
   return `${justification}${caution}`;
 }
@@ -178,16 +178,16 @@ export function getStatusCopy(
 
   if (state === "complete") {
     return {
-      label: "Analise concluida",
-      caption: "Resultado clinico pronto com explicacao visual.",
+      label: "Análise concluída",
+      caption: "Resultado clínico pronto com explicação visual.",
       tone: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
     };
   }
 
   if (state === "error") {
     return {
-      label: "Falha na analise",
-      caption: "Revise a imagem ou a conexao com a API clinica.",
+      label: "Falha na análise",
+      caption: "Revise a imagem ou a conexão com a API clínica.",
       tone: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300",
     };
   }
@@ -203,7 +203,7 @@ export function getStatusCopy(
   if (hasConfirmedRoi) {
     return {
       label: "ROIs prontas",
-      caption: "A analise ja pode ser iniciada usando somente as areas marcadas.",
+      caption: "A análise já pode ser iniciada usando somente as áreas marcadas.",
       tone: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
     };
   }
@@ -211,7 +211,7 @@ export function getStatusCopy(
   if (hasImage) {
     return {
       label: "Imagem pronta",
-      caption: "Voce ja pode seguir para a delimitacao manual da ferida.",
+      caption: "Você já pode seguir para a delimitação manual da ferida.",
       tone: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/15 dark:text-violet-300",
     };
   }

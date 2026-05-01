@@ -110,12 +110,12 @@ async function buildAuthorizedHeaders(): Promise<HeadersInit> {
 
   const user = auth.currentUser ?? (await waitForAuthenticatedUser());
   if (!user) {
-    throw new Error("Usuario nao autenticado. Faca login para analisar a imagem.");
+    throw new Error("Usuário não autenticado. Faça login para analisar a imagem.");
   }
 
   const token = await user.getIdToken(true);
   if (!token) {
-    throw new Error("Token do usuario indisponivel. Atualize a sessao e tente novamente.");
+    throw new Error("Token do usuário indisponível. Atualize a sessão e tente novamente.");
   }
 
   return {
@@ -167,7 +167,7 @@ export async function analyzeWithHealAnalyzer(
   } catch (error) {
     const reason = error instanceof Error ? error.message : "falha de rede";
     throw new Error(
-      `Nao foi possivel conectar ao HEAL analyzer em ${ANALYZER_API_BASE}. (${reason})`,
+      `Não foi possível conectar ao HEAL analyzer em ${ANALYZER_API_BASE}. (${reason})`,
     );
   }
 
@@ -181,7 +181,7 @@ export async function analyzeWithHealAnalyzer(
       payload && typeof payload === "object" && "detail" in payload
         ? payload.detail
         : undefined;
-    throw new Error(detail || `Falha ao executar a analise (${response.status}).`);
+    throw new Error(detail || `Falha ao executar a análise (${response.status}).`);
   }
 
   if (!payload || typeof payload !== "object" || !("analysis_id" in payload)) {

@@ -12,11 +12,11 @@ interface AuthLayoutProps {
 
 const features = [
   { icon: Users, label: 'Cadastro assistencial', value: 'Pacientes ativos e arquivados' },
-  { icon: ClipboardCheck, label: 'Avaliacao clinica', value: 'TIMERS, imagem e demarcacao' },
-  { icon: BarChart3, label: 'Evolucao visivel', value: 'Comparativos e indicadores' },
-  { icon: FileText, label: 'Relatorios', value: 'Documentos para revisao' },
+  { icon: ClipboardCheck, label: 'Avaliação clínica', value: 'TIMERS, imagem e demarcação' },
+  { icon: BarChart3, label: 'Evolução visível', value: 'Comparativos e indicadores' },
+  { icon: FileText, label: 'Relatórios', value: 'Documentos para revisão' },
   { icon: ShieldCheck, label: 'Acesso protegido', value: 'Conta profissional autenticada' },
-  { icon: Camera, label: 'Registro fotografico', value: 'Imagem e ROI no prontuario' }
+  { icon: Camera, label: 'Registro fotográfico', value: 'Imagem e ROI no prontuário' }
 ];
 
 export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
@@ -35,7 +35,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
                 </div>
                 <div>
                   <p className="text-3xl font-black tracking-tight text-[#0088ff]">Heal+</p>
-                  <p className="text-sm font-bold text-slate-500">Plataforma clinica web</p>
+                  <p className="text-sm font-bold text-slate-500">Plataforma clínica web</p>
                 </div>
               </div>
             </div>
@@ -52,10 +52,10 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#00a6ff]">Heal+ Web</p>
                 <h2 className="mt-4 max-w-2xl text-5xl font-black leading-tight tracking-tight text-white">
-                  Cuidado inteligente. Evolucao visivel.
+                  Cuidado inteligente. Evolução visível.
                 </h2>
                 <p className="mt-5 max-w-xl text-base leading-7 text-sky-100/80">
-                  Ambiente profissional com identidade institucional, acesso seguro e fluxo clinico para acompanhamento de feridas.
+                  Ambiente profissional com identidade institucional, acesso seguro e fluxo clínico para acompanhamento de feridas.
                 </p>
               </div>
 
@@ -76,9 +76,9 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
               </div>
 
               <div className="rounded-2xl border border-[#0088ff]/25 bg-[#0088ff]/10 p-5">
-                <p className="text-sm font-black text-white">Regra clinica preservada</p>
+                <p className="text-sm font-black text-white">Regra clínica preservada</p>
                 <p className="mt-1 text-sm leading-6 text-sky-100/80">
-                  Pacientes ficam salvos e podem ser arquivados. Exclusao direta fica restrita aos agendamentos.
+                  Pacientes ficam salvos e podem ser arquivados. Exclusão direta fica restrita aos agendamentos.
                 </p>
               </div>
             </div>

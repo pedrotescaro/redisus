@@ -235,7 +235,7 @@ export function EvaluationForm({ patients, defaultPatientId, onSubmit }: Evaluat
     try {
       await onSubmit(values, images);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Nao foi possivel salvar a avaliacao.');
+      setSubmitError(error instanceof Error ? error.message : 'Não foi possível salvar a avaliação.');
     }
   };
 

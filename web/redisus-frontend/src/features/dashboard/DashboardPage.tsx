@@ -14,17 +14,17 @@ import { listEvaluations } from '../evaluations/evaluationService';
 import { subscribePatients } from '../patients/patientService';
 
 const quickActions = [
-  { to: '/evaluations/new', label: 'Avaliacao', icon: ClipboardPlus, tone: 'bg-blue-50 text-heal-blue dark:bg-blue-950/40' },
+  { to: '/evaluations/new', label: 'Avaliação', icon: ClipboardPlus, tone: 'bg-blue-50 text-heal-blue dark:bg-blue-950/40' },
   { to: '/patients', label: 'Pacientes', icon: Users, tone: 'bg-emerald-50 text-heal-teal dark:bg-emerald-950/40' },
-  { to: '/reports', label: 'Relatorio', icon: FileText, tone: 'bg-amber-50 text-heal-warning dark:bg-amber-950/40' },
+  { to: '/reports', label: 'Relatório', icon: FileText, tone: 'bg-amber-50 text-heal-warning dark:bg-amber-950/40' },
   { to: '/reports/compare', label: 'Comparar', icon: SplitSquareHorizontal, tone: 'bg-pink-50 text-pink-500 dark:bg-pink-950/40' }
 ];
 
 const shortcutCards = [
-  { to: '/evaluations/new', title: 'Nova avaliacao', description: 'Registrar TIMERS, imagem e ROI.', icon: ClipboardPlus },
-  { to: '/reports/compare', title: 'Comparar evolucao', description: 'Antes e agora no modelo visual.', icon: SplitSquareHorizontal },
-  { to: '/agenda', title: 'Agenda clinica', description: 'Criar, editar e excluir atendimentos.', icon: CalendarDays },
-  { to: '/chat', title: 'Assistente', description: 'Pesquisar dados ja salvos.', icon: Bot }
+  { to: '/evaluations/new', title: 'Nova avaliação', description: 'Registrar TIMERS, imagem e ROI.', icon: ClipboardPlus },
+  { to: '/reports/compare', title: 'Comparar evolução', description: 'Antes e agora no modelo visual.', icon: SplitSquareHorizontal },
+  { to: '/agenda', title: 'Agenda clínica', description: 'Criar, editar e excluir atendimentos.', icon: CalendarDays },
+  { to: '/chat', title: 'Assistente', description: 'Pesquisar dados já salvos.', icon: Bot }
 ];
 
 export function DashboardPage() {
@@ -86,7 +86,7 @@ export function DashboardPage() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-black text-heal-ink dark:text-white">Pergunte ou pesquise</p>
-          <p className="truncate text-xs font-semibold text-heal-muted dark:text-zinc-400">Pacientes, agenda, avaliacoes e retornos ja salvos</p>
+          <p className="truncate text-xs font-semibold text-heal-muted dark:text-zinc-400">Pacientes, agenda, avaliações e retornos já salvos</p>
         </div>
         <Search className="h-5 w-5 text-heal-muted" />
       </Link>
@@ -94,12 +94,12 @@ export function DashboardPage() {
       <section className="overflow-hidden rounded-[1.75rem] border border-heal-line bg-white p-6 shadow-soft dark:border-zinc-800 dark:bg-zinc-900 lg:p-8">
         <div className="grid gap-6 xl:grid-cols-[1fr_420px] xl:items-center">
           <div>
-            <Badge tone="blue">Ola, Dr. {firstName}.</Badge>
+            <Badge tone="blue">Olá, Dr. {firstName}.</Badge>
             <h1 className="mt-4 max-w-3xl text-3xl font-black leading-tight tracking-tight text-heal-ink dark:text-white md:text-5xl">
               Pronto para continuar o acompanhamento?
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-heal-muted dark:text-zinc-400 md:text-base">
-              O fluxo principal fica aqui: avaliar feridas, consultar pacientes, acompanhar agenda e gerar relatorios.
+              O fluxo principal fica aqui: avaliar feridas, consultar pacientes, acompanhar agenda e gerar relatórios.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               {quickActions.map(action => (
@@ -119,7 +119,7 @@ export function DashboardPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <MetricCard label="Pacientes ativos" value={activePatients.length} icon={<Users className="h-5 w-5" />} tone="blue" />
-            <MetricCard label="Avaliacoes" value={evaluationCount} icon={<ClipboardPlus className="h-5 w-5" />} tone="green" />
+            <MetricCard label="Avaliações" value={evaluationCount} icon={<ClipboardPlus className="h-5 w-5" />} tone="green" />
             <MetricCard label="Agenda futura" value={upcoming.length} icon={<CalendarDays className="h-5 w-5" />} tone="amber" />
             <MetricCard label="Arquivados" value={archivedPatients} icon={<FileText className="h-5 w-5" />} tone="slate" />
           </div>
@@ -143,7 +143,7 @@ export function DashboardPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Agenda</p>
-              <h2 className="mt-1 text-xl font-black text-heal-ink dark:text-white">Proximos atendimentos</h2>
+              <h2 className="mt-1 text-xl font-black text-heal-ink dark:text-white">Próximos atendimentos</h2>
             </div>
             <Link
               to="/agenda"

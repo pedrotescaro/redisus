@@ -17,20 +17,20 @@ interface Message {
 
 const suggestions = [
   {
-    title: 'Como voce pode me ajudar?',
+    title: 'Como você pode me ajudar?',
     description: 'Entenda o que consigo consultar no banco local.',
-    prompt: 'Como voce pode me ajudar?',
+    prompt: 'Como você pode me ajudar?',
     icon: HelpCircle
   },
   {
     title: 'Resumo do meu dia',
-    description: 'Veja retornos e atendimentos ja salvos no app.',
+    description: 'Veja retornos e atendimentos já salvos no app.',
     prompt: 'Resumo do meu dia',
     icon: CalendarCheck2
   }
 ];
 
-const quickTopics = ['pacientes ativos', 'agenda de hoje', 'avaliacoes salvas', 'pacientes arquivados'];
+const quickTopics = ['pacientes ativos', 'agenda de hoje', 'avaliações salvas', 'pacientes arquivados'];
 
 export function ChatPage() {
   const { user, profile } = useAuth();
@@ -93,9 +93,9 @@ export function ChatPage() {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
               <Sparkles className="h-7 w-7" />
             </div>
-            <h2 className="mt-5 text-3xl font-black tracking-tight text-heal-ink dark:text-white">Oi, {firstName}. O que voce quer pesquisar?</h2>
+            <h2 className="mt-5 text-3xl font-black tracking-tight text-heal-ink dark:text-white">Oi, {firstName}. O que você quer pesquisar?</h2>
             <p className="mt-3 max-w-lg text-sm leading-6 text-heal-muted dark:text-zinc-400">
-              Posso responder sobre pacientes ativos, arquivados, avaliacoes e agenda que ja estao salvos na sua conta.
+              Posso responder sobre pacientes ativos, arquivados, avaliações e agenda que já estão salvos na sua conta.
             </p>
             <div className="mt-6 grid w-full gap-3 sm:grid-cols-2">
               {suggestions.map(item => (
@@ -155,11 +155,11 @@ export function ChatPage() {
             onKeyDown={event => {
               if (event.key === 'Enter') send();
             }}
-            placeholder="Pergunte sobre pacientes, agenda ou avaliacoes"
+            placeholder="Pergunte sobre pacientes, agenda ou avaliações"
           />
           <Button type="button" className="h-12 rounded-2xl px-4" icon={<SendHorizontal className="h-5 w-5" />} onClick={() => send()} aria-label="Enviar pergunta" />
         </div>
-        <p className="mt-3 text-center text-xs font-semibold text-heal-muted dark:text-zinc-500">As respostas sao um resumo operacional dos dados salvos, nao uma decisao clinica automatica.</p>
+        <p className="mt-3 text-center text-xs font-semibold text-heal-muted dark:text-zinc-500">As respostas são um resumo operacional dos dados salvos, não uma decisão clínica automática.</p>
       </footer>
     </div>
   );

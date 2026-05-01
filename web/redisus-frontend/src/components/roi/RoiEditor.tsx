@@ -101,7 +101,7 @@ export function RoiEditor({ open, imageUrl, initialRois, onClose, onSave }: RoiE
           onPointerUp={stopDrawing}
           onPointerLeave={stopDrawing}
         >
-          <img src={imageUrl} alt="Foto da ferida para delimitacao de ROI" className="h-full w-full object-contain" draggable={false} />
+          <img src={imageUrl} alt="Foto da ferida para delimitação de ROI" className="h-full w-full object-contain" draggable={false} />
           <RoiImageOverlay rois={rois} />
         </div>
 
@@ -135,7 +135,7 @@ export function RoiEditor({ open, imageUrl, initialRois, onClose, onSave }: RoiE
             <Input label="Nome da ROI" value={selectedRoi.label} onChange={event => renameRoi(selectedRoi.id, event.target.value)} />
           ) : null}
           <p className="text-xs leading-5 text-slate-500 dark:text-zinc-400">
-            As coordenadas sao salvas normalizadas entre 0 e 1, evitando dependencia do tamanho da tela.
+            As coordenadas são salvas normalizadas entre 0 e 1, evitando dependência do tamanho da tela.
           </p>
           <div className="flex gap-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
