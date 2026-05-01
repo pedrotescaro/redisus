@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { useAuth } from '../../app/providers/AuthProvider';
+import { UserAvatar } from '../../components/profile/UserAvatar';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
-import { getInitials } from '../../lib/format';
 import { profileSchema, type ProfileFormValues, updateProfileData, uploadProfilePhoto } from './profileService';
 
 export function EditProfilePage() {
@@ -52,18 +52,18 @@ export function EditProfilePage() {
   };
 
   const displayName = profile?.displayName || user?.displayName || 'Profissional';
+  const photoURL = profile?.photoURL || user?.photoURL;
 
   return (
     <Card className="mx-auto max-w-2xl">
       <h2 className="text-2xl font-black text-heal-ink dark:text-white">Editar perfil</h2>
       <div className="mt-5 flex items-center gap-4">
-        {profile?.photoURL ? (
-          <img src={profile.photoURL} alt="" className="h-20 w-20 rounded-full object-cover" />
-        ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-xl font-black text-heal-blue dark:bg-blue-950">
-            {getInitials(displayName)}
-          </div>
-        )}
+        <UserAvatar
+          name={displayName}
+          src={photoURL}
+          imageClassName="h-20 w-20 rounded-full object-cover"
+          fallbackClassName="flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-xl font-black text-heal-blue dark:bg-blue-950"
+        />
         <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-heal-line bg-white px-4 py-2 text-sm font-semibold text-heal-ink hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
           <Upload className="h-4 w-4" />
           Enviar foto

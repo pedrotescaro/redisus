@@ -1,7 +1,7 @@
 import { Bell, Menu, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthProvider';
-import { getInitials } from '../../lib/format';
+import { UserAvatar } from '../profile/UserAvatar';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -10,7 +10,6 @@ interface TopbarProps {
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { user, profile } = useAuth();
   const displayName = profile?.displayName || user?.displayName || user?.email || '';
-  const initials = getInitials(displayName);
   const photoURL = profile?.photoURL || user?.photoURL;
 
   return (
@@ -49,13 +48,12 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             <span className="hidden lg:block text-sm font-medium text-heal-ink dark:text-white group-hover:text-heal-blue transition-colors truncate max-w-[160px]">
               {displayName}
             </span>
-            {photoURL ? (
-              <img className="h-9 w-9 rounded-xl bg-heal-canvas object-cover ring-2 ring-heal-line/50 transition-all group-hover:ring-heal-blue/30" src={photoURL} alt="" />
-            ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-heal-softBlue text-sm font-bold text-heal-blue ring-2 ring-heal-blue/10 group-hover:ring-heal-blue/30 transition-all dark:bg-blue-950/40">
-                {initials}
-              </div>
-            )}
+            <UserAvatar
+              name={displayName}
+              src={photoURL}
+              imageClassName="h-9 w-9 rounded-xl bg-heal-canvas object-cover ring-2 ring-heal-line/50 transition-all group-hover:ring-heal-blue/30"
+              fallbackClassName="flex h-9 w-9 items-center justify-center rounded-xl bg-heal-softBlue text-sm font-bold text-heal-blue ring-2 ring-heal-blue/10 group-hover:ring-heal-blue/30 transition-all dark:bg-blue-950/40"
+            />
           </Link>
         </div>
       </div>

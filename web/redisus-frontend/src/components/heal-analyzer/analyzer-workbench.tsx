@@ -1,29 +1,25 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import {
-  BrainCircuit,
+  BadgeCheck,
   CheckCircle2,
   FileImage,
   ImagePlus,
-  Layers3,
   LoaderCircle,
-  PenTool,
-  PencilLine,
   Plus,
   RefreshCcw,
   ScanSearch,
   ShieldAlert,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { AnalyzerRoiEditor } from "./roi-editor";
-import { AnalyzerSummary } from "./analyzer-summary";
+import { AnalysisResultPanel } from "./analyzer-summary";
 import { AnalyzerTechnicalDrawer } from "./analyzer-technical-drawer";
 import { AnalyzerViewer } from "./analyzer-viewer";
 import {
@@ -37,42 +33,18 @@ import {
   roiToolLabel,
   type HealAnalyzerRoiSelection,
 } from "../../lib/heal-analyzer-roi";
+import { cn } from "../../lib/utils";
 import {
   analyzeWithHealAnalyzer,
   type HealAnalyzerResult,
 } from "../../services/ai/heal-analyzer-service";
 
-const stepCards = [
-  {
-    key: "upload",
-    title: "1. Upload da imagem",
-    caption: "Envie a foto e confira o preview imediato.",
-    icon: Upload,
-  },
-  {
-    key: "roi",
-    title: "2. Delimitacao manual",
-    caption: "Marque uma ou mais feridas antes de rodar a IA.",
-    icon: PenTool,
-  },
-  {
-    key: "processing",
-    title: "3. Processamento da IA",
-    caption: "A pipeline usa todas as ROIs confirmadas como filtro principal.",
-    icon: BrainCircuit,
-  },
-  {
-    key: "result",
-    title: "4. Resultado clinico",
-    caption: "A tela destaca o tecido predominante e a confianca.",
-    icon: CheckCircle2,
-  },
-  {
-    key: "technical",
-    title: "5. Detalhes tecnicos",
-    caption: "A gaveta lateral guarda o conteudo tecnico sem atrapalhar o principal.",
-    icon: Layers3,
-  },
+type MobilePanel = "image" | "roi" | "result";
+
+const captureTips = [
+  "Evite sombras fortes e reflexos sobre o leito.",
+  "Aproxime a camera o suficiente para mostrar textura e cor.",
+  "Use uma ROI por ferida quando houver mais de uma lesao.",
 ] as const;
 
 function getNextVisualTab(result: HealAnalyzerResult): AnalyzerTabId {
@@ -94,8 +66,16 @@ function getResultRoiSelections(result: HealAnalyzerResult) {
   return [];
 }
 
+function getRoiCountLabel(count: number) {
+  if (count === 0) return "Nenhuma ROI criada";
+  if (count === 1) return "1 ROI criada";
+  return `${count} ROIs criadas`;
+}
+
 export function AnalyzerWorkbench() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const roiFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeMobilePanel, setActiveMobilePanel] = useState<MobilePanel>("image");
   const [analysis, setAnalysis] = useState<HealAnalyzerResult | null>(null);
   const [activeTab, setActiveTab] = useState<AnalyzerTabId>("original");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -106,6 +86,7 @@ export function AnalyzerWorkbench() {
   const [patientId, setPatientId] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [editingRoiIndex, setEditingRoiIndex] = useState<number | null>(null);
+  const [roiFeedback, setRoiFeedback] = useState<string | null>(null);
   const [roiSelections, setRoiSelections] = useState<HealAnalyzerRoiSelection[]>([]);
   const [roiEditorKey, setRoiEditorKey] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -118,6 +99,14 @@ export function AnalyzerWorkbench() {
       }
     };
   }, [previewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (roiFeedbackTimeoutRef.current) {
+        clearTimeout(roiFeedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!drawerOpen && !lightbox) return;
@@ -170,6 +159,14 @@ export function AnalyzerWorkbench() {
     },
   ];
 
+  const showRoiFeedback = (message: string) => {
+    setRoiFeedback(message);
+    if (roiFeedbackTimeoutRef.current) {
+      clearTimeout(roiFeedbackTimeoutRef.current);
+    }
+    roiFeedbackTimeoutRef.current = setTimeout(() => setRoiFeedback(null), 2600);
+  };
+
   const handleSelectImage = () => {
     fileInputRef.current?.click();
   };
@@ -189,6 +186,8 @@ export function AnalyzerWorkbench() {
   };
 
   const handleRoiConfirmed = (selection: HealAnalyzerRoiSelection) => {
+    const nextLabel =
+      editingRoiIndex === null ? `ROI ${roiSelections.length + 1}` : `ROI ${editingRoiIndex + 1}`;
     resetAnalysisPreview();
     setEditingRoiIndex(null);
     setRoiSelections((current) => {
@@ -202,15 +201,25 @@ export function AnalyzerWorkbench() {
     });
     setRoiEditorKey((current) => current + 1);
     setWorkflowState("ready");
+    setActiveMobilePanel("roi");
+    showRoiFeedback(`${nextLabel} salva com sucesso.`);
   };
 
   const handleResetRoi = () => {
+    if (
+      roiSelections.length &&
+      !window.confirm("Limpar todas as ROIs marcadas? Essa acao remove as delimitacoes salvas nesta analise.")
+    ) {
+      return;
+    }
+
     resetAnalysisPreview();
     setError(null);
     setEditingRoiIndex(null);
     setRoiSelections([]);
     setWorkflowState(previewUrl ? "marking" : "idle");
     setRoiEditorKey((current) => current + 1);
+    setRoiFeedback(null);
   };
 
   const handleStartNewRoi = () => {
@@ -219,6 +228,7 @@ export function AnalyzerWorkbench() {
     setError(null);
     setRoiEditorKey((current) => current + 1);
     setWorkflowState(previewUrl ? (roiSelections.length ? "ready" : "marking") : "idle");
+    setActiveMobilePanel("roi");
   };
 
   const handleEditSavedRoi = (index: number) => {
@@ -228,6 +238,7 @@ export function AnalyzerWorkbench() {
     setEditingRoiIndex(index);
     setRoiEditorKey((current) => current + 1);
     setWorkflowState("ready");
+    setActiveMobilePanel("roi");
   };
 
   const handleRemoveSavedRoi = (index: number) => {
@@ -262,6 +273,8 @@ export function AnalyzerWorkbench() {
     resetAnalysisPreview();
     setRoiEditorKey((current) => current + 1);
     setWorkflowState("marking");
+    setActiveMobilePanel("roi");
+    setRoiFeedback(null);
   };
 
   const handleAnalyze = async () => {
@@ -270,11 +283,13 @@ export function AnalyzerWorkbench() {
     if (!roiSelections.length) {
       setError("Confirme pelo menos uma area marcada da ferida antes de iniciar a analise.");
       setWorkflowState("marking");
+      setActiveMobilePanel("roi");
       return;
     }
 
     setWorkflowState("loading");
     setError(null);
+    setActiveMobilePanel("result");
 
     try {
       const result = await analyzeWithHealAnalyzer(selectedFile, {
@@ -286,6 +301,7 @@ export function AnalyzerWorkbench() {
       setRoiSelections(getResultRoiSelections(result));
       setWorkflowState("complete");
       setActiveTab(getNextVisualTab(result));
+      setActiveMobilePanel("result");
     } catch (analysisError) {
       const message =
         analysisError instanceof Error
@@ -293,30 +309,29 @@ export function AnalyzerWorkbench() {
           : "Falha ao executar a analise da imagem.";
       setError(message);
       setWorkflowState("error");
+      setActiveMobilePanel("result");
     }
   };
 
   return (
     <>
-      <section className="space-y-6">
-        <div className="overflow-hidden rounded-[32px] border border-primary/10 bg-[radial-gradient(circle_at_top_left,_rgba(33,150,243,0.18),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(65,96,132,0.16),_transparent_30%),linear-gradient(180deg,rgba(247,250,255,0.98),rgba(229,238,249,0.98))] p-5 shadow-ambient dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.2),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(79,70,229,0.18),_transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))] sm:p-6 xl:p-8">
-          <div className="flex flex-col gap-6 2xl:flex-row 2xl:items-end 2xl:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-primary dark:text-sky-300">
+      <section className="space-y-5">
+        <div className="rounded-2xl border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-heal-blue">
                 HEAL analyzer
               </p>
-              <h1 className="mt-3 text-3xl font-extrabold leading-tight text-slate-900 dark:text-white sm:text-4xl">
-                Analise de feridas com foco em imagem, clareza e explicabilidade
+              <h1 className="mt-2 text-2xl font-black text-heal-ink dark:text-white sm:text-3xl">
+                Analise de imagem com ROI manual
               </h1>
-              <p className="mt-4 text-sm leading-7 text-slate-700 dark:text-slate-300 sm:text-base sm:leading-8">
-                O fluxo agora inclui uma delimitacao manual obrigatoria de uma ou
-                mais lesoes para reduzir falsos positivos perifericos antes da
-                segmentacao automatica.
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-heal-muted dark:text-zinc-400">
+                Escolha a imagem, delimite uma ou mais regioes da ferida e execute a IA
+                usando somente as areas confirmadas.
               </p>
             </div>
-
             <div
-              className={`inline-flex max-w-fit items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${status.tone}`}
+              className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-2 text-sm font-bold ${status.tone}`}
             >
               {loading ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -326,325 +341,93 @@ export function AnalyzerWorkbench() {
               <span>{status.label}</span>
             </div>
           </div>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-5">
-            {stepCards.map((item) => {
-              const Icon = item.icon;
-              const active =
-                (item.key === "upload" && hasImage) ||
-                (item.key === "roi" && (hasImage || hasConfirmedRoi || loading || Boolean(analysis))) ||
-                (item.key === "processing" && (loading || Boolean(analysis))) ||
-                ((item.key === "result" || item.key === "technical") && Boolean(analysis));
-
-              return (
-                <div
-                  key={item.key}
-                  className={`rounded-[24px] border p-5 ${
-                    active
-                      ? "border-primary/20 bg-primary/10 dark:border-sky-400/30 dark:bg-sky-400/10"
-                      : "border-outline-variant/20 bg-white/65 dark:border-white/10 dark:bg-white/5"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary dark:bg-black/20 dark:text-white">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {item.title}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                        {item.caption}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(280px,320px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(280px,320px)_minmax(0,1fr)_minmax(300px,340px)]">
-          <div className="space-y-6 xl:sticky xl:top-28 xl:self-start">
-            <section className="rounded-[28px] border border-outline-variant/20 bg-surface-container-lowest/90 p-5 shadow-ambient dark:border-white/10 dark:bg-surface-container-lowest/80">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-                Entrada
-              </p>
-              <h2 className="mt-3 text-2xl font-extrabold text-on-surface">
-                Upload da imagem
-              </h2>
-              <p className="mt-2 text-sm leading-7 text-on-surface-variant">
-                Escolha uma foto da ferida, confirme manualmente cada area de lesao
-                no painel central e so entao libere a pipeline automatica.
-              </p>
+        <MobileAnalyzerTabs
+          activePanel={activeMobilePanel}
+          roiCount={roiSelections.length}
+          onChange={setActiveMobilePanel}
+        />
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-              />
+        <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_360px]">
+          <ImageInfoPanel
+            className={cn(activeMobilePanel === "image" ? "block" : "hidden lg:block")}
+            fileInputRef={fileInputRef}
+            hasConfirmedRoi={hasConfirmedRoi}
+            loading={loading}
+            onAnalyze={() => void handleAnalyze()}
+            onFileChange={handleFileChange}
+            onResetRoi={handleResetRoi}
+            onSelectImage={handleSelectImage}
+            patientId={patientId}
+            previewUrl={previewUrl}
+            roiCount={roiSelections.length}
+            selectedFile={selectedFile}
+            setPatientId={setPatientId}
+          />
 
-              <div className="mt-5 rounded-[24px] border border-dashed border-outline-variant/25 bg-surface-container p-4 dark:border-white/10 dark:bg-white/5">
-                {previewUrl ? (
-                  <div className="overflow-hidden rounded-[20px] border border-outline-variant/15 dark:border-white/10">
-                    <img
-                      src={previewUrl}
-                      alt="Preview da imagem selecionada"
-                      className="h-48 w-full object-cover sm:h-56"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex h-48 flex-col items-center justify-center rounded-[20px] bg-[linear-gradient(180deg,#f2f7ff_0%,#e6eef9_100%)] px-4 text-center dark:bg-[linear-gradient(180deg,#0b1322_0%,#08111f_100%)] sm:h-56">
-                    <FileImage className="h-10 w-10 text-primary dark:text-slate-300" />
-                    <p className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
-                      Nenhuma imagem selecionada
-                    </p>
-                    <p className="mt-2 max-w-[220px] text-sm text-slate-600 dark:text-slate-300">
-                      Envie uma foto com boa iluminacao e foco na lesao.
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-4 flex flex-col gap-3">
-                  <Button
-                    type="button"
-                    className="w-full justify-center"
-                    onClick={handleSelectImage}
-                  >
-                    <ImagePlus className="h-4 w-4" />
-                    {previewUrl ? "Trocar imagem" : "Selecionar imagem"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-center"
-                    onClick={() => void handleAnalyze()}
-                    disabled={!selectedFile || !roiSelections.length || loading}
-                  >
-                    {loading ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ScanSearch className="h-4 w-4" />
-                    )}
-                    {roiSelections.length
-                      ? `Iniciar analise (${roiSelections.length} ROI${roiSelections.length > 1 ? "s" : ""})`
-                      : "Confirme ao menos uma ROI para analisar"}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <label className="text-sm font-semibold text-on-surface">
-                  ID do paciente (opcional)
-                </label>
-                <p className="mt-1 text-xs text-on-surface-variant">
-                  Use este campo apenas se quiser vincular a analise a um paciente.
-                </p>
-                <Input
-                  className="mt-3"
-                  placeholder="Ex.: patient-123"
-                  value={patientId}
-                  onChange={(event) => setPatientId(event.target.value)}
+          <div className={cn(activeMobilePanel === "roi" ? "block" : "hidden lg:block")}>
+            <RoiCanvasPanel
+              editingRoiIndex={editingRoiIndex}
+              hasImage={hasImage}
+              onEditRoi={handleEditSavedRoi}
+              onNewRoi={handleStartNewRoi}
+              onRemoveRoi={handleRemoveSavedRoi}
+              roiFeedback={roiFeedback}
+              roiSelections={roiSelections}
+            >
+              {analysis ? (
+                <AnalyzerViewer
+                  activeTab={activeTab}
+                  detectionImage={analysis?.visuals?.detection?.data_url ?? null}
+                  loading={loading}
+                  onOpenLightbox={(src, label) => setLightbox({ src, label })}
+                  onTabChange={setActiveTab}
+                  tabs={viewerTabs}
+                  tissueLegend={tissueLegend}
                 />
-              </div>
-
-              {selectedFile ? (
-                <div className="mt-5 rounded-[20px] border border-outline-variant/20 bg-surface-container p-4 dark:border-white/10">
-                  <p className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
-                    Arquivo atual
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-on-surface">
-                    {selectedFile.name}
-                  </p>
-                  <p className="mt-1 text-xs text-on-surface-variant">
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                </div>
-              ) : null}
-
-              {hasImage ? (
-                <div className="mt-5 rounded-[20px] border border-outline-variant/20 bg-surface-container p-4 dark:border-white/10">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
-                        Delimitacao manual
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-on-surface">
-                        {hasConfirmedRoi
-                          ? `${roiSelections.length} ROI${roiSelections.length > 1 ? "s" : ""} confirmada${roiSelections.length > 1 ? "s" : ""}`
-                          : "Nenhuma ROI confirmada"}
-                      </p>
-                      <p className="mt-1 text-xs text-on-surface-variant">
-                        {editingRoiIndex !== null
-                          ? `Editando a ROI ${editingRoiIndex + 1}. Confirme novamente para atualizar essa lesao.`
-                          : hasConfirmedRoi
-                            ? "Voce pode adicionar outras ROIs, editar uma existente ou limpar tudo antes da analise."
-                            : "Use o painel central para desenhar cada area real da lesao."}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {hasConfirmedRoi ? (
-                        <button
-                          type="button"
-                          onClick={handleStartNewRoi}
-                          className="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container-high px-3 py-2 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-lowest dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Nova ROI
-                        </button>
-                      ) : null}
-                      {hasConfirmedRoi ? (
-                        <button
-                          type="button"
-                          onClick={handleResetRoi}
-                          className="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container-high px-3 py-2 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-lowest dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                        >
-                          <RefreshCcw className="h-4 w-4" />
-                          Limpar tudo
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {roiSelections.length ? (
-                    <div className="mt-4 space-y-3">
-                      {roiSelections.map((selection, index) => {
-                        const isEditing = editingRoiIndex === index;
-                        return (
-                          <div
-                            key={`roi-card-${index}-${selection.points.length}`}
-                            className={`rounded-[18px] border px-4 py-3 ${
-                              isEditing
-                                ? "border-primary/30 bg-primary/10 dark:border-sky-400/30 dark:bg-sky-400/10"
-                                : "border-outline-variant/20 bg-surface-container-high dark:border-white/10 dark:bg-white/5"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-on-surface">
-                                  ROI {index + 1} â€¢ {roiToolLabel(selection.tool)}
-                                </p>
-                                <p className="mt-1 text-xs text-on-surface-variant">
-                                  Area aproximada: {Math.round((selection.area_ratio || 0) * 100)}% da imagem.
-                                </p>
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditSavedRoi(index)}
-                                  className="inline-flex items-center gap-1 rounded-full border border-outline-variant/20 bg-surface-container px-3 py-1.5 text-[11px] font-semibold text-on-surface transition-colors hover:bg-surface-container-lowest dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                                >
-                                  <PencilLine className="h-3.5 w-3.5" />
-                                  Editar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveSavedRoi(index)}
-                                  className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/15"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  Remover
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {error ? (
-                <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-                  {error}
-                </div>
-              ) : null}
-            </section>
-
-            <section className="rounded-[28px] border border-outline-variant/20 bg-surface-container-lowest/90 p-5 shadow-ambient dark:border-white/10 dark:bg-surface-container-lowest/80">
-              <p className="text-sm font-semibold text-on-surface">Como capturar melhor</p>
-              <ul className="mt-4 space-y-3 text-sm leading-7 text-on-surface-variant">
-                <li className="rounded-2xl border border-outline-variant/20 bg-surface-container px-4 py-3 dark:border-white/10 dark:bg-white/5">
-                  Evite sombras fortes e reflexos sobre o leito.
-                </li>
-                <li className="rounded-2xl border border-outline-variant/20 bg-surface-container px-4 py-3 dark:border-white/10 dark:bg-white/5">
-                  Aproxime a camera o suficiente para mostrar textura e cor.
-                </li>
-                <li className="rounded-2xl border border-outline-variant/20 bg-surface-container px-4 py-3 dark:border-white/10 dark:bg-white/5">
-                  Se houver mais de uma lesao, adicione uma ROI para cada ferida e mantenha pele sadia e fundo fora das marcacoes.
-                </li>
-              </ul>
-            </section>
-
-            <section className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 shadow-ambient dark:border-amber-500/20 dark:bg-amber-500/10">
-              <div className="flex items-start gap-3">
-                <ShieldAlert className="mt-1 h-5 w-5 text-amber-600 dark:text-amber-300" />
-                <div>
-                  <p className="text-lg font-bold text-amber-900 dark:text-amber-100">
-                    Aviso clinico
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-amber-800 dark:text-amber-50/85">
-                    Este sistema apoia a decisao clinica, mas nao substitui a avaliacao
-                    profissional. Use o resultado como suporte visual e interpretativo.
-                  </p>
-                </div>
-              </div>
-            </section>
+              ) : hasImage && previewUrl ? (
+                <AnalyzerRoiEditor
+                  key={`${previewUrl}-${roiEditorKey}-${editingRoiIndex ?? "new"}`}
+                  activeSavedSelectionIndex={editingRoiIndex}
+                  confirmLabel={
+                    editingRoiIndex !== null
+                      ? `Atualizar ROI ${editingRoiIndex + 1}`
+                      : hasConfirmedRoi
+                        ? "Salvar nova ROI"
+                        : "Salvar primeira ROI"
+                  }
+                  disabled={loading}
+                  imageSrc={previewUrl}
+                  initialSelection={activeEditorSelection}
+                  savedSelections={roiSelections}
+                  onConfirm={handleRoiConfirmed}
+                  onSelectionCleared={handleRoiCleared}
+                />
+              ) : (
+                <EmptyCanvasPanel />
+              )}
+            </RoiCanvasPanel>
           </div>
 
-          {analysis ? (
-            <AnalyzerViewer
-              activeTab={activeTab}
-              detectionImage={analysis?.visuals?.detection?.data_url ?? null}
+          <div
+            className={cn(
+              activeMobilePanel === "result" ? "block" : "hidden lg:block",
+              "lg:col-span-2 xl:col-span-1",
+            )}
+          >
+            <AnalysisResultPanel
+              analysis={analysis}
+              error={error}
+              hasConfirmedRoi={hasConfirmedRoi}
+              hasImage={hasImage}
               loading={loading}
-              onOpenLightbox={(src, label) => setLightbox({ src, label })}
-              onTabChange={setActiveTab}
-              tabs={viewerTabs}
-              tissueLegend={tissueLegend}
+              onOpenTechnical={() => setDrawerOpen(true)}
+              onRunAnalysis={() => void handleAnalyze()}
+              roiCount={roiSelections.length}
+              workflowState={workflowState}
             />
-          ) : hasImage && previewUrl ? (
-            <AnalyzerRoiEditor
-              key={`${previewUrl}-${roiEditorKey}-${editingRoiIndex ?? "new"}`}
-              activeSavedSelectionIndex={editingRoiIndex}
-              confirmLabel={
-                editingRoiIndex !== null
-                  ? `Atualizar ROI ${editingRoiIndex + 1}`
-                  : hasConfirmedRoi
-                    ? `Adicionar ROI ${roiSelections.length + 1}`
-                    : "Confirmar primeira ROI"
-              }
-              disabled={loading}
-              imageSrc={previewUrl}
-              initialSelection={activeEditorSelection}
-              savedSelections={roiSelections}
-              onConfirm={handleRoiConfirmed}
-              onSelectionCleared={handleRoiCleared}
-            />
-          ) : (
-            <AnalyzerViewer
-              activeTab={activeTab}
-              detectionImage={null}
-              loading={loading}
-              onOpenLightbox={(src, label) => setLightbox({ src, label })}
-              onTabChange={setActiveTab}
-              tabs={viewerTabs}
-              tissueLegend={tissueLegend}
-            />
-          )}
-
-          <AnalyzerSummary
-            analysis={analysis}
-            error={error}
-            hasConfirmedRoi={hasConfirmedRoi}
-            hasImage={hasImage}
-            loading={loading}
-            onOpenTechnical={() => setDrawerOpen(true)}
-            onRunAnalysis={() => void handleAnalyze()}
-            workflowState={workflowState}
-          />
+          </div>
         </div>
       </section>
 
@@ -665,7 +448,7 @@ export function AnalyzerWorkbench() {
             <X className="h-5 w-5" />
           </button>
 
-          <div className="w-full max-w-6xl overflow-hidden rounded-[28px] border border-outline-variant/20 bg-surface-container-lowest shadow-2xl dark:border-white/10 dark:bg-[#020617]">
+          <div className="w-full max-w-6xl overflow-hidden rounded-2xl border border-outline-variant/20 bg-surface-container-lowest shadow-2xl dark:border-white/10 dark:bg-[#020617]">
             <div className="border-b border-outline-variant/15 px-5 py-4 dark:border-white/10">
               <p className="text-sm font-semibold uppercase tracking-[0.26em] text-sky-300">
                 Visual ampliado
@@ -688,3 +471,352 @@ export function AnalyzerWorkbench() {
   );
 }
 
+type ImageInfoPanelProps = {
+  className?: string;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  hasConfirmedRoi: boolean;
+  loading: boolean;
+  onAnalyze: () => void;
+  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onResetRoi: () => void;
+  onSelectImage: () => void;
+  patientId: string;
+  previewUrl: string | null;
+  roiCount: number;
+  selectedFile: File | null;
+  setPatientId: (value: string) => void;
+};
+
+function ImageInfoPanel({
+  className,
+  fileInputRef,
+  hasConfirmedRoi,
+  loading,
+  onAnalyze,
+  onFileChange,
+  onResetRoi,
+  onSelectImage,
+  patientId,
+  previewUrl,
+  roiCount,
+  selectedFile,
+  setPatientId,
+}: ImageInfoPanelProps) {
+  const analyzeLabel = loading
+    ? "Analisando imagem"
+    : hasConfirmedRoi
+      ? `Iniciar analise com ${roiCount} ROI${roiCount === 1 ? "" : "s"}`
+      : "Iniciar analise";
+
+  return (
+    <aside className={cn("space-y-4 lg:sticky lg:top-24 lg:self-start", className)}>
+      <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onFileChange}
+        />
+
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-blue">
+          Imagem
+        </p>
+        <div className="mt-3 overflow-hidden rounded-2xl border border-heal-line bg-heal-canvas dark:border-zinc-800 dark:bg-zinc-950">
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt="Preview da imagem selecionada"
+              className="h-40 w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-40 flex-col items-center justify-center px-4 text-center">
+              <FileImage className="h-8 w-8 text-heal-blue" />
+              <p className="mt-3 text-sm font-black text-heal-ink dark:text-white">
+                Nenhuma imagem
+              </p>
+              <p className="mt-1 text-xs leading-5 text-heal-muted dark:text-zinc-400">
+                Envie uma foto com boa iluminacao.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full justify-center"
+            onClick={onSelectImage}
+          >
+            <ImagePlus className="h-4 w-4" />
+            {previewUrl ? "Trocar imagem" : "Selecionar imagem"}
+          </Button>
+          <Button
+            type="button"
+            className="w-full justify-center"
+            onClick={onAnalyze}
+            disabled={!selectedFile || !roiCount || loading}
+            title={
+              roiCount
+                ? "Executar analise usando as ROIs salvas."
+                : "Salve pelo menos 1 ROI para iniciar a analise."
+            }
+          >
+            {loading ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <ScanSearch className="h-4 w-4" />
+            )}
+            {analyzeLabel}
+          </Button>
+          {!roiCount ? (
+            <p className="rounded-xl bg-heal-canvas px-3 py-2 text-xs leading-5 text-heal-muted dark:bg-zinc-950 dark:text-zinc-400">
+              Marque e salve pelo menos 1 ROI para liberar a analise.
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+        <label className="text-sm font-black text-heal-ink dark:text-white">
+          ID do paciente
+        </label>
+        <p className="mt-1 text-xs leading-5 text-heal-muted dark:text-zinc-400">
+          Campo opcional para vincular esta analise.
+        </p>
+        <Input
+          className="mt-3"
+          placeholder="Ex.: patient-123"
+          value={patientId}
+          onChange={(event) => setPatientId(event.target.value)}
+        />
+      </section>
+
+      {selectedFile ? (
+        <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">
+            Arquivo atual
+          </p>
+          <p className="mt-2 truncate text-sm font-black text-heal-ink dark:text-white" title={selectedFile.name}>
+            {selectedFile.name}
+          </p>
+          <p className="mt-1 text-xs text-heal-muted dark:text-zinc-400">
+            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+          </p>
+        </section>
+      ) : null}
+
+      <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">
+              ROIs
+            </p>
+            <p className="mt-1 text-sm font-black text-heal-ink dark:text-white">
+              {getRoiCountLabel(roiCount)}
+            </p>
+          </div>
+          {roiCount ? (
+            <span className="rounded-full bg-heal-tealSoft px-3 py-1 text-xs font-black text-heal-teal">
+              Prontas
+            </span>
+          ) : null}
+        </div>
+        {roiCount ? (
+          <button
+            type="button"
+            onClick={onResetRoi}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-heal-line bg-white px-3 py-2 text-sm font-bold text-heal-ink transition hover:bg-heal-canvas dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-800"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Limpar todas
+          </button>
+        ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-soft dark:border-amber-500/20 dark:bg-amber-500/10">
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-300" />
+          <p className="text-sm leading-6 text-amber-900 dark:text-amber-50">
+            Apoio a decisao clinica, sem substituir avaliacao profissional.
+          </p>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+        <p className="text-sm font-black text-heal-ink dark:text-white">Dicas de marcacao</p>
+        <div className="mt-3 space-y-2">
+          {captureTips.map((tip) => (
+            <p
+              key={tip}
+              className="rounded-xl border border-heal-line bg-heal-canvas px-3 py-2 text-xs leading-5 text-heal-muted dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400"
+            >
+              {tip}
+            </p>
+          ))}
+        </div>
+      </section>
+    </aside>
+  );
+}
+
+function RoiCanvasPanel({
+  children,
+  editingRoiIndex,
+  hasImage,
+  onEditRoi,
+  onNewRoi,
+  onRemoveRoi,
+  roiFeedback,
+  roiSelections,
+}: {
+  children: ReactNode;
+  editingRoiIndex: number | null;
+  hasImage: boolean;
+  onEditRoi: (index: number) => void;
+  onNewRoi: () => void;
+  onRemoveRoi: (index: number) => void;
+  roiFeedback: string | null;
+  roiSelections: HealAnalyzerRoiSelection[];
+}) {
+  const roiCount = roiSelections.length;
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">
+              Workspace ROI
+            </p>
+            <h2 className="mt-1 text-xl font-black text-heal-ink dark:text-white">
+              Canvas principal
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {roiFeedback ? (
+              <span className="inline-flex items-center gap-2 rounded-full border border-heal-teal/20 bg-heal-tealSoft px-3 py-1.5 text-xs font-black text-heal-teal">
+                <BadgeCheck className="h-3.5 w-3.5" />
+                {roiFeedback}
+              </span>
+            ) : null}
+            <span
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black",
+                roiCount
+                  ? "border-heal-teal/20 bg-heal-tealSoft text-heal-teal"
+                  : "border-heal-line bg-heal-canvas text-heal-muted dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400",
+              )}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {getRoiCountLabel(roiCount)}
+            </span>
+            {hasImage && roiCount ? (
+              <button
+                type="button"
+                onClick={onNewRoi}
+                className="inline-flex items-center gap-2 rounded-full border border-heal-line bg-white px-3 py-1.5 text-xs font-black text-heal-ink transition hover:border-heal-blue/40 hover:bg-heal-canvas dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-800"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Nova ROI
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {roiSelections.length ? (
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {roiSelections.map((selection, index) => {
+              const active = editingRoiIndex === index;
+              return (
+                <div
+                  key={`roi-chip-${index}-${selection.points.length}`}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-2 rounded-full border px-2 py-1",
+                    active
+                      ? "border-heal-blue/30 bg-heal-softBlue text-heal-blue"
+                      : "border-heal-line bg-heal-canvas text-heal-ink dark:border-zinc-800 dark:bg-zinc-950 dark:text-white",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onEditRoi(index)}
+                    className="rounded-full px-2 py-1 text-xs font-black"
+                    title={`Editar ROI ${index + 1}`}
+                  >
+                    ROI {index + 1} - {roiToolLabel(selection.tool)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveRoi(index)}
+                    className="rounded-full p-1 text-heal-muted transition hover:bg-white hover:text-heal-danger dark:hover:bg-zinc-900"
+                    title={`Remover ROI ${index + 1}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function EmptyCanvasPanel() {
+  return (
+    <section className="flex min-h-[520px] items-center justify-center rounded-2xl border border-dashed border-heal-line bg-white p-6 text-center shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="max-w-sm">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue">
+          <FileImage className="h-7 w-7" />
+        </div>
+        <h2 className="mt-5 text-xl font-black text-heal-ink dark:text-white">
+          Selecione uma imagem para iniciar
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-heal-muted dark:text-zinc-400">
+          O canvas de marcacao aparece aqui assim que a foto da ferida for carregada.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function MobileAnalyzerTabs({
+  activePanel,
+  onChange,
+  roiCount,
+}: {
+  activePanel: MobilePanel;
+  onChange: (panel: MobilePanel) => void;
+  roiCount: number;
+}) {
+  const tabs: Array<{ id: MobilePanel; label: string }> = [
+    { id: "image", label: "Imagem" },
+    { id: "roi", label: `ROI${roiCount ? ` (${roiCount})` : ""}` },
+    { id: "result", label: "Resultado" },
+  ];
+
+  return (
+    <div className="flex gap-2 overflow-x-auto rounded-2xl border border-heal-line bg-white p-1 shadow-soft dark:border-zinc-800 dark:bg-zinc-900 lg:hidden">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onChange(tab.id)}
+          className={cn(
+            "h-10 min-w-28 rounded-xl px-4 text-sm font-black transition",
+            activePanel === tab.id
+              ? "bg-heal-blue text-white shadow-sm"
+              : "text-heal-muted hover:bg-heal-canvas hover:text-heal-ink dark:hover:bg-zinc-800 dark:hover:text-white",
+          )}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}

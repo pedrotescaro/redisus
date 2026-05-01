@@ -1,11 +1,13 @@
 "use client";
 
 import {
-  AlertTriangle,
+  Activity,
   BrainCircuit,
+  ClipboardCheck,
   LoaderCircle,
   PanelRightOpen,
   Sparkles,
+  Target,
 } from "lucide-react";
 import { Button } from "../ui/Button";
 import type { HealAnalyzerResult } from "../../services/ai/heal-analyzer-service";
@@ -27,10 +29,11 @@ type AnalyzerSummaryProps = {
   loading: boolean;
   onOpenTechnical: () => void;
   onRunAnalysis: () => void;
+  roiCount: number;
   workflowState: WorkflowState;
 };
 
-export function AnalyzerSummary({
+export function AnalysisResultPanel({
   analysis,
   error,
   hasConfirmedRoi,
@@ -38,49 +41,77 @@ export function AnalyzerSummary({
   loading,
   onOpenTechnical,
   onRunAnalysis,
+  roiCount,
   workflowState,
 }: AnalyzerSummaryProps) {
   const status = getStatusCopy(workflowState, hasImage, hasConfirmedRoi);
   const confidence = analysis ? getConfidencePercent(analysis.inference.confidence) : 0;
+  const primaryLabel = analysis
+    ? analysis.is_valid_wound
+      ? presentClinicalLabel(analysis.primary_tissue)
+      : "Imagem precisa de revisao"
+    : "Resultado ainda nao gerado";
 
   return (
-    <aside className="2xl:sticky 2xl:top-28 2xl:self-start">
-      <div className="rounded-[28px] border border-outline-variant/20 bg-surface-container-lowest/88 p-5 shadow-ambient dark:border-white/10 dark:bg-surface-container-lowest/80">
-        <div
-          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${status.tone}`}
-        >
-          {loading ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          <span>{status.label}</span>
+    <aside className="2xl:sticky 2xl:top-24 2xl:self-start">
+      <div className="rounded-2xl border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">
+              Resultado
+            </p>
+            <h2 className="mt-2 text-xl font-black text-heal-ink dark:text-white">
+              Analise clinica
+            </h2>
+          </div>
+          <div
+            className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${status.tone}`}
+          >
+            {loading ? (
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            <span>{status.label}</span>
+          </div>
         </div>
 
-        <p className="mt-3 text-sm text-on-surface-variant">{status.caption}</p>
+        <div className="mt-4 rounded-2xl border border-heal-line bg-heal-canvas p-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center gap-2 text-sm font-bold text-heal-ink dark:text-white">
+            <Target className="h-4 w-4 text-heal-teal" />
+            <span>
+              {roiCount
+                ? `${roiCount} ROI${roiCount === 1 ? "" : "s"} pronta${roiCount === 1 ? "" : "s"}`
+                : "Nenhuma ROI pronta"}
+            </span>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-heal-muted dark:text-zinc-400">
+            {hasConfirmedRoi
+              ? "A analise usara somente as areas marcadas."
+              : "Marque e salve uma ROI para liberar a analise."}
+          </p>
+        </div>
 
         {analysis ? (
           <>
-            <div className="mt-6 rounded-[24px] border border-primary/10 bg-[linear-gradient(160deg,rgba(33,150,243,0.12),rgba(255,255,255,0.82))] p-5 dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(14,165,233,0.12),rgba(15,23,42,0.2))]">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
-                Resultado clinico
+            <div className="mt-4 rounded-2xl border border-heal-blue/20 bg-heal-softBlue/60 p-5 dark:border-sky-500/20 dark:bg-sky-500/10">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-blue">
+                Resultado principal
               </p>
-              <h2 className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-white">
-                {analysis.is_valid_wound
-                  ? presentClinicalLabel(analysis.primary_tissue)
-                  : "Imagem precisa de revisao"}
+              <h2 className="mt-3 text-2xl font-black text-heal-ink dark:text-white">
+                {primaryLabel}
               </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-200">
+              <p className="mt-3 text-sm leading-6 text-heal-inkSecondary dark:text-zinc-300">
                 {getSimpleExplanation(analysis)}
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <span
                   className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getRiskTone(
-                    analysis.interpretation.risk_level,
-                  )}`}
-                >
-                  Risco {analysis.interpretation.risk_level}
+                      analysis.interpretation.risk_level,
+                    )}`}
+                  >
+                    Risco {analysis.interpretation.risk_level}
                 </span>
                 {analysis.interpretation.requires_expert_review ? (
                   <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300">
@@ -90,64 +121,64 @@ export function AnalyzerSummary({
               </div>
             </div>
 
-            <div className="mt-5 rounded-[24px] border border-outline-variant/20 bg-surface-container p-5 dark:border-white/10">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+              <div className="rounded-2xl border border-heal-line bg-heal-canvas p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">
+                  Tecido detectado
+                </p>
+                <p className="mt-2 text-sm font-black text-heal-ink dark:text-white">
+                  {presentClinicalLabel(analysis.primary_tissue)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-heal-line bg-heal-canvas p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">
+                  Modelo
+                </p>
+                <p className="mt-2 text-sm font-black text-heal-ink dark:text-white">
+                  {presentModelLabel(analysis.model_version)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-heal-line bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-on-surface">Confianca da IA</p>
-                  <p className="mt-1 text-xs text-on-surface-variant">
+                  <p className="text-sm font-black text-heal-ink dark:text-white">Confianca da IA</p>
+                  <p className="mt-1 text-xs text-heal-muted dark:text-zinc-400">
                     Percentual de seguranca do modelo no padrao encontrado.
                   </p>
                 </div>
-                <span className="text-lg font-bold text-on-surface">{confidence}%</span>
+                <span className="text-lg font-black text-heal-ink dark:text-white">{confidence}%</span>
               </div>
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-outline-variant/20 dark:bg-white/8">
+              <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-heal-line dark:bg-zinc-800">
                 <div
-                  className="h-full rounded-full bg-[linear-gradient(90deg,#14b8a6_0%,#38bdf8_50%,#6366f1_100%)] transition-all"
+                  className="h-full rounded-full bg-heal-blue transition-all"
                   style={{ width: `${confidence}%` }}
                 />
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <div className="rounded-[22px] border border-outline-variant/20 bg-surface-container p-4 dark:border-white/10">
-                <p className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
-                  Modelo
-                </p>
-                <p className="mt-2 text-sm font-semibold text-on-surface">
-                  {presentModelLabel(analysis.model_version)}
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-outline-variant/20 bg-surface-container p-4 dark:border-white/10">
-                <p className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
-                  Tempo
-                </p>
-                <p className="mt-2 text-sm font-semibold text-on-surface">
-                  {Math.round(analysis.processing_time_ms || 0)} ms
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-[24px] border border-outline-variant/20 bg-surface-container p-5 dark:border-white/10">
-              <div className="flex items-center gap-2 text-on-surface">
+            <div className="mt-4 rounded-2xl border border-heal-line bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="flex items-center gap-2 text-heal-ink dark:text-white">
                 <BrainCircuit className="h-4 w-4" />
-                <p className="text-sm font-semibold">Resumo em linguagem simples</p>
+                <p className="text-sm font-black">Resumo clinico</p>
               </div>
-              <p className="mt-3 text-sm leading-7 text-on-surface-variant">
+              <p className="mt-3 text-sm leading-6 text-heal-muted dark:text-zinc-400">
                 {analysis.interpretation.summary ||
                   "A IA gerou um resumo clinico da imagem analisada."}
               </p>
             </div>
 
             {analysis.interpretation.recommendations?.length ? (
-              <div className="mt-5 rounded-[24px] border border-outline-variant/20 bg-surface-container p-5 dark:border-white/10">
-                <p className="text-sm font-semibold text-on-surface">
+              <div className="mt-4 rounded-2xl border border-heal-line bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+                <p className="text-sm font-black text-heal-ink dark:text-white">
                   Proximos cuidados sugeridos
                 </p>
-                <ul className="mt-3 space-y-3 text-sm text-on-surface-variant">
+                <ul className="mt-3 space-y-2 text-sm text-heal-muted dark:text-zinc-400">
                   {analysis.interpretation.recommendations.slice(0, 3).map((item) => (
                     <li
                       key={item}
-                      className="rounded-2xl border border-outline-variant/20 bg-surface-container-high px-3 py-3 dark:border-white/10 dark:bg-white/5"
+                      className="rounded-xl border border-heal-line bg-heal-canvas px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
                     >
                       {item}
                     </li>
@@ -156,7 +187,7 @@ export function AnalyzerSummary({
               </div>
             ) : null}
 
-            <div className="mt-5 flex flex-col gap-3">
+            <div className="mt-4 flex flex-col gap-3">
               <Button type="button" className="w-full justify-center" onClick={onOpenTechnical}>
                 <PanelRightOpen className="h-4 w-4" />
                 Ver detalhes tecnicos
@@ -171,34 +202,44 @@ export function AnalyzerSummary({
                 {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                 Reexecutar analise
               </Button>
+              <p className="text-center text-xs text-heal-muted dark:text-zinc-400">
+                Tempo de processamento: {Math.round(analysis.processing_time_ms || 0)} ms
+              </p>
             </div>
           </>
         ) : (
-          <div className="mt-6 rounded-[24px] border border-dashed border-outline-variant/20 bg-surface-container p-5 dark:border-white/10">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-1 h-5 w-5 text-amber-600 dark:text-amber-300" />
-              <div>
-                <p className="text-lg font-bold text-on-surface">
-                  Nenhum resultado em exibicao
-                </p>
-                <p className="mt-2 text-sm leading-7 text-on-surface-variant">
-                  Esta coluna fica reservada para o tecido destacado, a confianca da IA,
-                  o resumo clinico e o acesso rapido aos detalhes tecnicos.
-                  {!hasConfirmedRoi && hasImage
-                    ? " Antes disso, confirme uma ou mais delimitacoes manuais da ferida no painel central."
-                    : ""}
-                </p>
-                {error ? (
-                  <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200">
-                    {error}
-                  </p>
-                ) : null}
-              </div>
+          <div className="mt-4 rounded-2xl border border-dashed border-heal-line bg-heal-canvas p-6 text-center dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-heal-blue shadow-sm dark:bg-zinc-900">
+              {loading ? <LoaderCircle className="h-6 w-6 animate-spin" /> : <ClipboardCheck className="h-6 w-6" />}
             </div>
+            <p className="mt-4 text-lg font-black text-heal-ink dark:text-white">
+              Resultado ainda nao gerado
+            </p>
+            <p className="mx-auto mt-2 max-w-[260px] text-sm leading-6 text-heal-muted dark:text-zinc-400">
+              Marque a ROI e inicie a analise para visualizar os dados clinicos.
+            </p>
+            {error ? (
+              <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-left text-sm text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200">
+                {error}
+              </p>
+            ) : null}
+            {hasConfirmedRoi ? (
+              <Button
+                type="button"
+                className="mt-5 w-full justify-center"
+                onClick={onRunAnalysis}
+                disabled={loading}
+              >
+                {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
+                Iniciar analise com {roiCount} ROI{roiCount === 1 ? "" : "s"}
+              </Button>
+            ) : null}
           </div>
         )}
       </div>
     </aside>
   );
 }
+
+export const AnalyzerSummary = AnalysisResultPanel;
 

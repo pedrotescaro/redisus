@@ -4,10 +4,10 @@ import { Link } from 'react-router-dom';
 
 import { useAuth } from '../../app/providers/AuthProvider';
 import { useTheme } from '../../app/providers/ThemeProvider';
+import { UserAvatar } from '../../components/profile/UserAvatar';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { getInitials } from '../../lib/format';
 import type { Patient } from '../../lib/types';
 import { logout } from '../auth/authService';
 import { listEvaluations } from '../evaluations/evaluationService';
@@ -72,13 +72,12 @@ export function ProfilePage() {
       <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
         <Card>
           <div className="flex flex-col items-center text-center">
-            {photoURL ? (
-              <img src={photoURL} alt="" className="h-28 w-28 rounded-3xl object-cover ring-4 ring-heal-softBlue" />
-            ) : (
-              <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-heal-softBlue text-3xl font-black text-heal-blue">
-                {getInitials(displayName)}
-              </div>
-            )}
+            <UserAvatar
+              name={displayName}
+              src={photoURL}
+              imageClassName="h-28 w-28 rounded-3xl object-cover ring-4 ring-heal-softBlue"
+              fallbackClassName="flex h-28 w-28 items-center justify-center rounded-3xl bg-heal-softBlue text-3xl font-black text-heal-blue"
+            />
             <h2 className="mt-5 text-2xl font-black text-heal-ink dark:text-white">{displayName}</h2>
             <p className="mt-1 text-sm text-heal-muted dark:text-zinc-400">{previewEmail}</p>
             <Link to="/profile/edit" className="mt-6 w-full">
