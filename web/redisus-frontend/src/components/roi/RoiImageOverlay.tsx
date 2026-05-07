@@ -24,7 +24,7 @@ export function RoiImageOverlay({ rois = [], className = '', showPoints = true }
 
         return (
           <g key={roi.id}>
-            {roi.type === 'polygon' && roi.points.length >= 3 ? (
+            {roi.type !== 'freehand' && roi.points.length >= 3 ? (
               <polygon points={points} fill={`${roi.color}22`} stroke={roi.color} strokeWidth="7" />
             ) : null}
             {roi.type === 'freehand' ? (
@@ -32,7 +32,7 @@ export function RoiImageOverlay({ rois = [], className = '', showPoints = true }
             ) : (
               <polyline points={points} fill="none" stroke={roi.color} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
             )}
-            {showPoints && roi.type === 'polygon'
+            {showPoints && roi.type !== 'freehand'
               ? roi.points.map((point, index) => (
                   <circle
                     key={`${roi.id}-${index}`}

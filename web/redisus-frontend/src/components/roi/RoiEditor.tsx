@@ -1,12 +1,13 @@
-import { useMemo, useRef, useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { HEAL_ANALYZER_ROI_VERSION, buildHealAnalyzerRoiSelection, type HealAnalyzerRoiSelection } from '../../lib/heal-analyzer-roi';
 import { createRoi, hasValidRois, normalizeRois } from '../../lib/roi';
-import type { Roi, RoiPoint, RoiType } from '../../lib/types';
+import type { Roi } from '../../lib/types';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Modal } from '../ui/Modal';
-import { RoiImageOverlay } from './RoiImageOverlay';
-import { RoiToolbar } from './RoiToolbar';
+import { WoundRoiCanvas } from './WoundRoiCanvas';
 
 interface RoiEditorProps {
   open: boolean;
@@ -16,132 +17,173 @@ interface RoiEditorProps {
   onSave: (rois: Roi[]) => void;
 }
 
-function pointFromEvent(event: React.PointerEvent<HTMLElement>, element: HTMLElement): RoiPoint {
-  const rect = element.getBoundingClientRect();
+const ROI_VERSION = '2026-05-contextual';
+
+function createStableRoiId(index: number) {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `roi-${crypto.randomUUID()}`;
+  }
+  return `roi-${Date.now()}-${index}`;
+}
+
+function roiTool(roi: Roi): HealAnalyzerRoiSelection['tool'] {
+  return roi.type === 'circle' ? 'circle' : roi.type === 'freehand' ? 'freehand' : 'polygon';
+}
+
+function roiToSelection(roi: Roi): HealAnalyzerRoiSelection {
+  const selection = buildHealAnalyzerRoiSelection(roiTool(roi), roi.points, 1, 1);
   return {
-    x: Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1),
-    y: Math.min(Math.max((event.clientY - rect.top) / rect.height, 0), 1)
+    ...selection,
+    version: roi.roiVersion || HEAL_ANALYZER_ROI_VERSION,
+    confirmed: roi.points.length >= 3
+  };
+}
+
+function selectionToRoi(selection: HealAnalyzerRoiSelection, index: number, previous?: Roi): Roi {
+  const now = new Date().toISOString();
+  return {
+    id: previous?.id || createStableRoiId(index),
+    label: previous?.label || `Ferida ${index + 1}`,
+    type: selection.tool,
+    points: selection.points,
+    color: previous?.color || createRoi(index, selection.tool).color,
+    createdAt: previous?.createdAt || now,
+    updatedAt: now,
+    normalized: true,
+    roiVersion: ROI_VERSION
   };
 }
 
 export function RoiEditor({ open, imageUrl, initialRois, onClose, onSave }: RoiEditorProps) {
   const [draftRois, setDraftRois] = useState<Roi[]>(() => normalizeRois(initialRois));
   const [selectedId, setSelectedId] = useState<string>('');
-  const [mode, setMode] = useState<RoiType>('polygon');
-  const [isDrawing, setIsDrawing] = useState(false);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const [canvasKey, setCanvasKey] = useState(0);
 
-  const rois = useMemo(() => {
-    const normalized = normalizeRois(draftRois);
-    return normalized.length ? normalized : [createRoi(0, mode)];
-  }, [draftRois, mode]);
-  const selectedRoi = rois.find(roi => roi.id === selectedId) || rois[0];
+  useEffect(() => {
+    if (!open) return;
+    const normalized = normalizeRois(initialRois);
+    setDraftRois(normalized);
+    setSelectedId(normalized[0]?.id || '');
+    setCanvasKey(current => current + 1);
+  }, [initialRois, open]);
 
-  const commitRois = (updater: (current: Roi[]) => Roi[]) => {
-    setDraftRois(current => updater(normalizeRois(current).length ? normalizeRois(current) : rois));
-  };
+  const selectedIndex = draftRois.findIndex(roi => roi.id === selectedId);
+  const activeIndex = selectedIndex >= 0 ? selectedIndex : draftRois.length ? 0 : null;
+  const activeRoi = activeIndex === null ? null : draftRois[activeIndex] || null;
 
-  const addPoint = (event: React.PointerEvent<HTMLDivElement>) => {
-    const element = stageRef.current;
-    if (!element || !selectedRoi) return;
-    const point = pointFromEvent(event, element);
-
-    commitRois(current =>
-      current.map(roi => (roi.id === selectedRoi.id ? { ...roi, type: mode, points: [...roi.points, point] } : roi))
-    );
-  };
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (mode === 'freehand') setIsDrawing(true);
-    addPoint(event);
-  };
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== 'freehand' || !isDrawing) return;
-    addPoint(event);
-  };
-
-  const stopDrawing = () => setIsDrawing(false);
+  const savedSelections = useMemo(() => draftRois.map(roiToSelection), [draftRois]);
+  const activeSelection = activeRoi ? roiToSelection(activeRoi) : null;
+  const canSave = hasValidRois(draftRois);
 
   const addRoi = () => {
-    const next = createRoi(rois.length, mode);
-    setDraftRois([...rois, next]);
+    const next = createRoi(draftRois.length);
+    setDraftRois(current => [...current, next]);
     setSelectedId(next.id);
+    setCanvasKey(current => current + 1);
   };
 
-  const undoPoint = () => {
-    commitRois(current =>
-      current.map(roi => (roi.id === selectedRoi.id ? { ...roi, points: roi.points.slice(0, -1) } : roi))
-    );
-  };
-
-  const removeRoi = () => {
-    const next = rois.filter(roi => roi.id !== selectedRoi.id);
-    const fallback = next.length ? next : [createRoi(0, mode)];
-    setDraftRois(fallback);
-    setSelectedId(fallback[0].id);
+  const removeRoi = (id: string) => {
+    const next = draftRois.filter(roi => roi.id !== id);
+    setDraftRois(next);
+    setSelectedId(next[0]?.id || '');
+    setCanvasKey(current => current + 1);
   };
 
   const renameRoi = (id: string, label: string) => {
-    commitRois(current => current.map(roi => (roi.id === id ? { ...roi, label } : roi)));
+    setDraftRois(current => current.map(roi => (roi.id === id ? { ...roi, label, updatedAt: new Date().toISOString() } : roi)));
   };
 
-  const canSave = hasValidRois(rois);
+  const handleConfirm = (selection: HealAnalyzerRoiSelection) => {
+    setDraftRois(current => {
+      const targetIndex = activeIndex ?? current.length;
+      const nextRoi = selectionToRoi(selection, targetIndex, current[targetIndex]);
+      if (!current[targetIndex]) {
+        setSelectedId(nextRoi.id);
+        return [...current, nextRoi];
+      }
+      return current.map((roi, index) => (index === targetIndex ? nextRoi : roi));
+    });
+  };
+
+  const handleSelectionCleared = () => {
+    if (!activeRoi) return;
+    setDraftRois(current => current.map(roi => (roi.id === activeRoi.id ? { ...roi, points: [], updatedAt: new Date().toISOString() } : roi)));
+  };
+
+  const saveValidRois = () => {
+    onSave(normalizeRois(draftRois).filter(roi => roi.points.length >= 3));
+  };
 
   return (
-    <Modal open={open} title="Editor de ROI" onClose={onClose} maxWidth="max-w-5xl">
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-        <div
-          ref={stageRef}
-          role="application"
-          aria-label="Editor visual de ROI"
-          className="relative aspect-[4/3] min-h-96 overflow-hidden rounded-lg border border-heal-line bg-slate-950"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={stopDrawing}
-          onPointerLeave={stopDrawing}
-        >
-          <img src={imageUrl} alt="Foto da ferida para delimitação de ROI" className="h-full w-full object-contain" draggable={false} />
-          <RoiImageOverlay rois={rois} />
-        </div>
+    <Modal open={open} title="Editor de ROI" onClose={onClose} maxWidth="max-w-7xl">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <WoundRoiCanvas
+          key={`${imageUrl}-${canvasKey}-${activeRoi?.id || 'new'}`}
+          activeSavedSelectionIndex={activeIndex}
+          confirmLabel={activeRoi?.points.length ? 'Atualizar ROI' : 'Salvar ROI'}
+          imageSrc={imageUrl}
+          initialSelection={activeSelection}
+          savedSelections={savedSelections}
+          onConfirm={handleConfirm}
+          onSelectionCleared={handleSelectionCleared}
+        />
 
         <aside className="space-y-4">
-          <RoiToolbar mode={mode} setMode={setMode} addRoi={addRoi} undoPoint={undoPoint} removeRoi={removeRoi} />
-          <div className="rounded-lg border border-heal-line bg-slate-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-sm font-semibold text-heal-ink dark:text-white">ROIs</p>
+          <div className="rounded-2xl border border-heal-line bg-slate-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-heal-ink dark:text-white">ROIs</p>
+                <p className="mt-1 text-xs text-heal-muted dark:text-zinc-400">Coordenadas normalizadas entre 0 e 1.</p>
+              </div>
+              <Button type="button" size="sm" variant="secondary" onClick={addRoi} aria-label="Nova ROI">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
             <div className="mt-3 space-y-2">
-              {rois.map(roi => (
-                <button
-                  key={roi.id}
-                  type="button"
-                  className={`w-full rounded-lg border p-2 text-left transition ${
-                    roi.id === selectedRoi.id
-                      ? 'border-heal-blue bg-blue-50 dark:bg-blue-950/30'
-                      : 'border-heal-line bg-white dark:border-zinc-800 dark:bg-zinc-950'
-                  }`}
-                  onClick={() => setSelectedId(roi.id)}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: roi.color }} />
-                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">
-                      {roi.label} - {roi.points.length} ponto(s)
-                    </span>
-                  </span>
-                </button>
-              ))}
+              {draftRois.length ? (
+                draftRois.map((roi, index) => (
+                  <div
+                    key={roi.id}
+                    className={`rounded-xl border p-2 transition ${
+                      roi.id === activeRoi?.id
+                        ? 'border-heal-blue bg-blue-50 dark:bg-blue-950/30'
+                        : 'border-heal-line bg-white dark:border-zinc-800 dark:bg-zinc-900'
+                    }`}
+                  >
+                    <button type="button" className="w-full text-left" onClick={() => setSelectedId(roi.id)}>
+                      <span className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: roi.color }} />
+                        <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">
+                          {roi.label} - {roi.points.length} ponto(s)
+                        </span>
+                      </span>
+                    </button>
+                    <div className="mt-2 flex gap-2">
+                      <Input value={roi.label} onChange={event => renameRoi(roi.id, event.target.value)} aria-label={`Nome da ROI ${index + 1}`} />
+                      <Button type="button" variant="danger" size="sm" onClick={() => removeRoi(roi.id)} aria-label={`Excluir ROI ${index + 1}`}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-xl border border-dashed border-heal-line bg-white px-3 py-4 text-center text-xs text-heal-muted dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                  Desenhe e salve a primeira ROI na imagem.
+                </p>
+              )}
             </div>
           </div>
-          {selectedRoi ? (
-            <Input label="Nome da ROI" value={selectedRoi.label} onChange={event => renameRoi(selectedRoi.id, event.target.value)} />
-          ) : null}
-          <p className="text-xs leading-5 text-slate-500 dark:text-zinc-400">
-            As coordenadas são salvas normalizadas entre 0 e 1, evitando dependência do tamanho da tela.
-          </p>
+
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-50">
+            Use uma ROI por ferida ou area clinicamente relevante. As coordenadas permanecem proporcionais a imagem e podem alimentar futuras mascaras supervisionadas.
+          </div>
+
           <div className="flex gap-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="button" className="flex-1" disabled={!canSave} onClick={() => onSave(rois.filter(roi => roi.points.length >= 3))}>
+            <Button type="button" className="flex-1" disabled={!canSave} onClick={saveValidRois}>
               Salvar ROI
             </Button>
           </div>

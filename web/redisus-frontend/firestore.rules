@@ -165,6 +165,57 @@ service cloud.firestore {
         && (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
+    function validAnalysisResultDoc(linkedPatientId, linkedEvaluationId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'id',
+          'patientId',
+          'assessmentId',
+          'imageId',
+          'roisUsed',
+          'createdAt',
+          'createdBy',
+          'mode',
+          'analysisVersion',
+          'roiVersion',
+          'imageQuality',
+          'visualFindings',
+          'clinicalContext',
+          'evolution',
+          'aiInference',
+          'alerts',
+          'recommendations',
+          'consideredData',
+          'disclaimer',
+          'persistedAt'
+        ])
+        && data.id is string
+        && data.mode in ['assessment_context', 'standalone']
+        && data.analysisVersion is string
+        && data.roiVersion is string
+        && data.createdAt is string
+        && (!('createdBy' in data) || data.createdBy == request.auth.uid)
+        && (!('patientId' in data) || data.patientId is string)
+        && (!('assessmentId' in data) || data.assessmentId is string)
+        && (linkedPatientId == null || data.patientId == linkedPatientId)
+        && (linkedEvaluationId == null || data.assessmentId == linkedEvaluationId)
+        && (!('imageId' in data) || data.imageId is string)
+        && data.roisUsed is list
+        && data.roisUsed.size() <= 20
+        && data.imageQuality is map
+        && data.visualFindings is map
+        && data.clinicalContext is map
+        && data.evolution is map
+        && data.aiInference is map
+        && data.alerts is list
+        && data.alerts.size() <= 20
+        && data.recommendations is list
+        && data.recommendations.size() <= 20
+        && data.consideredData is list
+        && data.disclaimer is string
+        && (!('persistedAt' in data) || data.persistedAt is timestamp);
+    }
+
     match /users/{userId} {
       allow create: if isOwner(userId) && validUserDoc();
       allow read: if isOwner(userId);
@@ -180,12 +231,24 @@ service cloud.firestore {
           allow read: if isOwner(userId);
           allow delete: if false;
           allow create, update: if isOwner(userId) && validEvaluationDoc(patientId);
+
+          match /analysisResults/{analysisId} {
+            allow read: if isOwner(userId);
+            allow delete: if false;
+            allow create, update: if isOwner(userId) && validAnalysisResultDoc(patientId, evaluationId);
+          }
         }
       }
 
       match /appointments/{appointmentId} {
         allow read, delete: if isOwner(userId);
         allow create, update: if isOwner(userId) && validAppointmentDoc();
+      }
+
+      match /analysisResults/{analysisId} {
+        allow read: if isOwner(userId);
+        allow delete: if false;
+        allow create, update: if isOwner(userId) && validAnalysisResultDoc(null, null);
       }
     }
 

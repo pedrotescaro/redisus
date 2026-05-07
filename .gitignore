@@ -59,6 +59,15 @@ pytest-cache-files-*/
 
 # ===== Models and generated ML artifacts =====
 models/
+!ml/models/
+ml/models/*
+!ml/models/README.md
+!ml/outputs/
+ml/outputs/*
+!ml/outputs/README.md
+!ml/datasets/
+ml/datasets/*
+!ml/datasets/README.md
 *.pt
 *.pth
 *.keras
@@ -75,6 +84,8 @@ dataset/
 datasets/
 dataset/piid/
 data/external/piid/
+!ml/datasets/
+!ml/datasets/README.md
 
 # ===== Generated reports and binary research exports =====
 docs/research/*.docx

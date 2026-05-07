@@ -1,0 +1,30 @@
+task: wound_segmentation
+model:
+  architecture: unet
+  encoder: mobilenet_v2
+  pretrained: imagenet
+data:
+  train_manifest: ml/datasets/train.jsonl
+  val_manifest: ml/datasets/val.jsonl
+  test_manifest: ml/datasets/test.jsonl
+  image_size: 512
+training:
+  batch_size: 8
+  epochs: 80
+  learning_rate: 0.0001
+  loss:
+    - dice
+    - binary_cross_entropy
+metrics:
+  - dice
+  - iou
+  - precision
+  - recall
+  - f1
+  - false_positive_rate
+  - false_negative_rate
+governance:
+  require_license_review: true
+  require_deidentification: true
+  require_professional_review: true
+  allow_tissue_classification: false

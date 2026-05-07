@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarPlus, ClipboardPlus, Mail, Pencil, Phone } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, ClipboardPlus, Mail, Pencil, Phone, ScanSearch } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 
@@ -151,7 +151,15 @@ export function PatientDetailsPage() {
         {evaluations.length ? (
           <div className="grid gap-3">
             {evaluations.map(evaluation => (
-              <Card key={evaluation.id} className="relative grid gap-4 pt-12 md:grid-cols-[180px_1fr] md:pt-0 md:pr-14">
+              <Card key={evaluation.id} className="relative grid gap-4 pt-12 md:grid-cols-[180px_1fr] md:pt-0 md:pr-24">
+                <Link
+                  to={`/analyzer?patientId=${patient.id}&assessmentId=${evaluation.id}`}
+                  aria-label={`Analisar avaliacao de ${formatDate(evaluation.date)} com HEAL Analyzer`}
+                  title="Analisar avaliacao com HEAL Analyzer"
+                  className="absolute right-16 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-heal-teal/20 bg-heal-tealSoft text-heal-teal shadow-sm transition hover:border-heal-teal hover:bg-heal-teal hover:text-white focus:outline-none focus:ring-2 focus:ring-heal-teal/25 dark:border-teal-400/20 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-heal-teal dark:hover:text-white"
+                >
+                  <ScanSearch className="h-4 w-4" />
+                </Link>
                 <button
                   type="button"
                   aria-label={`Editar registro clínico de ${formatDate(evaluation.date)}`}

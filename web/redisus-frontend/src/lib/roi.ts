@@ -14,7 +14,9 @@ export const createRoi = (index: number, type: RoiType = 'polygon'): Roi => ({
   type,
   points: [],
   color: ROI_COLORS[index % ROI_COLORS.length],
-  createdAt: new Date().toISOString()
+  createdAt: new Date().toISOString(),
+  normalized: true,
+  roiVersion: '2026-05-contextual'
 });
 
 export const normalizeRois = (rois: unknown): Roi[] =>
@@ -23,10 +25,21 @@ export const normalizeRois = (rois: unknown): Roi[] =>
         .map((roi, index): Roi => ({
           id: String(roi?.id || `roi-${index + 1}`),
           label: String(roi?.label || `Ferida ${index + 1}`),
-          type: roi?.type === 'freehand' || roi?.mode === 'pen' ? 'freehand' : 'polygon',
+          type: roi?.type === 'circle' ? 'circle' : roi?.type === 'freehand' || roi?.mode === 'pen' ? 'freehand' : 'polygon',
           points: normalizeRoiPoints(roi?.points),
           color: String(roi?.color || ROI_COLORS[index % ROI_COLORS.length]),
-          createdAt: String(roi?.createdAt || new Date().toISOString())
+          createdAt: String(roi?.createdAt || new Date().toISOString()),
+          normalized: true,
+          updatedAt: typeof roi?.updatedAt === 'string' ? roi.updatedAt : undefined,
+          createdBy: typeof roi?.createdBy === 'string' ? roi.createdBy : undefined,
+          updatedBy: typeof roi?.updatedBy === 'string' ? roi.updatedBy : undefined,
+          roiVersion: String(roi?.roiVersion || '2026-05-contextual'),
+          imageId: typeof roi?.imageId === 'string' ? roi.imageId : undefined,
+          assessmentId: typeof roi?.assessmentId === 'string' ? roi.assessmentId : undefined,
+          patientId: typeof roi?.patientId === 'string' ? roi.patientId : undefined,
+          verifiedByProfessional: Boolean(roi?.verifiedByProfessional),
+          consentForResearch: Boolean(roi?.consentForResearch),
+          anonymizedExportReady: Boolean(roi?.anonymizedExportReady)
         }))
         .filter(roi => roi.points.length > 0)
     : [];

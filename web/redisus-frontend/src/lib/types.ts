@@ -2,7 +2,7 @@ import type { Timestamp } from 'firebase/firestore';
 
 export type ThemePreference = 'light' | 'dark';
 export type AppointmentStatus = 'Confirmado' | 'Pendente' | 'Cancelado' | 'Realizado';
-export type RoiType = 'polygon' | 'freehand';
+export type RoiType = 'polygon' | 'freehand' | 'circle';
 
 export interface UserProfile {
   uid?: string;
@@ -51,6 +51,17 @@ export interface Roi {
   points: RoiPoint[];
   color: string;
   createdAt: string;
+  normalized?: true;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  roiVersion?: string;
+  imageId?: string;
+  assessmentId?: string;
+  patientId?: string;
+  verifiedByProfessional?: boolean;
+  consentForResearch?: boolean;
+  anonymizedExportReady?: boolean;
 }
 
 export interface WoundImage {
@@ -102,6 +113,119 @@ export interface EvaluationAuditEntry {
   updatedAt: string;
   updatedBy: string;
   previousData?: Record<string, unknown>;
+}
+
+export type ClinicalAnalysisMode = 'assessment_context' | 'standalone';
+export type ClinicalAnalysisSeverity = 'low' | 'medium' | 'high';
+
+export interface ClinicalAnalysisAlert {
+  severity: ClinicalAnalysisSeverity;
+  title: string;
+  message: string;
+}
+
+export interface ClinicalAnalysisResult {
+  id: string;
+  patientId?: string;
+  assessmentId?: string;
+  imageId?: string;
+  roisUsed: Roi[];
+  createdAt: string;
+  createdBy?: string;
+  mode: ClinicalAnalysisMode;
+  analysisVersion: string;
+  roiVersion: string;
+  canAnalyze: boolean;
+  blockedReason?: string;
+  imageQuality: {
+    status: 'good' | 'regular' | 'poor';
+    score: number;
+    issues: string[];
+    metrics: {
+      width: number;
+      height: number;
+      brightness: number;
+      contrast: number;
+      sharpness: number;
+    };
+    preprocessing: string[];
+  };
+  visualFindings: {
+    dominantColors: Array<{ label: string; hex: string; percentage: number }>;
+    tissueHints: string[];
+    attentionAreas: string[];
+    roiCoveragePercent: number;
+  };
+  roiValidation: {
+    isValid: boolean;
+    woundLikelihood: number;
+    reason: string;
+    issues: string[];
+    roiId?: string;
+    areaRatio: number;
+    features?: Record<string, number>;
+  };
+  woundDetection: {
+    hasWound: boolean;
+    confidence: number;
+    reason: string;
+    mode: 'roi_validation_gate' | 'trained_model';
+    modelVersion: string;
+  };
+  segmentation: {
+    maskUrl?: string;
+    areaPixels?: number;
+    overlayUrl?: string;
+    confidence?: number;
+    method: 'manual_roi_mask' | 'trained_segmentation_model';
+    limited: boolean;
+    reason?: string;
+  };
+  tissueClassification: {
+    enabled: boolean;
+    reason: string;
+    modelVersion?: string;
+    classes: Array<{
+      label: 'granulation' | 'slough_fibrin' | 'necrosis' | 'epithelial' | 'unknown';
+      percentage: number;
+      confidence: number;
+    }>;
+  };
+  clinicalContext: {
+    patientName?: string;
+    patientStatus?: string;
+    patientAge?: number | null;
+    painLevel?: number;
+    woundRegion?: string;
+    woundType?: string;
+    exudate?: string;
+    odor?: string;
+    observations?: string;
+    consideredFields: string[];
+    missingFields: string[];
+  };
+  evolution: {
+    hasPreviousAssessment: boolean;
+    previousAssessmentId?: string;
+    previousAssessmentDate?: string;
+    painTrend: 'increased' | 'decreased' | 'stable' | 'unknown';
+    exudateTrend: 'changed' | 'stable' | 'unknown';
+    regionComparison: 'same' | 'different' | 'unknown';
+    generalTrend: 'possible_improvement' | 'possible_worsening' | 'stable' | 'insufficient_data';
+    summary: string;
+  };
+  aiInference: {
+    status: 'completed' | 'unavailable' | 'skipped';
+    modelVersion?: string;
+    confidence?: number;
+    primaryTissue?: string;
+    summary?: string;
+    error?: string;
+  };
+  alerts: ClinicalAnalysisAlert[];
+  recommendations: string[];
+  consideredData: string[];
+  disclaimer: string;
 }
 
 export interface Appointment {
