@@ -46,10 +46,10 @@ export function ReportPreview({ patient, evaluation, profile }: ReportPreviewPro
         </div>
 
         <div>
-          <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-slate-100 dark:bg-zinc-950">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-slate-950">
             {image ? (
               <>
-                <img src={image.downloadURL} alt="Imagem da ferida" className="h-full w-full object-cover" />
+                <img src={image.downloadURL} alt="Imagem da ferida" className="h-full w-full object-contain" />
                 <RoiImageOverlay rois={image.rois} />
               </>
             ) : (

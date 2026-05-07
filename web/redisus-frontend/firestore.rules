@@ -117,6 +117,8 @@ service cloud.firestore {
           'images',
           'imageUploadStatus',
           'imageUploadError',
+          'updatedBy',
+          'auditLog',
           'createdAt',
           'updatedAt'
         ])
@@ -142,6 +144,8 @@ service cloud.firestore {
         && data.images.size() <= 12
         && (!('imageUploadStatus' in data) || data.imageUploadStatus in ['complete', 'failed'])
         && (!('imageUploadError' in data) || data.imageUploadError == null || data.imageUploadError is string)
+        && (!('updatedBy' in data) || data.updatedBy == request.auth.uid)
+        && (!('auditLog' in data) || (data.auditLog is list && data.auditLog.size() <= 25))
         && (!('createdAt' in data) || data.createdAt is timestamp)
         && (!('updatedAt' in data) || data.updatedAt is timestamp);
     }

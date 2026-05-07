@@ -305,8 +305,8 @@ export function EvaluationForm({ patients, defaultPatientId, onSubmit }: Evaluat
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {images.map(image => (
                 <div key={image.id} className="rounded-2xl border border-heal-line p-3 dark:border-zinc-800">
-                  <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-100 dark:bg-zinc-950">
-                    <img src={image.previewURL} alt={image.fileName} className="h-full w-full object-cover" />
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-950">
+                    <img src={image.previewURL} alt={image.fileName} className="h-full w-full object-contain" />
                     <RoiImageOverlay rois={image.rois} />
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2">

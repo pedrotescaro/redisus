@@ -33,8 +33,8 @@ describe('Sidebar', () => {
     const reportsLink = screen.getByRole('link', { name: /Relat[oó]rios/i });
     const compareLink = screen.getByRole('link', { name: /Comparar evolu[cç][aã]o/i });
 
-    expect(reportsLink.className).toContain('bg-heal-softBlue');
-    expect(compareLink.className).not.toContain('bg-heal-softBlue');
+    expect(reportsLink.className).toContain('bg-blue-100');
+    expect(compareLink.className).not.toContain('bg-blue-100');
   });
 
   it('ativa apenas Comparar evolução na rota /reports/compare', () => {
@@ -47,7 +47,7 @@ describe('Sidebar', () => {
     const reportsLink = screen.getByRole('link', { name: /Relat[oó]rios/i });
     const compareLink = screen.getByRole('link', { name: /Comparar evolu[cç][aã]o/i });
 
-    expect(compareLink.className).toContain('bg-heal-softBlue');
-    expect(reportsLink.className).not.toContain('bg-heal-softBlue');
+    expect(compareLink.className).toContain('bg-blue-100');
+    expect(reportsLink.className).not.toContain('bg-blue-100');
   });
 });

@@ -32,9 +32,9 @@ describe('DashboardPage', () => {
     const { DashboardPage } = await import('../../features/dashboard/DashboardPage');
     render(<DashboardPage />, { wrapper: MemoryRouter });
 
-    expect(await screen.findByText('Cuidado inteligente. Evolução visível.')).toBeInTheDocument();
+    expect(await screen.findByText('Pronto para continuar o acompanhamento?')).toBeInTheDocument();
     expect(screen.getByText('Pacientes ativos')).toBeInTheDocument();
     expect(screen.getByText('Próximos atendimentos')).toBeInTheDocument();
-    expect(screen.getByText('Relatórios disponíveis')).toBeInTheDocument();
+    expect(screen.getByText('Avaliações')).toBeInTheDocument();
   });
 });

@@ -94,10 +94,10 @@ function CompareCard({ title, evaluation, area }: { title: string; evaluation: E
         <Badge tone="slate">{formatDate(evaluation.date)}</Badge>
         <Badge tone={evaluation.painLevel >= 7 ? 'red' : evaluation.painLevel >= 4 ? 'amber' : 'green'}>Dor {evaluation.painLevel}/10</Badge>
       </div>
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-white dark:bg-zinc-900">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-950">
         {image ? (
           <>
-            <img src={image.downloadURL} alt="" className="h-full w-full object-cover" />
+            <img src={image.downloadURL} alt="" className="h-full w-full object-contain" />
             <RoiImageOverlay rois={image.rois} />
           </>
         ) : (

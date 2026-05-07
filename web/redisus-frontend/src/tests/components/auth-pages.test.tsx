@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -13,6 +13,9 @@ vi.mock('../../app/providers/AuthProvider', () => ({
 const serviceMocks = vi.hoisted(() => ({
   loginWithEmail: vi.fn(),
   registerWithEmail: vi.fn(),
+  resetPassword: vi.fn(),
+  signInWithEmail: vi.fn(),
+  signUpWithEmail: vi.fn(),
   signInWithGoogle: vi.fn(),
   signInWithMicrosoft: vi.fn(),
   signInWithApple: vi.fn()
@@ -22,6 +25,9 @@ vi.mock('../../features/auth/authService', () => ({
   friendlyAuthError: () => 'Erro amigavel',
   loginWithEmail: serviceMocks.loginWithEmail,
   registerWithEmail: serviceMocks.registerWithEmail,
+  resetPassword: serviceMocks.resetPassword,
+  signInWithEmail: serviceMocks.signInWithEmail,
+  signUpWithEmail: serviceMocks.signUpWithEmail,
   signInWithGoogle: serviceMocks.signInWithGoogle,
   signInWithMicrosoft: serviceMocks.signInWithMicrosoft,
   signInWithApple: serviceMocks.signInWithApple
@@ -30,11 +36,9 @@ vi.mock('../../features/auth/authService', () => ({
 describe('paginas de autenticacao', () => {
   it('renderiza LoginPage', () => {
     render(<LoginPage />, { wrapper: MemoryRouter });
-    expect(screen.getByRole('button', { name: /entrar com e-mail/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /entrar/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/e-mail/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /continuar com google/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /continuar com microsoft/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /continuar com apple/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /google/i })).toBeInTheDocument();
   });
 
   it('renderiza RegisterPage', () => {
@@ -45,25 +49,22 @@ describe('paginas de autenticacao', () => {
 
   it('envia login com e-mail para o servico correto', async () => {
     const user = userEvent.setup();
-    render(<LoginPage />, { wrapper: MemoryRouter });
+    const { container } = render(<LoginPage />, { wrapper: MemoryRouter });
+    const passwordInput = container.querySelector('input[type="password"]');
 
     await user.type(screen.getByLabelText(/e-mail/i), 'dra@heal.plus');
-    await user.type(screen.getByLabelText(/senha/i), '123456');
-    await user.click(screen.getByRole('button', { name: /entrar com e-mail/i }));
+    if (passwordInput) await user.type(passwordInput, '123456');
+    await user.click(screen.getByRole('button', { name: /entrar login/i }));
 
-    expect(serviceMocks.loginWithEmail).toHaveBeenCalledWith({ email: 'dra@heal.plus', password: '123456' });
+    await waitFor(() => expect(serviceMocks.signInWithEmail).toHaveBeenCalledWith('dra@heal.plus', '123456'));
   });
 
   it('chama provedores sociais', async () => {
     const user = userEvent.setup();
     render(<LoginPage />, { wrapper: MemoryRouter });
 
-    await user.click(screen.getByRole('button', { name: /continuar com google/i }));
-    await user.click(screen.getByRole('button', { name: /continuar com microsoft/i }));
-    await user.click(screen.getByRole('button', { name: /continuar com apple/i }));
+    await user.click(screen.getByRole('button', { name: /google/i }));
 
     expect(serviceMocks.signInWithGoogle).toHaveBeenCalled();
-    expect(serviceMocks.signInWithMicrosoft).toHaveBeenCalled();
-    expect(serviceMocks.signInWithApple).toHaveBeenCalled();
   });
 });

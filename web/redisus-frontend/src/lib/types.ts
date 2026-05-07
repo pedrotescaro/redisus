@@ -91,8 +91,17 @@ export interface Evaluation {
   images: WoundImage[];
   imageUploadStatus?: 'complete' | 'failed';
   imageUploadError?: string | null;
+  updatedBy?: string;
+  auditLog?: EvaluationAuditEntry[];
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+}
+
+export interface EvaluationAuditEntry {
+  action: string;
+  updatedAt: string;
+  updatedBy: string;
+  previousData?: Record<string, unknown>;
 }
 
 export interface Appointment {
@@ -117,5 +126,6 @@ export interface ImageDraft {
   size: number;
   existingStoragePath?: string;
   existingDownloadURL?: string;
+  existingRois?: Roi[];
   rois: Roi[];
 }

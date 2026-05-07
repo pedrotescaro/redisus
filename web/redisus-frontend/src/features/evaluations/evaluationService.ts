@@ -1,4 +1,5 @@
 import {
+  arrayUnion,
   collection,
   doc,
   getDocs,
@@ -23,6 +24,11 @@ export interface EvaluationWriteResult {
   uploadedImageCount: number;
   requestedImageCount: number;
   imageUploadError?: string;
+}
+
+interface EvaluationAuditOptions {
+  previousData?: Record<string, unknown>;
+  updatedBy?: string;
 }
 
 const mapEvaluation = (id: string, data: Record<string, unknown>): Evaluation => ({
@@ -52,6 +58,8 @@ const mapEvaluation = (id: string, data: Record<string, unknown>): Evaluation =>
   images: Array.isArray(data.images) ? (data.images as WoundImage[]) : [],
   imageUploadStatus: data.imageUploadStatus === 'failed' || data.imageUploadStatus === 'complete' ? data.imageUploadStatus : undefined,
   imageUploadError: typeof data.imageUploadError === 'string' ? data.imageUploadError : null,
+  updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : undefined,
+  auditLog: Array.isArray(data.auditLog) ? (data.auditLog as Evaluation['auditLog']) : [],
   createdAt: data.createdAt as Evaluation['createdAt'],
   updatedAt: data.updatedAt as Evaluation['updatedAt']
 });
@@ -76,6 +84,21 @@ function friendlyImageUploadError(error: unknown) {
   }
 
   return 'A avaliação foi salva sem imagens porque o Firebase Storage não está disponível para este projeto. Crie/ative o bucket do Storage e tente enviar as imagens novamente.';
+}
+
+function existingImageFromDraft(image: ImageDraft): WoundImage | null {
+  if (!image.existingDownloadURL || !image.existingStoragePath) return null;
+
+  return {
+    id: image.id,
+    storagePath: image.existingStoragePath,
+    downloadURL: image.existingDownloadURL,
+    fileName: image.fileName,
+    contentType: image.contentType,
+    size: image.size,
+    rois: image.existingRois || image.rois,
+    uploadedAt: new Date().toISOString()
+  };
 }
 
 let storageBucketCheck: Promise<string | null> | null = null;
@@ -121,17 +144,9 @@ async function uploadEvaluationImages(uid: string, patientId: string, evaluation
   const uploaded: WoundImage[] = [];
 
   for (const image of images) {
-    if (!image.file && image.existingDownloadURL && image.existingStoragePath) {
-      uploaded.push({
-        id: image.id,
-        storagePath: image.existingStoragePath,
-        downloadURL: image.existingDownloadURL,
-        fileName: image.fileName,
-        contentType: image.contentType,
-        size: image.size,
-        rois: image.rois,
-        uploadedAt: new Date().toISOString()
-      });
+    const existingImage = existingImageFromDraft(image);
+    if (!image.file && existingImage) {
+      uploaded.push(existingImage);
       continue;
     }
 
@@ -140,7 +155,10 @@ async function uploadEvaluationImages(uid: string, patientId: string, evaluation
     if (error) throw new Error(error);
 
     const bucketError = await getStorageBucketError();
-    if (bucketError) return { uploadedImages: uploaded, imageUploadError: bucketError };
+    if (bucketError) {
+      if (existingImage) uploaded.push(existingImage);
+      return { uploadedImages: uploaded, imageUploadError: bucketError };
+    }
 
     const path = woundImagePath(uid, patientId, evaluationId, image.id, getFileExtension(image.file));
     const fileRef = ref(storage, path);
@@ -150,6 +168,7 @@ async function uploadEvaluationImages(uid: string, patientId: string, evaluation
       await uploadBytes(fileRef, image.file, { contentType: image.file.type });
       downloadURL = await getDownloadURL(fileRef);
     } catch (error) {
+      if (existingImage) uploaded.push(existingImage);
       return { uploadedImages: uploaded, imageUploadError: friendlyImageUploadError(error) };
     }
 
@@ -192,19 +211,37 @@ export async function createEvaluation(uid: string, values: EvaluationFormValues
   };
 }
 
-export async function updateEvaluation(uid: string, values: EvaluationFormValues, evaluationId: string, images: ImageDraft[]) {
+export async function updateEvaluation(
+  uid: string,
+  values: EvaluationFormValues,
+  evaluationId: string,
+  images: ImageDraft[],
+  auditOptions: EvaluationAuditOptions = {}
+) {
   const requestedImageCount = images.filter(image => image.file || image.existingDownloadURL).length;
 
   validateEvaluationImages(images);
   const { uploadedImages, imageUploadError } = await uploadEvaluationImages(uid, values.patientId, evaluationId, images);
 
-  await updateDoc(doc(db, evaluationPath(uid, values.patientId, evaluationId)), {
+  const updatePayload: Record<string, unknown> = {
     ...values,
     images: uploadedImages,
     imageUploadStatus: imageUploadError ? 'failed' : 'complete',
     imageUploadError: imageUploadError || null,
+    updatedBy: auditOptions.updatedBy || uid,
     updatedAt: serverTimestamp()
-  });
+  };
+
+  if (auditOptions.previousData) {
+    updatePayload.auditLog = arrayUnion({
+      action: 'clinical_record_update',
+      updatedAt: new Date().toISOString(),
+      updatedBy: auditOptions.updatedBy || uid,
+      previousData: auditOptions.previousData
+    });
+  }
+
+  await updateDoc(doc(db, evaluationPath(uid, values.patientId, evaluationId)), updatePayload);
 
   return {
     id: evaluationId,

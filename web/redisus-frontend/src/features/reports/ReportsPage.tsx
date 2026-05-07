@@ -35,12 +35,24 @@ export function ReportsPage() {
   const selectedPatient = patients.find(patient => patient.id === patientId) || null;
   const evaluations = patientId ? evaluationsByPatient[patientId] || [] : [];
   const selectedEvaluation = evaluations.find(evaluation => evaluation.id === evaluationId) || evaluations[0] || null;
+  const patientOptions = useMemo(() => patients.filter(patient => (evaluationsByPatient[patient.id] || []).length > 0), [evaluationsByPatient, patients]);
+
+  useEffect(() => {
+    if (!patientOptions.length) {
+      if (patientId) setPatientId('');
+      if (evaluationId) setEvaluationId('');
+      return;
+    }
+
+    if (!patientOptions.some(patient => patient.id === patientId)) {
+      setPatientId(patientOptions[0].id);
+      setEvaluationId('');
+    }
+  }, [evaluationId, patientId, patientOptions]);
 
   useEffect(() => {
     if (selectedEvaluation && selectedEvaluation.id !== evaluationId) setEvaluationId(selectedEvaluation.id);
   }, [evaluationId, selectedEvaluation]);
-
-  const patientOptions = useMemo(() => patients.filter(patient => (evaluationsByPatient[patient.id] || []).length > 0), [evaluationsByPatient, patients]);
 
   if (loading) return <LoadingState label="Carregando relatórios..." />;
 
