@@ -5,9 +5,9 @@ import { useForm } from 'react-hook-form';
 
 import { useAuth } from '../../app/providers/AuthProvider';
 import { UserAvatar } from '../../components/profile/UserAvatar';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
+import { Input } from '../../components/ui/input';
 import { profileSchema, type ProfileFormValues, updateProfileData, uploadProfilePhoto } from './profileService';
 
 export function EditProfilePage() {

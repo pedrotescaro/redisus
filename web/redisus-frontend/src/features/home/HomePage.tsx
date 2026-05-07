@@ -224,7 +224,7 @@ export default function HomePage() {
           <div className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[56%] lg:block">
             <Image
               src="/images/Hero imagem.png"
-              alt="Profissionais de saÃºde do Heal+"
+              alt="Profissionais de saúde do Heal+"
               width={1000}
               height={800}
               className="absolute bottom-0 right-0 h-[92%] w-auto max-w-none object-contain object-bottom drop-shadow-[0_30px_58px_rgba(0,0,0,0.22)] 2xl:right-[calc((100vw-1440px)/2)]"

@@ -8,9 +8,9 @@ import { TimersStructuredSection, defaultTimersDraft, type TimersDraft } from '.
 import { RoiEditor } from '../../components/roi/RoiEditor';
 import { RoiImageOverlay } from '../../components/roi/RoiImageOverlay';
 import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
+import { Input } from '../../components/ui/input';
 import { Select } from '../../components/ui/Select';
 import { FORM_OPTIONS } from '../../lib/constants';
 import { todayISO } from '../../lib/date';

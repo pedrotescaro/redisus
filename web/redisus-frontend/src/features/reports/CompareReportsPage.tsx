@@ -5,7 +5,7 @@ import { useAuth } from '../../app/providers/AuthProvider';
 import { ComparisonView } from '../../components/reports/ComparisonView';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { Input } from '../../components/ui/Input';
+import { Input } from '../../components/ui/input';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { Select } from '../../components/ui/Select';
 import type { Evaluation, Patient } from '../../lib/types';

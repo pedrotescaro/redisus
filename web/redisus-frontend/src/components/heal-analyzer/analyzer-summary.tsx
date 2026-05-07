@@ -9,7 +9,7 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
-import { Button } from "../ui/Button";
+import { Button } from "../ui/button";
 import type { HealAnalyzerResult } from "../../services/ai/heal-analyzer-service";
 import {
   getConfidencePercent,

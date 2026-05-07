@@ -1,6 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 
-import { Button } from './Button';
+import { Button } from './button';
 import { Modal } from './Modal';
 
 interface ConfirmDialogProps {

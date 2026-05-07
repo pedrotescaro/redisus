@@ -6,9 +6,9 @@ import { Navigate, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../app/providers/AuthProvider';
 import { BrandLogo } from '../../components/brand/BrandLogo';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
+import { Input } from '../../components/ui/input';
 import { Select } from '../../components/ui/Select';
 import { updateUserProfile } from './authService';
 import { onboardingSchema, type OnboardingFormValues } from './authSchema';

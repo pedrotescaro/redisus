@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 import type { Patient } from '../../lib/types';
 import { Badge } from '../ui/Badge';
-import { Button } from '../ui/Button';
+import { Button } from '../ui/button';
 
 interface PatientCardProps {
   patient: Patient;

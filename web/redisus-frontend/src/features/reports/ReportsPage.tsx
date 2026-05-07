@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../../app/providers/AuthProvider';
 import { ReportPreview } from '../../components/reports/ReportPreview';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';

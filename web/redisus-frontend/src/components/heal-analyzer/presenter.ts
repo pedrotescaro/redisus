@@ -27,10 +27,10 @@ type TissueBreakdown = {
 };
 
 const TISSUE_LABELS: Record<string, string> = {
-  granulation: "Tecido de granulaÃ§Ã£o",
+  granulation: "Tecido de granulação",
   slough: "Esfacelo (fibrina)",
-  necrosis: "Necrose de coagulaÃ§Ã£o",
-  epithelialization: "EpitelizaÃ§Ã£o",
+  necrosis: "Necrose de coagulação",
+  epithelialization: "Epitelização",
 };
 
 const TISSUE_COLORS: Record<string, string> = {
@@ -84,7 +84,7 @@ export function inferTissueKey(value: string) {
 
 export function presentClinicalLabel(value: string) {
   const key = inferTissueKey(value);
-  return TISSUE_LABELS[key] || repairMojibakeText(value) || "Sem classificaÃ§Ã£o";
+  return TISSUE_LABELS[key] || repairMojibakeText(value) || "Sem classificação";
 }
 
 function normalizeTissueEntry(entry: HealAnalyzerTissueEntry): TissueBreakdown {
@@ -222,4 +222,3 @@ export function getStatusCopy(
     tone: "border-outline-variant/30 bg-surface-container text-on-surface-variant dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
   };
 }
-

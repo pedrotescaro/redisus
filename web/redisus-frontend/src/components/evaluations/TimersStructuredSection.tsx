@@ -4,9 +4,9 @@ import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from
 
 import { FORM_OPTIONS } from '../../lib/constants';
 import { Card } from '../ui/Card';
-import { Input } from '../ui/Input';
+import { Input } from '../ui/input';
 import { Select } from '../ui/Select';
-import { Textarea } from '../ui/Textarea';
+import { Textarea } from '../ui/textarea';
 import type { EvaluationFormValues } from '../../features/evaluations/evaluationSchema';
 
 export interface TimersDraft {

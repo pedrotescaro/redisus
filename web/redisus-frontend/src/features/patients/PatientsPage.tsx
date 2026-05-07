@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../../app/providers/AuthProvider';
 import { PatientCard } from '../../components/patients/PatientCard';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { Input } from '../../components/ui/Input';
+import { Input } from '../../components/ui/input';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';

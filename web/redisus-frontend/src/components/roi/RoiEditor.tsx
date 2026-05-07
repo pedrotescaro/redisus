@@ -2,8 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 
 import { createRoi, hasValidRois, normalizeRois } from '../../lib/roi';
 import type { Roi, RoiPoint, RoiType } from '../../lib/types';
-import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { Modal } from '../ui/Modal';
 import { RoiImageOverlay } from './RoiImageOverlay';
 import { RoiToolbar } from './RoiToolbar';

@@ -2,7 +2,7 @@ import { Bot, CalendarCheck2, Database, HelpCircle, SendHorizontal, Sparkles } f
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../../app/providers/AuthProvider';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { LoadingState } from '../../components/ui/LoadingState';
 import type { Appointment, Evaluation, Patient } from '../../lib/types';
 import { subscribeAppointments } from '../agenda/agendaService';

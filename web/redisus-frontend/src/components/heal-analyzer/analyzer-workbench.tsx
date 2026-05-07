@@ -16,8 +16,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { AnalyzerRoiEditor } from "./roi-editor";
 import { AnalysisResultPanel } from "./analyzer-summary";
 import { AnalyzerTechnicalDrawer } from "./analyzer-technical-drawer";

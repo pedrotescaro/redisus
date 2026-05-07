@@ -1,7 +1,7 @@
 import { Brush, MousePointer2, Plus, Trash2, Undo2 } from 'lucide-react';
 
 import type { RoiType } from '../../lib/types';
-import { Button } from '../ui/Button';
+import { Button } from '../ui/button';
 
 interface RoiToolbarProps {
   mode: RoiType;
