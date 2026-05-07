@@ -43,6 +43,7 @@ backend/firebase-service-account.json
 
 # ===== Output/Generated =====
 output/
+outputs/
 exports/
 runs/
 tmp_images/
@@ -77,6 +78,16 @@ data/external/piid/
 
 # ===== Generated reports and binary research exports =====
 docs/research/*.docx
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.synctex.gz
+*.toc
 *.docx
 *.mp4
 

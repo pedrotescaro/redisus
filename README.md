@@ -133,6 +133,27 @@ Essa é a trilha mais importante do projeto neste momento. Novas features devem 
 - fallback para cenários sem modelo principal disponível
 - suporte a experimentação com detecção, segmentação e classificação
 
+### Experimento de Pré-processamento com OpenCV
+
+A orientação da professora Márcia foi incorporada como trilha experimental, sem alterar o pipeline principal. O módulo [`src/processing/preprocessing_filters.py`](src/processing/preprocessing_filters.py) permite comparar:
+
+- filtro passa-baixa por mediana com `cv2.medianBlur()`;
+- filtro passa-baixa gaussiano com `cv2.GaussianBlur()`;
+- equalização de histograma em escala de cinza com `cv2.equalizeHist()`;
+- equalização de luminância em imagem colorida;
+- CLAHE em luminância;
+- combinações de filtro + equalização.
+
+Execução:
+
+```powershell
+python scripts/run_preprocessing_experiments.py `
+  --input examples `
+  --output outputs/preprocessing_experiments
+```
+
+Os resultados ficam em `outputs/preprocessing_experiments/`, com imagens por método, CSV comparativo e grades visuais em `reports/comparison_grids/`. Essa etapa é apenas exploratória: nenhum filtro deve ser adotado como padrão antes de comparar o impacto na IA e validar clinicamente.
+
 ### Gestão Clínica
 
 - timeline clínica por lesão
