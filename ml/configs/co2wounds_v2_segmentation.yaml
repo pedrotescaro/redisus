@@ -1,0 +1,43 @@
+task: wound_segmentation
+dataset:
+  name: CO2Wounds-V2
+  source: Mendeley Data / IEEE DataPort / simatec-uis GitHub benchmark
+  github: https://github.com/simatec-uis/CO2Wounds-V2
+  mendeley: https://data.mendeley.com/datasets/s2w7rjwz49/2
+  doi_dataset: 10.17632/s2w7rjwz49.2
+  doi_paper: 10.1109/ICIP51287.2024.10647641
+  license_mendeley: CC BY-NC 3.0
+  license_github: CC BY-NC-ND
+  allowed_use: academic_research_prototype_only
+  commercial_use_allowed: false
+  labeled_images: 607
+  unlabeled_test_images: 157
+data:
+  root: data/external/co2wounds-v2
+  train_manifest: ml/datasets/co2wounds_v2_train.jsonl
+  val_manifest: ml/datasets/co2wounds_v2_val.jsonl
+  test_manifest: ml/datasets/co2wounds_v2_unlabeled_test.jsonl
+  image_size: 384
+model:
+  architecture: lightweight_unet
+  purpose: ferida_vs_fundo
+training:
+  batch_size: 4
+  epochs: 30
+  learning_rate: 0.0003
+  seed: 42
+  device: auto
+metrics:
+  - dice
+  - iou
+  - precision
+  - recall
+  - f1
+  - false_positive_rate
+  - false_negative_rate
+governance:
+  require_non_commercial_research_acceptance: true
+  require_deidentification: true
+  require_professional_review: source_dataset
+  model_status_after_training: experimental_not_clinically_validated
+  allow_tissue_classification: false

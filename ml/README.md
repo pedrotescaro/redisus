@@ -25,3 +25,17 @@ Pipeline offline para treino e avaliacao de modelos de feridas cronicas. O front
 ## Segurança
 
 Nao coloque imagens clinicas identificaveis no Git. Remova EXIF, nomes, documentos, rosto e metadados sensiveis. Exija consentimento e revisao profissional antes de exportar ROIs internas.
+
+## CO2Wounds-V2
+
+Uso permitido neste projeto: pesquisa, TCC, prova de conceito e treinamento experimental inicial de segmentacao ferida vs. fundo. Nao usar o modelo resultante como IA clinica validada nem em produto comercial sem autorizacao formal dos autores.
+
+Fluxo esperado depois de baixar o dataset fora do Git:
+
+```bash
+python ml/scripts/prepare_co2wounds_v2.py --root data/external/co2wounds-v2 --accept-non-commercial-research-license
+python ml/scripts/validate_masks.py --manifest ml/datasets/co2wounds_v2_train.jsonl
+python ml/scripts/train_segmentation.py --accept-experimental-non-commercial-use --epochs 30
+```
+
+O script aceita o layout oficial `train`, `train_anns`, `val`, `val_anns` ou o layout COCO `annotations/merged_annotations.json` + `imgs/`, gerando mascaras binarizadas quando necessario.

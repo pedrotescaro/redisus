@@ -83,6 +83,7 @@ events.out.tfevents*
 dataset/
 datasets/
 dataset/piid/
+data/external/co2wounds-v2/
 data/external/piid/
 !ml/datasets/
 !ml/datasets/README.md

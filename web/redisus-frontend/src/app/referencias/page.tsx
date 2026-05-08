@@ -190,6 +190,16 @@ const references = [
   {
     id: 45,
     text: "McMahan, B., et al. (2017). Communication-Efficient Learning of Deep Networks from Decentralized Data. *AISTATS*. *(Federated Learning)*"
+  },
+  {
+    id: 46,
+    text: "SANCHEZ, Karen et al. CO2Wounds-V2: Extended Chronic Wounds Dataset From Leprosy Patients. In: IEEE International Conference on Image Processing, 2024. DOI: 10.1109/ICIP51287.2024.10647641. Dataset usado no Heal+ apenas para pesquisa, prova de conceito e treinamento experimental de segmentacao ferida vs. fundo, respeitando restricoes nao comerciais.",
+    link: "https://github.com/simatec-uis/CO2Wounds-V2"
+  },
+  {
+    id: 47,
+    text: "SANCHEZ, Karen et al. CO2Wounds-V2: Extended Chronic Wounds Dataset From Leprosy Patients. Mendeley Data, v. 2, 2024. DOI: 10.17632/s2w7rjwz49.2. Licenca informada: Creative Commons Attribution-NonCommercial 3.0 Unported (CC BY-NC 3.0); uso comercial exige revisao juridica/autorizacao formal.",
+    link: "https://data.mendeley.com/datasets/s2w7rjwz49/2"
   }
 ];
 

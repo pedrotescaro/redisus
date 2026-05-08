@@ -58,6 +58,7 @@ Esse formato permite reconstruir poligonos, gerar mascaras binarizadas e preserv
 - Separar imagem original, imagem filtrada, ROI, mascara e metadados clinicos.
 - Criar dataset interno anonimizado, sem nome, telefone, e-mail ou identificadores diretos.
 - Usar datasets publicos quando possivel para pre-treinamento e validacao externa.
+- Priorizar CO2Wounds-V2 para o primeiro baseline academico de segmentacao ferida vs fundo, mantendo uso estritamente experimental/nao comercial por causa das licencas CC BY-NC 3.0 e CC BY-NC-ND declaradas nas fontes oficiais.
 - Testar resolucoes como 224x224, 512x512 e imagem original redimensionada.
 - Comparar perda de detalhe, ruido visual e desempenho entre resolucoes.
 - Separar modelo de segmentacao da ferida de modelos de tecido/classificacao assistiva.

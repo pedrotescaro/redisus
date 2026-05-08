@@ -48,7 +48,7 @@ Thresholds iniciais:
 | FUSeg - Foot Ulcer Segmentation Challenge | Segmentacao de ulcera de pe, ferida vs fundo | Acesso via Grand Challenge/GitHub; verificar termos antes de uso comercial | O desafio informa imagens desidentificadas e objetivo de segmentar feridas em fotos clinicas. A publicacao descreve 1.210 imagens e mascaras pixel-a-pixel. Fontes: [Grand Challenge](https://fusc.grand-challenge.org/FUSeg-2021/), [MDPI](https://www.mdpi.com/2078-2489/15/3/140). |
 | AZH Wound Dataset / UWM wound-segmentation | Segmentacao inicial de feridas/ulceras | Publicado em GitHub com permissao da clinica; checar ausencia/presenca de arquivo LICENSE antes de uso comercial | Dataset anotado por profissionais, ligado ao trabalho de segmentacao de feridas da UWM. Fonte: [uwm-bigdata/wound-segmentation](https://github.com/uwm-bigdata/wound-segmentation). |
 | WoundDB / Chronic Wounds Multimodal Image Database | Avaliacao multimodal, contornos manuais, validacao externa | CC BY 4.0 segundo os termos oficiais | Inclui fotos RGB, termicas, 3D/profundidade e contornos manuais. Fontes: [WoundDB](https://chronicwounddatabase.eu/), [Terms](https://chronicwounddatabase.eu/Terms). |
-| CO2Wounds-V2 | Pesquisa/educacao em segmentacao de feridas cronicas | Licenca depende da fonte/versao: Kaggle lista CC BY-NC 3.0; Mendeley v1 lista CC BY 4.0; paper/dataset v2 menciona restricoes NC/ND em algumas fontes | Nao usar comercialmente ate resolver a licenca da versao exata e obter autorizacao quando necessario. Fontes: [Kaggle](https://www.kaggle.com/datasets/orvile/leprosy-chronic-wound-images-co2wounds-v2), [Mendeley](https://data.mendeley.com/datasets/s2w7rjwz49/1). |
+| CO2Wounds-V2 | Treino experimental de segmentacao ferida vs fundo, benchmark de U-Net, DeepLabV3+, FPN e SegFormer | Mendeley Data v2 informa CC BY-NC 3.0; o GitHub oficial do benchmark declara CC BY-NC-ND | Usar somente para pesquisa, TCC, prova de conceito e treinamento inicial nao comercial. O modelo resultante deve ser marcado como experimental e nao validado clinicamente. Fontes: [GitHub oficial](https://github.com/simatec-uis/CO2Wounds-V2), [Mendeley Data v2](https://data.mendeley.com/datasets/s2w7rjwz49/2). |
 | PIID - Pressure Injury Images Dataset | Classificacao de estagios de lesao por pressao | Repositorio publico; licenca explicita nao evidente no README | 1.091 imagens RGB 299x299, estagios 1 a 4. Nao usar como dataset principal de segmentacao sem mascaras. Fonte: [GitHub PIID](https://github.com/FU-MedicalAI/PIID). |
 | Medetec Wound Database | Material complementar/validacao visual | Verificar termos no site antes de treino ou redistribuicao | Base pequena, qualidade variavel, nem sempre com mascaras; boa para teste externo, nao para treino principal sem revisao. Fonte: [Medetec](https://www.medetec.co.uk/files/medetec-image-databases.html). |
 | WoundSeg | Segmentacao diversa de tipos de ferida | Paper WACV; confirmar disponibilidade e termos do dataset antes de uso | Dataset de 8 tipos de ferida proposto no WSNet; bom alvo futuro se acesso/licenca forem claros. Fonte: [WACV/CVF](https://openaccess.thecvf.com/content/WACV2023/html/Oota_WSNet_Towards_an_Effective_Method_for_Wound_Image_Segmentation_WACV_2023_paper.html). |
@@ -58,7 +58,9 @@ Thresholds iniciais:
 Fase 1: segmentacao ferida vs fundo.
 
 - Comecar com U-Net com encoder pre-treinado, DeepLabV3+ e SegFormer leve.
+- Para CO2Wounds-V2, usar inicialmente a U-Net leve em PyTorch puro criada em `ml/scripts/train_segmentation.py`, pois ela nao depende de `segmentation_models_pytorch` nem `albumentations`. Em seguida comparar com os benchmarks do repositorio oficial quando o ambiente tiver as dependencias.
 - Treinar com FUSeg/AZH/WoundDB quando a licenca permitir.
+- Treinar com CO2Wounds-V2 somente com aceite explicito de uso academico/nao comercial e com o dataset baixado fora do Git em `data/external/co2wounds-v2` ou layout equivalente.
 - Separar treino, validacao, teste interno e teste externo por paciente/fonte quando possivel.
 - Usar augmentations clinicamente plausiveis: iluminacao, contraste, rotacao leve, blur moderado, compressao JPEG.
 - Evitar augmentations que criem tecido falso ou alterem cor clinica de modo irreal.
@@ -163,3 +165,9 @@ O HEAL Analyzer so deve exibir classificacao tecidual quando:
 Sem isso, mostrar apenas:
 
 > A imagem analisada nao apresenta evidencia visual suficiente de ferida na ROI marcada. Para evitar resultado incorreto, o sistema nao gerou classificacao de tecido.
+
+## Referencias CO2Wounds-V2
+
+SANCHEZ, Karen et al. CO2Wounds-V2: Extended Chronic Wounds Dataset From Leprosy Patients. In: IEEE International Conference on Image Processing, 2024. DOI: 10.1109/ICIP51287.2024.10647641.
+
+SANCHEZ, Karen et al. CO2Wounds-V2: Extended Chronic Wounds Dataset From Leprosy Patients. Mendeley Data, v. 2, 2024. DOI: 10.17632/s2w7rjwz49.2.
