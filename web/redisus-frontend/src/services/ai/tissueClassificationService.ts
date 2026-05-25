@@ -33,8 +33,15 @@ function normalizeLabel(name: string): TissueClassLabel {
   return 'unknown';
 }
 
+const LOCAL_MODE = import.meta.env.VITE_HEAL_ANALYZER_LOCAL_MODE === 'true';
+
 function isValidatedServerResult(result: HealAnalyzerResult | null | undefined) {
   if (!result) return false;
+
+  if (LOCAL_MODE && result.is_valid_wound === true) {
+    return true;
+  }
+
   const modelVersion = String(result.model_version || '');
   return (
     result.is_valid_wound === true &&

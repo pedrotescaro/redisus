@@ -1,0 +1,5 @@
+opencv-python
+numpy
+# Opcional (apenas se for testar com redes neurais Deep Learning):
+# torch
+# torchvision

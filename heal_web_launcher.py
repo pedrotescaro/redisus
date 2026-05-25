@@ -85,13 +85,15 @@ def _start_frontend() -> subprocess.Popen[bytes]:
     env.setdefault("CLINICAL_API_URL", FRONTEND_UPSTREAM_URL)
     env.setdefault("VITE_CLINICAL_API_URL", "/api/clinical")
     env["VITE_HEAL_ANALYZER_LOCAL_MODE"] = "true"
+    env["VITE_HEAL_ANALYZER_ENABLE_SERVER_INFERENCE"] = "true"
+    env["VITE_HEAL_ANALYZER_ENABLE_VALIDATED_TISSUE_MODEL"] = "true"
 
     command = [
         _resolve_npm_command(),
         "run",
         "dev",
         "--",
-        "--hostname",
+        "--host",
         FRONTEND_HOST,
         "--port",
         str(FRONTEND_PORT),
