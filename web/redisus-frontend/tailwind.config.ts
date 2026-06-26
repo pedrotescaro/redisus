@@ -5,6 +5,9 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      spacing: {
+        '4.5': '1.125rem', // 18px
+      },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
         headline: ['Manrope', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
