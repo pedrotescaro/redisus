@@ -1,5 +1,5 @@
 import { useAuth } from '../../app/providers/AuthProvider';
-import { Card } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { updateSettings } from '../profile/profileService';
 
 export function NotificationsPage() {
@@ -11,14 +11,18 @@ export function NotificationsPage() {
   };
 
   return (
-    <Card className="mx-auto max-w-2xl border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-5">
-      <h2 className="text-lg font-black text-heal-ink dark:text-white mb-5">Notificações</h2>
-      <div className="space-y-3">
-        <Toggle label="Notificações ligadas" checked={settings?.notificationsEnabled ?? true} onChange={value => toggle('notificationsEnabled', value)} />
-        <Toggle label="E-mails de acompanhamento" checked={settings?.emailNotificationsEnabled ?? true} onChange={value => toggle('emailNotificationsEnabled', value)} />
-        <Toggle label="Lembretes da agenda" checked={settings?.agendaRemindersEnabled ?? true} onChange={value => toggle('agendaRemindersEnabled', value)} />
+    <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
+      {/* Coluna Central */}
+      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+        <PageHeader showBack title="Notificações" description="Gerencie suas preferências de alertas" />
+
+        <div className="p-4 sm:p-6 space-y-3">
+          <Toggle label="Notificações ligadas" checked={settings?.notificationsEnabled ?? true} onChange={value => toggle('notificationsEnabled', value)} />
+          <Toggle label="E-mails de acompanhamento" checked={settings?.emailNotificationsEnabled ?? true} onChange={value => toggle('emailNotificationsEnabled', value)} />
+          <Toggle label="Lembretes da agenda" checked={settings?.agendaRemindersEnabled ?? true} onChange={value => toggle('agendaRemindersEnabled', value)} />
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }
 

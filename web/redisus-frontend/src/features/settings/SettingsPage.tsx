@@ -160,15 +160,22 @@ export function SettingsPage() {
   );
 
   return (
-    <div className="flex flex-col md:flex-row min-h-[calc(100vh-140px)] w-full rounded-2xl border border-heal-line/75 bg-white dark:border-zinc-800/80 dark:bg-[#0c0c0e] overflow-hidden antialiased">
+    <div className="flex flex-col md:flex-row min-h-screen w-full bg-white dark:bg-[#0c0c0e] antialiased">
       {/* Central Settings List Column */}
       <div
         className={`w-full md:w-[320px] lg:w-[350px] border-r border-heal-line/75 dark:border-zinc-800/80 flex-shrink-0 flex flex-col bg-slate-50/10 dark:bg-zinc-950/10 ${
           mobileShowDetails ? 'hidden md:flex' : 'flex'
         }`}
       >
-        <div className="p-4 border-b border-heal-line/75 dark:border-zinc-800/80">
-          <h1 className="text-lg font-black text-heal-ink dark:text-white">Configurações</h1>
+        <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#0c0c0e]/95 backdrop-blur-md border-b border-heal-line/60 dark:border-zinc-800/60 px-4 py-3 flex items-center gap-4 shrink-0 select-none">
+          <div className="min-w-0">
+            <h1 className="text-heal-ink dark:text-white text-base font-extrabold tracking-tight leading-tight">
+              Configurações
+            </h1>
+            <p className="text-heal-muted dark:text-zinc-500 text-[10px] uppercase font-bold tracking-wider mt-0.5">
+              Preferências e conta do profissional
+            </p>
+          </div>
         </div>
 
         {/* Search Box */}

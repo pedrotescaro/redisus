@@ -1,5 +1,5 @@
 import { useAuth } from '../../app/providers/AuthProvider';
-import { Card } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { updateSettings } from '../profile/profileService';
 
 export function PrivacyPage() {
@@ -11,16 +11,22 @@ export function PrivacyPage() {
   };
 
   return (
-    <Card className="mx-auto max-w-3xl border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-5">
-      <h2 className="text-lg font-black text-heal-ink dark:text-white">Privacidade</h2>
-      <p className="mt-2 text-xs text-heal-muted dark:text-zinc-500">
-        Os dados ficam em users/uid e subcoleções. As regras negam tudo por padrão e permitem acesso apenas ao uid autenticado.
-      </p>
-      <div className="mt-5 space-y-3">
-        <Toggle label="Ocultar e-mail no topo" checked={settings?.hideEmailPreview ?? false} onChange={value => toggle('hideEmailPreview', value)} />
-        <Toggle label="Exibir foto de perfil" checked={settings?.showProfilePhoto ?? true} onChange={value => toggle('showProfilePhoto', value)} />
+    <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
+      {/* Coluna Central */}
+      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+        <PageHeader showBack title="Privacidade" description="Segurança e visibilidade da conta" />
+
+        <div className="p-4 sm:p-6 space-y-5">
+          <p className="text-xs leading-relaxed text-heal-muted dark:text-zinc-500 font-semibold select-none">
+            Os dados ficam em users/uid e subcoleções. As regras negam tudo por padrão e permitem acesso apenas ao uid autenticado.
+          </p>
+          <div className="space-y-3">
+            <Toggle label="Ocultar e-mail no topo" checked={settings?.hideEmailPreview ?? false} onChange={value => toggle('hideEmailPreview', value)} />
+            <Toggle label="Exibir foto de perfil" checked={settings?.showProfilePhoto ?? true} onChange={value => toggle('showProfilePhoto', value)} />
+          </div>
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
