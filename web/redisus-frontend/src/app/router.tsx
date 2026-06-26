@@ -42,6 +42,7 @@ export const router = createBrowserRouter(
           element: <ProtectedRoute />,
           children: [
             { path: '/onboarding', element: <OnboardingPage /> },
+            { path: '/chat', element: <ChatPage /> },
             {
               element: <AppShell />,
               children: [
@@ -58,8 +59,7 @@ export const router = createBrowserRouter(
                 { path: '/settings', element: <SettingsPage /> },
                 { path: '/notifications', element: <NotificationsPage /> },
                 { path: '/privacy', element: <PrivacyPage /> },
-                { path: '/about', element: <AboutPage /> },
-                { path: '/chat', element: <ChatPage /> }
+                { path: '/about', element: <AboutPage /> }
               ]
             }
           ]
