@@ -57,41 +57,47 @@ export function ReportsPage() {
   if (loading) return <LoadingState label="Carregando relatórios..." />;
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow="Relatórios"
-        title="Documento clínico do Heal+"
-        description="Prévia limpa com logo, imagem real, ROI e campos da avaliação salva no Firestore."
-        action={
-          <Button className="no-print" variant="secondary" icon={<Printer className="h-4 w-4" />} onClick={() => window.print()} disabled={!selectedEvaluation}>
-            Imprimir / salvar PDF
-          </Button>
-        }
-      />
-
-      <Card className="no-print grid gap-4 md:grid-cols-2 border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
-        <Select
-          label="Paciente"
-          options={patientOptions.map(patient => ({ value: patient.id, label: patient.name }))}
-          value={patientId}
-          onChange={event => {
-            setPatientId(event.target.value);
-            setEvaluationId('');
-          }}
+    <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
+      {/* Coluna Central */}
+      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+        <PageHeader
+          title="Relatórios"
+          description="Documento clínico e prévia de avaliações"
+          action={
+            <Button className="no-print" variant="secondary" icon={<Printer className="h-4 w-4" />} onClick={() => window.print()} disabled={!selectedEvaluation}>
+              Imprimir / salvar PDF
+            </Button>
+          }
         />
-        <Select
-          label="Avaliação"
-          options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
-          value={selectedEvaluation?.id || ''}
-          onChange={event => setEvaluationId(event.target.value)}
-        />
-      </Card>
 
-      {selectedPatient && selectedEvaluation ? (
-        <ReportPreview patient={selectedPatient} evaluation={selectedEvaluation} profile={profile} />
-      ) : (
-        <EmptyState title="Selecione uma avaliação real" description="Pacientes sem avaliação não aparecem como fonte de relatório." />
-      )}
+        {/* Flat selectors */}
+        <div className="no-print grid gap-4 md:grid-cols-2 p-4 border-b border-heal-line/60 dark:border-zinc-800/60">
+          <Select
+            label="Paciente"
+            options={patientOptions.map(patient => ({ value: patient.id, label: patient.name }))}
+            value={patientId}
+            onChange={event => {
+              setPatientId(event.target.value);
+              setEvaluationId('');
+            }}
+          />
+          <Select
+            label="Avaliação"
+            options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
+            value={selectedEvaluation?.id || ''}
+            onChange={event => setEvaluationId(event.target.value)}
+          />
+        </div>
+
+        {/* Report Preview */}
+        <div className="p-4 sm:p-6 flex-grow space-y-4">
+          {selectedPatient && selectedEvaluation ? (
+            <ReportPreview patient={selectedPatient} evaluation={selectedEvaluation} profile={profile} />
+          ) : (
+            <EmptyState title="Selecione uma avaliação real" description="Pacientes sem avaliação não aparecem como fonte de relatório." />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

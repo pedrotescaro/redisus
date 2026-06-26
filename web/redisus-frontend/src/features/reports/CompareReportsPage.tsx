@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Input } from '../../components/ui/input';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Select } from '../../components/ui/Select';
 import type { Evaluation, Patient } from '../../lib/types';
 import { listEvaluations } from '../evaluations/evaluationService';
@@ -56,59 +57,59 @@ export function CompareReportsPage() {
   if (loading) return <LoadingState label="Carregando comparativo..." />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Comparar relatório</p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-heal-ink dark:text-white">Evolução antes e agora</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-heal-muted dark:text-zinc-400">
-            Selecione um paciente e duas avaliações salvas. A estrutura clínica continua usando o modelo atual do Heal+ Web.
-          </p>
-        </div>
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
-          <SplitSquareHorizontal className="h-6 w-6" />
-        </div>
-      </div>
+    <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
+      {/* Coluna Central */}
+      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+        <PageHeader
+          showBack
+          title="Comparar Relatórios"
+          description="Evolução antes e agora de feridas"
+        />
 
-      <Card className="grid gap-4 lg:grid-cols-[1fr_220px_220px] border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
-        <div className="grid gap-3 sm:grid-cols-[1fr_220px] lg:grid-cols-[1fr_220px]">
-          <Input
-            aria-label="Buscar paciente"
-            label="Buscar paciente"
-            placeholder="Digite o nome"
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            icon={<Search className="h-4 w-4" />}
+        {/* Flat selectors */}
+        <div className="grid gap-4 lg:grid-cols-[1fr_220px_220px] p-4 border-b border-heal-line/60 dark:border-zinc-800/60">
+          <div className="grid gap-3 sm:grid-cols-[1fr_220px] lg:grid-cols-[1fr_220px]">
+            <Input
+              aria-label="Buscar paciente"
+              label="Buscar paciente"
+              placeholder="Digite o nome"
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              icon={<Search className="h-4 w-4" />}
+            />
+            <Select
+              label="Paciente"
+              placeholder="Selecione"
+              options={filteredPatients.map(patient => ({ value: patient.id, label: patient.name }))}
+              value={patientId}
+              onChange={event => selectPatient(event.target.value)}
+            />
+          </div>
+          <Select
+            label="Antes"
+            placeholder="Avaliação inicial"
+            options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
+            value={evalAId}
+            onChange={event => setEvalAId(event.target.value)}
           />
           <Select
-            label="Paciente"
-            placeholder="Selecione"
-            options={filteredPatients.map(patient => ({ value: patient.id, label: patient.name }))}
-            value={patientId}
-            onChange={event => selectPatient(event.target.value)}
+            label="Agora"
+            placeholder="Avaliação recente"
+            options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
+            value={evalBId}
+            onChange={event => setEvalBId(event.target.value)}
           />
         </div>
-        <Select
-          label="Antes"
-          placeholder="Avaliação inicial"
-          options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
-          value={evalAId}
-          onChange={event => setEvalAId(event.target.value)}
-        />
-        <Select
-          label="Agora"
-          placeholder="Avaliação recente"
-          options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
-          value={evalBId}
-          onChange={event => setEvalBId(event.target.value)}
-        />
-      </Card>
 
-      {selectedPatient && evalA && evalB && evalA.id !== evalB.id ? (
-        <ComparisonView patient={selectedPatient} evaluationA={evalA} evaluationB={evalB} allEvaluations={evaluations} />
-      ) : (
-        <EmptyState title="Escolha duas avaliações diferentes" description="O comparativo aparece quando o paciente possui pelo menos duas avaliações salvas." />
-      )}
+        {/* Comparison view */}
+        <div className="p-4 sm:p-6 flex-grow space-y-4">
+          {selectedPatient && evalA && evalB && evalA.id !== evalB.id ? (
+            <ComparisonView patient={selectedPatient} evaluationA={evalA} evaluationB={evalB} allEvaluations={evaluations} />
+          ) : (
+            <EmptyState title="Escolha duas avaliações diferentes" description="O comparativo aparece quando o paciente possui pelo menos duas avaliações salvas." />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
