@@ -59,7 +59,7 @@ export function CompareReportsPage() {
   return (
     <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
       {/* Coluna Central */}
-      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+      <div className="flex-grow max-w-5xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
         <PageHeader
           showBack
           title="Comparar Relatórios"
@@ -67,24 +67,22 @@ export function CompareReportsPage() {
         />
 
         {/* Flat selectors */}
-        <div className="grid gap-4 lg:grid-cols-[1fr_220px_220px] p-4 border-b border-heal-line/60 dark:border-zinc-800/60">
-          <div className="grid gap-3 sm:grid-cols-[1fr_220px] lg:grid-cols-[1fr_220px]">
-            <Input
-              aria-label="Buscar paciente"
-              label="Buscar paciente"
-              placeholder="Digite o nome"
-              value={query}
-              onChange={event => setQuery(event.target.value)}
-              icon={<Search className="h-4 w-4" />}
-            />
-            <Select
-              label="Paciente"
-              placeholder="Selecione"
-              options={filteredPatients.map(patient => ({ value: patient.id, label: patient.name }))}
-              value={patientId}
-              onChange={event => selectPatient(event.target.value)}
-            />
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 p-4 border-b border-heal-line/60 dark:border-zinc-800/60">
+          <Input
+            aria-label="Buscar paciente"
+            label="Buscar paciente"
+            placeholder="Digite o nome"
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            icon={<Search className="h-4 w-4" />}
+          />
+          <Select
+            label="Paciente"
+            placeholder="Selecione"
+            options={filteredPatients.map(patient => ({ value: patient.id, label: patient.name }))}
+            value={patientId}
+            onChange={event => selectPatient(event.target.value)}
+          />
           <Select
             label="Antes"
             placeholder="Avaliação inicial"

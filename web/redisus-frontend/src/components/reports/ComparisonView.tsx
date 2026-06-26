@@ -6,6 +6,7 @@ import { estimateRoisAreaPercent } from '../../lib/roi';
 import type { Evaluation, Patient } from '../../lib/types';
 import { RoiImageOverlay } from '../roi/RoiImageOverlay';
 import { Badge } from '../ui/Badge';
+import { Card } from '../ui/Card';
 
 interface ComparisonViewProps {
   patient: Patient;
@@ -23,7 +24,7 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[1.75rem] border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+      <Card>
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Comparativo clínico</p>
@@ -41,10 +42,10 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
           <ProgressBridge areaA={areaA} areaB={areaB} painDelta={painDelta} />
           <CompareCard title="Agora" evaluation={evaluationB} area={areaB} />
         </div>
-      </section>
+      </Card>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_420px]">
-        <div className="rounded-[1.75rem] border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+      <section className="grid gap-6 xl:grid-cols-[1fr_420px] min-w-0">
+        <Card className="min-w-0">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
               <LineChart className="h-5 w-5" />
@@ -67,9 +68,9 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
               );
             })}
           </div>
-        </div>
+        </Card>
 
-        <div className="rounded-[1.75rem] border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+        <Card>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">TIMERS</p>
           <h3 className="mt-1 text-lg font-black text-heal-ink dark:text-white">Comparativo clínico</h3>
           <div className="mt-4 space-y-3">
@@ -78,7 +79,7 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
             <ClinicalRow label="M" title="Umidade" before={evaluationA.timers.moisture} after={evaluationB.timers.moisture} />
             <ClinicalRow label="E" title="Bordas" before={evaluationA.timers.edge} after={evaluationB.timers.edge} />
           </div>
-        </div>
+        </Card>
       </section>
     </div>
   );
