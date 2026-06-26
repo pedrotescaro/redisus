@@ -520,102 +520,59 @@ export function ChatPage() {
             </div>
           </header>
 
-          {/* Chat / Welcome Area */}
-          {messages.length === 0 ? (
-            /* ── Empty state ── */
-            <div className="flex-grow flex flex-col justify-center items-center overflow-y-auto px-4 py-8 max-w-3xl w-full mx-auto relative z-10">
-              <div className="w-full max-w-2xl flex flex-col items-center gap-6 text-center -mt-12">
-                {/* Branding */}
-                <div className="flex items-center justify-center gap-3 select-none mb-1 animate-fade-in">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-heal-softBlue dark:bg-blue-950/40 text-heal-blue">
-                    <Sparkles className="h-6 w-6" />
+          {/* Chat / Scrollable Area */}
+          <div className="flex-grow overflow-y-auto relative z-10">
+            {messages.length === 0 ? (
+              /* ── Empty state ── */
+              <div className="h-full flex flex-col justify-center items-center px-4 py-8 max-w-3xl w-full mx-auto select-none">
+                <div className="w-full max-w-2xl flex flex-col items-center gap-6 text-center -mt-16">
+                  {/* Branding */}
+                  <div className="flex items-center justify-center gap-3 select-none mb-1 animate-fade-in">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-heal-softBlue dark:bg-blue-950/40 text-heal-blue">
+                      <Sparkles className="h-6 w-6" />
+                    </div>
+                    <span className="text-2xl font-bold tracking-tight text-heal-ink dark:text-white">
+                      Conversar com o Assistente
+                    </span>
                   </div>
-                  <span className="text-2xl font-bold tracking-tight text-heal-ink dark:text-white">
-                    Conversar com o Assistente
-                  </span>
-                </div>
 
-                {/* Input Card (centered) */}
-                <div className="w-full">{renderInputCard()}</div>
-
-                {/* Suggestion pills */}
-                <div className="flex flex-wrap items-center justify-center gap-2.5 w-full select-none animate-slide-up">
-                  {suggestions.map(item => (
-                    <button
-                      key={item.title}
-                      onClick={() => send(item.prompt)}
-                      className="flex items-center gap-2 px-4 py-2.5 border border-heal-line dark:border-[#232329] bg-white/80 dark:bg-[#131316]/90 hover:bg-heal-surfaceHover dark:hover:bg-[#1c1c22] hover:border-heal-blue/30 dark:hover:border-[#383842] text-[11px] font-semibold text-heal-muted dark:text-[#8b8b93] hover:text-heal-ink dark:hover:text-white rounded-full transition-all duration-200 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      <item.icon className={`w-3.5 h-3.5 ${item.color}`} />
-                      <span>{item.title}</span>
-                    </button>
-                  ))}
+                  {/* Suggestion pills */}
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 w-full animate-slide-up">
+                    {suggestions.map(item => (
+                      <button
+                        key={item.title}
+                        onClick={() => send(item.prompt)}
+                        className="flex items-center gap-2 px-4 py-2.5 border border-heal-line dark:border-[#232329] bg-white/80 dark:bg-[#131316]/90 hover:bg-heal-surfaceHover dark:hover:bg-[#1c1c22] hover:border-heal-blue/30 dark:hover:border-[#383842] text-[11px] font-semibold text-heal-muted dark:text-[#8b8b93] hover:text-heal-ink dark:hover:text-white rounded-full transition-all duration-200 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        <item.icon className={`w-3.5 h-3.5 ${item.color}`} />
+                        <span>{item.title}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            /* ── Conversation flow ── */
-            <>
-              <div className="flex-grow overflow-y-auto relative z-10">
-                <div className="px-5 py-5 max-w-3xl w-full mx-auto">
-                  <div className="flex flex-col w-full pb-6">
-                    {messages.map(msg => {
-                      const isAssistant = msg.role === 'assistant';
-                      return isAssistant ? (
-                        /* ASSISTANT MESSAGE: Left-aligned clean text */
-                        <div
-                          key={msg.id}
-                          className="flex flex-col items-start w-full py-4 border-b border-heal-line/20 dark:border-[#1f1f23]/10 animate-fade-in"
-                        >
-                          <div className="max-w-[85%] text-sm text-heal-ink dark:text-white leading-relaxed font-sans whitespace-pre-line">
-                            {msg.content}
-                            {msg.isStreaming && (
-                              <span className="inline-block w-1.5 h-3.5 bg-heal-blue ml-1 animate-pulse rounded-sm" />
-                            )}
-                          </div>
-
-                          {/* Action icons */}
-                          {!msg.isStreaming && (
-                            <div className="flex items-center gap-3.5 mt-2.5 text-heal-muted dark:text-[#53535f] select-none">
-                              <button
-                                onClick={() => navigator.clipboard.writeText(msg.content)}
-                                className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer"
-                                title="Copiar"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const userMsgs = messages.filter(m => m.role === 'user');
-                                  const lastQ = userMsgs[userMsgs.length - 1]?.content;
-                                  if (lastQ) send(lastQ);
-                                }}
-                                className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer"
-                                title="Regenerar"
-                              >
-                                <RotateCw className="w-3.5 h-3.5" />
-                              </button>
-                              <button className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer" title="Útil">
-                                <ThumbsUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer" title="Não útil">
-                                <ThumbsDown className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+            ) : (
+              /* ── Conversation flow ── */
+              <div className="px-5 py-5 max-w-3xl w-full mx-auto">
+                <div className="flex flex-col w-full pb-6">
+                  {messages.map(msg => {
+                    const isAssistant = msg.role === 'assistant';
+                    return isAssistant ? (
+                      /* ASSISTANT MESSAGE: Left-aligned clean text */
+                      <div
+                        key={msg.id}
+                        className="flex flex-col items-start w-full py-4 border-b border-heal-line/20 dark:border-[#1f1f23]/10 animate-fade-in"
+                      >
+                        <div className="max-w-[85%] text-sm text-heal-ink dark:text-white leading-relaxed font-sans whitespace-pre-line">
+                          {msg.content}
+                          {msg.isStreaming && (
+                            <span className="inline-block w-1.5 h-3.5 bg-heal-blue ml-1 animate-pulse rounded-sm" />
                           )}
                         </div>
-                      ) : (
-                        /* USER MESSAGE: Right-aligned bubble */
-                        <div
-                          key={msg.id}
-                          className="flex flex-col items-end w-full py-3.5 animate-fade-in"
-                        >
-                          <div className="bg-heal-softBlue dark:bg-[#1c1c1f] hover:bg-blue-100 dark:hover:bg-[#232328] border border-heal-blue/10 dark:border-[#2c2c35]/40 text-heal-ink dark:text-white px-4 py-2.5 rounded-2xl max-w-[70%] text-sm break-words whitespace-pre-wrap font-sans transition-colors">
-                            {msg.content}
-                          </div>
 
-                          {/* User action icons */}
-                          <div className="flex items-center gap-3 mt-1.5 text-heal-muted dark:text-[#53535f] select-none mr-2">
+                        {/* Action icons */}
+                        {!msg.isStreaming && (
+                          <div className="flex items-center gap-3.5 mt-2.5 text-heal-muted dark:text-[#53535f] select-none">
                             <button
                               onClick={() => navigator.clipboard.writeText(msg.content)}
                               className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer"
@@ -625,65 +582,105 @@ export function ChatPage() {
                             </button>
                             <button
                               onClick={() => {
-                                setInput(msg.content);
-                                inputRef.current?.focus();
+                                const userMsgs = messages.filter(m => m.role === 'user');
+                                const lastQ = userMsgs[userMsgs.length - 1]?.content;
+                                if (lastQ) send(lastQ);
                               }}
                               className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer"
-                              title="Editar"
+                              title="Regenerar"
                             >
-                              <Pencil className="w-3.5 h-3.5" />
+                              <RotateCw className="w-3.5 h-3.5" />
+                            </button>
+                            <button className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer" title="Útil">
+                              <ThumbsUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer" title="Não útil">
+                              <ThumbsDown className="w-3.5 h-3.5" />
                             </button>
                           </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* USER MESSAGE: Right-aligned bubble */
+                      <div
+                        key={msg.id}
+                        className="flex flex-col items-end w-full py-3.5 animate-fade-in"
+                      >
+                        <div className="bg-heal-softBlue dark:bg-[#1c1c1f] hover:bg-blue-100 dark:hover:bg-[#232328] border border-heal-blue/10 dark:border-[#2c2c35]/40 text-heal-ink dark:text-white px-4 py-2.5 rounded-2xl max-w-[70%] text-sm break-words whitespace-pre-wrap font-sans transition-colors">
+                          {msg.content}
                         </div>
-                      );
-                    })}
 
-                    {/* Thinking indicator */}
-                    {thinking && (
-                      <div className="flex flex-col items-start w-full py-4 border-b border-heal-line/20 dark:border-[#1f1f23]/10 animate-fade-in">
-                        <div className="flex items-center gap-2.5 text-xs text-heal-muted dark:text-[#71767b] py-1 font-sans">
-                          <div className="flex gap-1.5">
-                            <span className="w-1.5 h-1.5 bg-heal-blue rounded-full animate-bounce [animation-delay:-0.3s]" />
-                            <span className="w-1.5 h-1.5 bg-heal-blue rounded-full animate-bounce [animation-delay:-0.15s]" />
-                            <span className="w-1.5 h-1.5 bg-heal-blue rounded-full animate-bounce" />
-                          </div>
-                          <span>Assistente está consultando seus dados...</span>
+                        {/* User action icons */}
+                        <div className="flex items-center gap-3 mt-1.5 text-heal-muted dark:text-[#53535f] select-none mr-2">
+                          <button
+                            onClick={() => navigator.clipboard.writeText(msg.content)}
+                            className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer"
+                            title="Copiar"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setInput(msg.content);
+                              inputRef.current?.focus();
+                            }}
+                            className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer"
+                            title="Editar"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
-                    )}
+                    );
+                  })}
 
-                    <div ref={chatEndRef} />
-                  </div>
+                  {/* Thinking indicator */}
+                  {thinking && (
+                    <div className="flex flex-col items-start w-full py-4 border-b border-heal-line/20 dark:border-[#1f1f23]/10 animate-fade-in">
+                      <div className="flex items-center gap-2.5 text-xs text-heal-muted dark:text-[#71767b] py-1 font-sans">
+                        <div className="flex gap-1.5">
+                          <span className="w-1.5 h-1.5 bg-heal-blue rounded-full animate-bounce [animation-delay:-0.3s]" />
+                          <span className="w-1.5 h-1.5 bg-heal-blue rounded-full animate-bounce [animation-delay:-0.15s]" />
+                          <span className="w-1.5 h-1.5 bg-heal-blue rounded-full animate-bounce" />
+                        </div>
+                        <span>Assistente está consultando seus dados...</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={chatEndRef} />
                 </div>
               </div>
+            )}
+          </div>
 
-              {/* Bottom fixed input */}
-              <div className="shrink-0 bg-gradient-to-t from-white dark:from-[#060606] via-white dark:via-[#060606] to-white/80 dark:to-[#060606]/80 px-4 pt-2 pb-4 z-20 border-t border-heal-line/40 dark:border-[#1f1f23]/40">
-                <div className="max-w-3xl w-full mx-auto flex flex-col items-center">
-                  {/* Quick topics */}
-                  <div className="mb-3 flex gap-2 overflow-x-auto pb-1 w-full">
-                    {quickTopics.map(topic => (
-                      <button
-                        key={topic}
-                        type="button"
-                        className="shrink-0 rounded-full border border-heal-line dark:border-[#232329] bg-white dark:bg-[#131316]/90 px-3 py-1.5 text-[11px] font-bold text-heal-muted hover:border-heal-blue/40 hover:bg-heal-softBlue hover:text-heal-blue dark:hover:bg-[#1c1c22] dark:hover:text-blue-400 transition-all cursor-pointer"
-                        onClick={() => send(topic)}
-                      >
-                        {topic}
-                      </button>
-                    ))}
-                  </div>
-
-                  {renderInputCard()}
-
-                  <p className="mt-2.5 text-[10px] text-heal-muted dark:text-[#71767b] max-w-xl text-center flex items-center justify-center gap-1.5 select-none">
-                    <Database className="w-3 h-3 text-heal-teal" />
-                    <span>As respostas são um resumo dos dados salvos, não uma decisão clínica automática.</span>
-                  </p>
+          {/* Bottom fixed input */}
+          <div className="shrink-0 bg-gradient-to-t from-white dark:from-[#060606] via-white dark:via-[#060606] to-white/80 dark:to-[#060606]/80 px-4 pt-2 pb-4 z-20 border-t border-heal-line/40 dark:border-[#1f1f23]/40">
+            <div className="max-w-3xl w-full mx-auto flex flex-col items-center">
+              {/* Quick topics */}
+              {messages.length > 0 && (
+                <div className="mb-3 flex gap-2 overflow-x-auto pb-1 w-full">
+                  {quickTopics.map(topic => (
+                    <button
+                      key={topic}
+                      type="button"
+                      className="shrink-0 rounded-full border border-heal-line dark:border-[#232329] bg-white dark:bg-[#131316]/90 px-3 py-1.5 text-[11px] font-bold text-heal-muted hover:border-heal-blue/40 hover:bg-heal-softBlue hover:text-heal-blue dark:hover:bg-[#1c1c22] dark:hover:text-blue-400 transition-all cursor-pointer"
+                      onClick={() => send(topic)}
+                    >
+                      {topic}
+                    </button>
+                  ))}
                 </div>
-              </div>
-            </>
-          )}
+              )}
+
+              {renderInputCard()}
+
+              <p className="mt-2.5 text-[10px] text-heal-muted dark:text-[#71767b] max-w-xl text-center flex items-center justify-center gap-1.5 select-none">
+                <Database className="w-3 h-3 text-heal-teal" />
+                <span>As respostas são um resumo dos dados salvos, não uma decisão clínica automática.</span>
+              </p>
+            </div>
+          </div>
 
           {/* History Drawer */}
           {renderHistoryDrawer()}
