@@ -254,13 +254,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full min-h-0 flex-col justify-between bg-white dark:bg-zinc-950 p-5 select-none">
       <div className="space-y-5">
         {/* Logo */}
-        <Link to="/dashboard" className="flex items-center gap-2.5 px-3 py-0 group w-fit">
+        <Link to="/dashboard" className="flex items-center gap-3.5 px-3 py-1 group w-fit mb-2">
           <img
             src="/images/logo.png"
             alt="Heal+"
-            className="h-7 w-7 object-contain group-hover:scale-105 transition-transform duration-300"
+            className="h-10 w-10 object-contain group-hover:scale-105 transition-transform duration-300"
           />
-          <span className="text-xl font-extrabold tracking-tight text-heal-blue">
+          <span className="text-3xl font-black tracking-tight text-heal-blue">
             Heal+
           </span>
         </Link>

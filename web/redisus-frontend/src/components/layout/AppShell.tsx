@@ -24,7 +24,9 @@ export function AppShell() {
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       <div className="flex flex-1 flex-col lg:pl-[280px]">
-        <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
+        <div className="lg:hidden">
+          <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
+        </div>
 
         <main className="mx-auto w-full max-w-[1480px] flex-1 p-4 sm:p-6 lg:p-8">
           <Outlet />
