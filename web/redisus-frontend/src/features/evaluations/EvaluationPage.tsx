@@ -49,13 +49,19 @@ export function EvaluationPage() {
   if (loading) return <LoadingState label="Carregando pacientes..." />;
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow="Avaliações"
-        title="Avaliação estruturada de ferida"
-        description="Fluxo em etapas para paciente, dados clínicos, upload real, ROI e revisão antes de salvar."
-      />
-      <EvaluationForm patients={patients} defaultPatientId={searchParams.get('patientId') || undefined} onSubmit={handleSubmit} />
+    <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
+      {/* Coluna Central */}
+      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+        <PageHeader
+          showBack
+          title="Nova avaliação"
+          description="Fluxo estruturado de ferida, imagem e ROI"
+        />
+        
+        <div className="p-4 sm:p-6">
+          <EvaluationForm patients={patients} defaultPatientId={searchParams.get('patientId') || undefined} onSubmit={handleSubmit} />
+        </div>
+      </div>
     </div>
   );
 }
