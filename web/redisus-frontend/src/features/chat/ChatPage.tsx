@@ -455,7 +455,7 @@ export function ChatPage() {
                 >
                   <svg
                     viewBox="0 0 24 24"
-                    className="w-4.5 h-4.5 fill-none stroke-current"
+                    className="w-5 h-5 fill-none stroke-current"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -477,7 +477,7 @@ export function ChatPage() {
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="w-4.5 h-4.5"
+                    className="w-5 h-5"
                   >
                     <rect width="18" height="18" x="3" y="3" rx="4" />
                     <path d="M9 3v18" />
