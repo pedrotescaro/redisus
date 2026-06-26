@@ -101,6 +101,57 @@ export function PatientDetailsPage() {
   if (loading) return <LoadingState label="Carregando prontuário..." />;
   if (!patient) return <EmptyState title="Paciente não encontrado" description="Verifique se o paciente existe para o usuário logado." />;
 
+  const patientInfoCard = (
+    <div className="space-y-4">
+      <Card className="border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-5">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-heal-softBlue/60 text-heal-blue flex items-center justify-center font-bold text-lg dark:bg-blue-950/40">
+            {patient.name.slice(0, 2).toUpperCase()}
+          </div>
+          <div>
+            <h2 className="text-base font-black text-heal-ink dark:text-white leading-tight">{patient.name}</h2>
+            <div className="mt-1 flex items-center gap-2">
+              <Badge tone={patient.archived ? 'slate' : 'green'}>{patient.archived ? 'Arquivado' : 'Ativo'}</Badge>
+            </div>
+          </div>
+        </div>
+
+        <hr className="border-heal-line/60 dark:border-zinc-800/60 my-3.5" />
+
+        <div className="space-y-2.5 text-xs font-semibold text-heal-muted dark:text-zinc-400">
+          <div className="flex items-center gap-2">
+            <Phone className="h-4 w-4 text-heal-muted opacity-80" />
+            <span>{patient.phone}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-heal-muted opacity-80" />
+            <span className="truncate max-w-[200px]">{patient.email || 'sem e-mail'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-[10px] uppercase tracking-wider text-heal-muted opacity-75">Nascimento:</span>
+            <span>{formatDate(patient.birthDate)}</span>
+          </div>
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <Link to={`/evaluations/new?patientId=${patient.id}`} className="flex-1">
+            <Button className="w-full justify-center" size="sm" icon={<ClipboardPlus className="h-4 w-4" />}>Avaliar</Button>
+          </Link>
+          <Link to={`/agenda?patientId=${patient.id}`} className="flex-1">
+            <Button className="w-full justify-center" variant="secondary" size="sm" icon={<CalendarPlus className="h-4 w-4" />}>Agendar</Button>
+          </Link>
+        </div>
+      </Card>
+
+      {patient.notes ? (
+        <Card className="border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-heal-muted mb-2">Notas do paciente</p>
+          <p className="text-xs leading-5 text-slate-600 dark:text-zinc-400">{patient.notes}</p>
+        </Card>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {notice ? (
@@ -122,87 +173,80 @@ export function PatientDetailsPage() {
         </div>
       ) : null}
 
-      <Card className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-black text-heal-ink dark:text-white">{patient.name}</h2>
-            <Badge tone={patient.archived ? 'slate' : 'green'}>{patient.archived ? 'Arquivado' : 'Ativo'}</Badge>
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6 xl:items-start">
+        {/* Left Column: patient details / evaluations list */}
+        <div className="space-y-5">
+          {/* Mobile Patient Info */}
+          <div className="xl:hidden">
+            {patientInfoCard}
           </div>
-          <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500 dark:text-zinc-400">
-            <span className="inline-flex items-center gap-1"><Phone className="h-4 w-4" />{patient.phone}</span>
-            <span className="inline-flex items-center gap-1"><Mail className="h-4 w-4" />{patient.email || 'sem e-mail'}</span>
-            <span>Nascimento: {formatDate(patient.birthDate)}</span>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to={`/evaluations/new?patientId=${patient.id}`}>
-            <Button icon={<ClipboardPlus className="h-4 w-4" />}>Nova avaliação</Button>
-          </Link>
-          <Link to={`/agenda?patientId=${patient.id}`}>
-            <Button variant="secondary" icon={<CalendarPlus className="h-4 w-4" />}>Agendar</Button>
-          </Link>
-        </div>
-      </Card>
 
-      {patient.notes ? <Card><p className="text-sm leading-6 text-slate-600 dark:text-zinc-300">{patient.notes}</p></Card> : null}
-
-      <section className="space-y-3">
-        <h3 className="text-lg font-black text-heal-ink dark:text-white">Histórico de avaliações</h3>
-        {evaluations.length ? (
-          <div className="grid gap-3">
-            {evaluations.map(evaluation => (
-              <Card key={evaluation.id} className="relative grid gap-4 pt-12 md:grid-cols-[180px_1fr] md:pt-0 md:pr-24">
-                <Link
-                  to={`/analyzer?patientId=${patient.id}&assessmentId=${evaluation.id}`}
-                  aria-label={`Analisar avaliacao de ${formatDate(evaluation.date)} com HEAL Analyzer`}
-                  title="Analisar avaliacao com HEAL Analyzer"
-                  className="absolute right-16 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-heal-teal/20 bg-heal-tealSoft text-heal-teal shadow-sm transition hover:border-heal-teal hover:bg-heal-teal hover:text-white focus:outline-none focus:ring-2 focus:ring-heal-teal/25 dark:border-teal-400/20 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-heal-teal dark:hover:text-white"
-                >
-                  <ScanSearch className="h-4 w-4" />
-                </Link>
-                <button
-                  type="button"
-                  aria-label={`Editar registro clínico de ${formatDate(evaluation.date)}`}
-                  title="Editar registro clínico"
-                  className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-heal-blue/20 bg-heal-softBlue text-heal-blue shadow-sm transition hover:border-heal-blue hover:bg-heal-blue hover:text-white focus:outline-none focus:ring-2 focus:ring-heal-blue/25 dark:border-blue-400/20 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-heal-blue dark:hover:text-white"
-                  onClick={() => {
-                    setClinicalEditNotice('');
-                    setPendingEditEvaluation(evaluation);
-                  }}
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-slate-950">
-                  {evaluation.images[0] ? (
-                    <>
-                      <img src={evaluation.images[0].downloadURL} alt="" className="h-full w-full object-contain" />
-                      <RoiImageOverlay rois={evaluation.images[0].rois} />
-                    </>
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs font-semibold text-slate-400">Sem imagem</div>
-                  )}
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="blue">{formatDate(evaluation.date)}</Badge>
-                    <Badge tone={evaluation.painLevel >= 7 ? 'red' : evaluation.painLevel >= 4 ? 'amber' : 'green'}>Dor {evaluation.painLevel}/10</Badge>
-                  </div>
-                  <h4 className="mt-2 text-base font-bold text-heal-ink dark:text-white">{evaluation.woundLocation}</h4>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">{evaluation.woundEtiology} · {evaluation.exudateAmount} · {evaluation.exudateType}</p>
-                  {evaluation.imageUploadStatus === 'failed' ? (
-                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-                      {evaluation.imageUploadError || 'Imagens não enviadas ao Firebase Storage.'}
+          <section className="space-y-3">
+            <div className="border-b border-heal-line/60 pb-3 dark:border-zinc-800/60">
+              <h3 className="text-lg font-black text-heal-ink dark:text-white">Histórico de avaliações</h3>
+            </div>
+            {evaluations.length ? (
+              <div className="grid gap-3">
+                {evaluations.map(evaluation => (
+                  <Card key={evaluation.id} className="relative grid gap-4 pt-12 md:grid-cols-[180px_1fr] md:pt-0 md:pr-24 border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
+                    <Link
+                      to={`/analyzer?patientId=${patient.id}&assessmentId=${evaluation.id}`}
+                      aria-label={`Analisar avaliacao de ${formatDate(evaluation.date)} com HEAL Analyzer`}
+                      title="Analisar avaliacao com HEAL Analyzer"
+                      className="absolute right-16 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-heal-teal/20 bg-heal-tealSoft text-heal-teal shadow-sm transition hover:border-heal-teal hover:bg-heal-teal hover:text-white focus:outline-none focus:ring-2 focus:ring-heal-teal/25 dark:border-teal-400/20 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-heal-teal dark:hover:text-white"
+                    >
+                      <ScanSearch className="h-4 w-4" />
+                    </Link>
+                    <button
+                      type="button"
+                      aria-label={`Editar registro clínico de ${formatDate(evaluation.date)}`}
+                      title="Editar registro clínico"
+                      className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-heal-blue/20 bg-heal-softBlue text-heal-blue shadow-sm transition hover:border-heal-blue hover:bg-heal-blue hover:text-white focus:outline-none focus:ring-2 focus:ring-heal-blue/25 dark:border-blue-400/20 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-heal-blue dark:hover:text-white"
+                      onClick={() => {
+                        setClinicalEditNotice('');
+                        setPendingEditEvaluation(evaluation);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-950">
+                      {evaluation.images[0] ? (
+                        <>
+                          <img src={evaluation.images[0].downloadURL} alt="" className="h-full w-full object-contain" />
+                          <RoiImageOverlay rois={evaluation.images[0].rois} />
+                        </>
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xs font-semibold text-slate-400">Sem imagem</div>
+                      )}
                     </div>
-                  ) : null}
-                  {evaluation.notes ? <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-zinc-300">{evaluation.notes}</p> : null}
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <EmptyState title="Sem avaliações" description="Crie uma avaliação para testar subcoleções, upload e ROI." />
-        )}
-      </section>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="blue">{formatDate(evaluation.date)}</Badge>
+                        <Badge tone={evaluation.painLevel >= 7 ? 'red' : evaluation.painLevel >= 4 ? 'amber' : 'green'}>Dor {evaluation.painLevel}/10</Badge>
+                      </div>
+                      <h4 className="mt-2 text-base font-bold text-heal-ink dark:text-white">{evaluation.woundLocation}</h4>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-zinc-400">{evaluation.woundEtiology} · {evaluation.exudateAmount} · {evaluation.exudateType}</p>
+                      {evaluation.imageUploadStatus === 'failed' ? (
+                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                          {evaluation.imageUploadError || 'Imagens não enviadas ao Firebase Storage.'}
+                        </div>
+                      ) : null}
+                      {evaluation.notes ? <p className="mt-3 text-xs leading-5 text-slate-600 dark:text-zinc-300">{evaluation.notes}</p> : null}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="Sem avaliações" description="Crie uma avaliação para testar subcoleções, upload e ROI." />
+            )}
+          </section>
+        </div>
+
+        {/* Right Column: Sticky details widget */}
+        <aside className="sticky top-20 hidden xl:block space-y-6">
+          {patientInfoCard}
+        </aside>
+      </div>
 
       <Modal open={!!pendingEditEvaluation} title="Atenção: edição de dados clínicos" onClose={() => setPendingEditEvaluation(null)} size="lg">
         <div className="space-y-5">

@@ -69,19 +69,19 @@ export function ProfilePage() {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-        <Card>
+      <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
+        <Card className="border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] h-fit">
           <div className="flex flex-col items-center text-center">
             <UserAvatar
               name={displayName}
               src={photoURL}
-              imageClassName="h-28 w-28 rounded-3xl object-cover ring-4 ring-heal-softBlue"
-              fallbackClassName="flex h-28 w-28 items-center justify-center rounded-3xl bg-heal-softBlue text-3xl font-black text-heal-blue"
+              imageClassName="h-24 w-24 rounded-2xl object-cover ring-2 ring-heal-blue/30"
+              fallbackClassName="flex h-24 w-24 items-center justify-center rounded-2xl bg-heal-softBlue/60 text-2xl font-black text-heal-blue dark:bg-blue-950/40"
             />
-            <h2 className="mt-5 text-2xl font-black text-heal-ink dark:text-white">{displayName}</h2>
-            <p className="mt-1 text-sm text-heal-muted dark:text-zinc-400">{previewEmail}</p>
-            <Link to="/profile/edit" className="mt-6 w-full">
-              <Button className="w-full" icon={<Camera className="h-4 w-4" />}>
+            <h2 className="mt-4 text-xl font-black text-heal-ink dark:text-white leading-tight">{displayName}</h2>
+            <p className="mt-1 text-xs text-heal-muted dark:text-zinc-500 font-medium">{previewEmail}</p>
+            <Link to="/profile/edit" className="mt-5 w-full">
+              <Button className="w-full" size="sm" icon={<Camera className="h-4 w-4" />}>
                 Editar perfil
               </Button>
             </Link>
@@ -89,43 +89,43 @@ export function ProfilePage() {
         </Card>
 
         <div className="space-y-4">
-          <Card>
+          <Card className="border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-5">
             <div className="flex items-start gap-3">
-              <BarChart3 className="mt-1 h-5 w-5 text-heal-blue" />
+              <BarChart3 className="mt-1 h-5 w-5 text-heal-blue shrink-0" />
               <div className="w-full">
-                <h3 className="font-black text-heal-ink dark:text-white">Métricas de performance</h3>
+                <h3 className="font-black text-sm text-heal-ink dark:text-white">Métricas de performance</h3>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <Metric value={evaluationCount} label="Avaliações salvas" />
-                  <Metric value={activePatients.length} label="Pacientes ativos" tone="teal" />
-                  <Metric value="Firebase" label="Persistência ativa" tone="amber" />
+                  <Metric value={evaluationCount} label="Avaliações" />
+                  <Metric value={activePatients.length} label="Ativos" tone="teal" />
+                  <Metric value="Firebase" label="Persistência" tone="amber" />
                 </div>
               </div>
             </div>
           </Card>
 
-          <Card className="grid gap-4 md:grid-cols-2">
+          <Card className="grid gap-4 md:grid-cols-2 border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-5">
             <InfoBox label="Área de atuação" value={profile?.professionalArea || 'Não informado'} />
             <InfoBox label="Instituição ou clínica" value={profile?.clinicName || 'Não informado'} />
             <InfoBox label="Telefone" value={profile?.phone || 'Não informado'} />
             <InfoBox label="Tema" value={theme === 'dark' ? 'Escuro' : 'Claro'} />
           </Card>
 
-          <Card>
+          <Card className="border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-5">
             <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-1 h-5 w-5 text-heal-teal" />
+              <ShieldCheck className="mt-1 h-5 w-5 text-heal-teal shrink-0" />
               <div>
-                <h3 className="font-black text-heal-ink dark:text-white">Provedores conectados</h3>
-                <p className="mt-1 text-sm leading-6 text-heal-muted dark:text-zinc-400">
+                <h3 className="font-black text-sm text-heal-ink dark:text-white">Provedores conectados</h3>
+                <p className="mt-1 text-xs leading-5 text-heal-muted dark:text-zinc-500">
                   Os provedores vêm do Firebase Auth e são registrados no documento users/{'{uid}'}.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {['password', 'google.com', 'microsoft.com', 'apple.com'].map(provider => (
                     <span
                       key={provider}
-                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ${
+                      className={`inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold ring-1 ${
                         providers.includes(provider)
-                          ? 'bg-heal-tealSoft text-heal-teal ring-heal-teal/20'
-                          : 'bg-slate-50 text-slate-400 ring-heal-line dark:bg-zinc-950 dark:ring-zinc-800'
+                          ? 'bg-heal-tealSoft/50 text-heal-teal ring-heal-teal/20 dark:bg-emerald-950/40 dark:text-emerald-300'
+                          : 'bg-slate-50/50 text-slate-400 ring-heal-line/60 dark:bg-zinc-950/40 dark:ring-zinc-800/60'
                       }`}
                     >
                       {providers.includes(provider) ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
@@ -144,17 +144,17 @@ export function ProfilePage() {
             <ProfileAction icon={<Info className="h-5 w-5" />} title="Sobre o app" description="Versão e proposta acadêmica" to="/about" />
           </div>
 
-          <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-heal-softBlue/60 text-heal-blue dark:bg-blue-950/40">
                 {theme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
               </div>
               <div>
-                <p className="font-black text-heal-ink dark:text-white">Modo escuro</p>
-                <p className="text-sm text-heal-muted dark:text-zinc-400">{theme === 'dark' ? 'Ativado' : 'Desativado'}</p>
+                <p className="font-black text-sm text-heal-ink dark:text-white leading-tight">Modo escuro</p>
+                <p className="text-xs text-heal-muted dark:text-zinc-500">{theme === 'dark' ? 'Ativado' : 'Desativado'}</p>
               </div>
             </div>
-            <Button type="button" variant="secondary" onClick={toggleTheme}>
+            <Button type="button" size="sm" variant="secondary" onClick={toggleTheme}>
               {theme === 'dark' ? 'Usar claro' : 'Usar escuro'}
             </Button>
           </Card>
@@ -166,23 +166,23 @@ export function ProfilePage() {
 
 function Metric({ value, label, tone = 'blue' }: { value: string | number; label: string; tone?: 'blue' | 'teal' | 'amber' }) {
   const colors = {
-    blue: 'text-heal-blue bg-heal-softBlue',
-    teal: 'text-heal-teal bg-heal-tealSoft',
-    amber: 'text-heal-warning bg-heal-warningSoft'
+    blue: 'text-heal-blue border-heal-blue/20 bg-heal-softBlue/20 dark:bg-blue-950/20',
+    teal: 'text-heal-teal border-heal-teal/20 bg-heal-tealSoft/20 dark:bg-emerald-950/20',
+    amber: 'text-heal-warning border-heal-warning/20 bg-heal-warningSoft/20 dark:bg-amber-950/20'
   };
   return (
-    <div className={`rounded-2xl p-4 text-center ${colors[tone]}`}>
-      <p className="text-2xl font-black">{value}</p>
-      <p className="mt-1 text-xs font-bold">{label}</p>
+    <div className={`rounded-xl border p-4 text-center ${colors[tone]}`}>
+      <p className="text-xl font-black">{value}</p>
+      <p className="mt-1 text-[10px] font-bold uppercase tracking-wider opacity-95">{label}</p>
     </div>
   );
 }
 
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-heal-line bg-heal-canvas p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <p className="text-xs font-bold uppercase tracking-wide text-heal-muted">{label}</p>
-      <p className="mt-1 text-sm font-black text-heal-ink dark:text-white">{value}</p>
+    <div className="rounded-xl border border-heal-line/75 bg-heal-canvas/40 p-4 dark:border-zinc-800/80 dark:bg-zinc-950/40">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-heal-muted">{label}</p>
+      <p className="mt-1 text-sm font-black text-heal-ink dark:text-white truncate">{value}</p>
     </div>
   );
 }
@@ -190,12 +190,12 @@ function InfoBox({ label, value }: { label: string; value: string }) {
 function ProfileAction({ icon, title, description, to }: { icon: ReactNode; title: string; description: string; to: string }) {
   return (
     <Link to={to}>
-      <Card className="h-full transition hover:-translate-y-0.5 hover:border-heal-blue/40">
+      <Card hover className="h-full border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue">{icon}</div>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-heal-softBlue/50 text-heal-blue dark:bg-blue-950/30">{icon}</div>
           <div>
-            <p className="font-black text-heal-ink dark:text-white">{title}</p>
-            <p className="mt-1 text-sm text-heal-muted dark:text-zinc-400">{description}</p>
+            <p className="font-black text-sm text-heal-ink dark:text-white leading-tight">{title}</p>
+            <p className="mt-1 text-xs text-heal-muted dark:text-zinc-400">{description}</p>
           </div>
         </div>
       </Card>

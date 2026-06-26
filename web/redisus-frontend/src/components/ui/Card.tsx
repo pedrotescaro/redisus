@@ -18,11 +18,11 @@ export function Card({ children, className = '', hover = false, padding = 'md' }
   return (
     <div
       className={`
-        bg-white dark:bg-zinc-900
-        border border-heal-line dark:border-zinc-800
-        rounded-2xl shadow-soft
+        bg-white dark:bg-[#0c0c0e]
+        border border-heal-line/75 dark:border-zinc-800/80
+        rounded-2xl shadow-sm dark:shadow-none
         ${paddings[padding]}
-        ${hover ? 'transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-heal-blue/20' : ''}
+        ${hover ? 'transition-all duration-200 hover:border-heal-blue/40 dark:hover:border-blue-500/30 hover:bg-slate-50/50 dark:hover:bg-[#131316]/50' : ''}
         ${className}
       `}
     >

@@ -76,40 +76,53 @@ export function AgendaPage() {
         </Button>
       </div>
 
-      <Card className="flex flex-wrap gap-2">
-        {(['lista', 'semana', 'mes'] as const).map(item => (
-          <Button key={item} type="button" variant={view === item ? 'primary' : 'secondary'} onClick={() => setView(item)}>
-            {item === 'mes' ? 'Mês' : item[0].toUpperCase() + item.slice(1)}
-          </Button>
-        ))}
-      </Card>
+      <div className="flex w-full border-b border-heal-line/60 dark:border-zinc-800/60 bg-transparent select-none mb-4">
+        {(['lista', 'semana', 'mes'] as const).map(item => {
+          const active = view === item;
+          const label = item === 'mes' ? 'Mês' : item[0].toUpperCase() + item.slice(1);
+          return (
+            <button
+              key={item}
+              type="button"
+              className={`relative flex-1 py-3 text-xs font-bold transition-colors text-center ${
+                active ? 'text-heal-ink dark:text-white' : 'text-heal-muted hover:text-heal-ink dark:hover:text-white'
+              }`}
+              onClick={() => setView(item)}
+            >
+              {label}
+              {active && <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-heal-blue" />}
+            </button>
+          );
+        })}
+      </div>
 
       {loadError ? <EmptyState title="Erro ao carregar agenda" description={loadError} /> : null}
 
       {!loadError && visibleAppointments.length ? (
         <div className="grid gap-3">
           {visibleAppointments.map(appointment => (
-            <Card key={appointment.id} className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <Card key={appointment.id} className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-heal-teal dark:bg-emerald-950/40">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-heal-softBlue/60 text-heal-blue dark:bg-blue-950/40">
                   <CalendarDays className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-bold text-heal-ink dark:text-white">{appointment.patientName}</h3>
+                    <h3 className="font-bold text-sm text-heal-ink dark:text-white">{appointment.patientName}</h3>
                     <Badge tone={appointment.status === 'Confirmado' || appointment.status === 'Realizado' ? 'green' : appointment.status === 'Cancelado' ? 'red' : 'amber'}>
                       {appointment.status}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">{formatDate(appointment.date)} as {appointment.time} · {appointment.type}</p>
-                  {appointment.notes ? <p className="mt-2 text-sm text-slate-600 dark:text-zinc-300">{appointment.notes}</p> : null}
+                  <p className="mt-1 text-xs text-slate-500 dark:text-zinc-400">{formatDate(appointment.date)} às {appointment.time} · {appointment.type}</p>
+                  {appointment.notes ? <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-zinc-300">{appointment.notes}</p> : null}
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="secondary" icon={<Edit className="h-4 w-4" />} onClick={() => { setEditing(appointment); setModalOpen(true); }}>Editar</Button>
+                <Button size="sm" variant="secondary" icon={<Edit className="h-3.5 w-3.5" />} onClick={() => { setEditing(appointment); setModalOpen(true); }}>Editar</Button>
                 <Button
+                  size="sm"
                   variant="danger"
-                  icon={<Trash2 className="h-4 w-4" />}
+                  icon={<Trash2 className="h-3.5 w-3.5" />}
                   onClick={() => {
                     if (user && window.confirm('Excluir este atendimento da agenda?')) void deleteAppointment(user.uid, appointment.id);
                   }}

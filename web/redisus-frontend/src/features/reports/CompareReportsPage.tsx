@@ -70,7 +70,7 @@ export function CompareReportsPage() {
         </div>
       </div>
 
-      <Card className="grid gap-4 lg:grid-cols-[1fr_220px_220px]">
+      <Card className="grid gap-4 lg:grid-cols-[1fr_220px_220px] border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
         <div className="grid gap-3 sm:grid-cols-[1fr_220px] lg:grid-cols-[1fr_220px]">
           <Input
             aria-label="Buscar paciente"

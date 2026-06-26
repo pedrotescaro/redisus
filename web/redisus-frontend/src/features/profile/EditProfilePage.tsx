@@ -55,22 +55,22 @@ export function EditProfilePage() {
   const photoURL = profile?.photoURL || user?.photoURL;
 
   return (
-    <Card className="mx-auto max-w-2xl">
-      <h2 className="text-2xl font-black text-heal-ink dark:text-white">Editar perfil</h2>
-      <div className="mt-5 flex items-center gap-4">
+    <Card className="mx-auto max-w-2xl border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e] p-5">
+      <h2 className="text-lg font-black text-heal-ink dark:text-white mb-5">Editar perfil</h2>
+      <div className="flex items-center gap-4 select-none">
         <UserAvatar
           name={displayName}
           src={photoURL}
-          imageClassName="h-20 w-20 rounded-full object-cover"
-          fallbackClassName="flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-xl font-black text-heal-blue dark:bg-blue-950"
+          imageClassName="h-16 w-16 rounded-xl object-cover ring-2 ring-heal-blue/20"
+          fallbackClassName="flex h-16 w-16 items-center justify-center rounded-xl bg-heal-softBlue/60 text-lg font-black text-heal-blue dark:bg-blue-950/40"
         />
-        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-heal-line bg-white px-4 py-2 text-sm font-semibold text-heal-ink hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
-          <Upload className="h-4 w-4" />
+        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-heal-line/75 bg-white px-4 py-2 text-xs font-bold text-heal-ink hover:bg-slate-50 transition-colors dark:border-zinc-800 dark:bg-zinc-900 dark:text-white">
+          <Upload className="h-4 w-4 text-heal-muted" />
           Enviar foto
           <input type="file" accept="image/*" className="hidden" onChange={event => void handlePhoto(event.target.files)} />
         </label>
       </div>
-      {photoError ? <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{photoError}</div> : null}
+      {photoError ? <div className="mt-3 rounded-xl bg-red-50/70 dark:bg-red-950/20 px-3 py-2 text-xs font-bold text-red-700 dark:text-red-300 border border-red-200/50 dark:border-red-950/50">{photoError}</div> : null}
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
         <Input label="Nome" error={errors.displayName?.message} {...register('displayName')} />
@@ -78,8 +78,8 @@ export function EditProfilePage() {
         <Input label="Área de atuação" error={errors.professionalArea?.message} {...register('professionalArea')} />
         <Input label="Instituição ou clínica" error={errors.clinicName?.message} {...register('clinicName')} />
         <Input label="Telefone" error={errors.phone?.message} {...register('phone')} />
-        {message ? <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">{message}</div> : null}
-        <Button type="submit" isLoading={isSubmitting}>Salvar perfil</Button>
+        {message ? <div className="rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-950/50">{message}</div> : null}
+        <Button type="submit" size="sm" isLoading={isSubmitting}>Salvar perfil</Button>
       </form>
     </Card>
   );

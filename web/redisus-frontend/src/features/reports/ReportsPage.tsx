@@ -69,7 +69,7 @@ export function ReportsPage() {
         }
       />
 
-      <Card className="no-print grid gap-4 md:grid-cols-2">
+      <Card className="no-print grid gap-4 md:grid-cols-2 border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
         <Select
           label="Paciente"
           options={patientOptions.map(patient => ({ value: patient.id, label: patient.name }))}
