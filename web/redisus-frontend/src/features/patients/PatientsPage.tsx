@@ -26,6 +26,9 @@ export function PatientsPage() {
   const [editing, setEditing] = useState<Patient | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
+  const PATIENTS_PAGE_SIZE = 6;
+  const [visibleCount, setVisibleCount] = useState(PATIENTS_PAGE_SIZE);
+
   useEffect(() => {
     if (!user) return undefined;
     return subscribePatients(
@@ -37,6 +40,10 @@ export function PatientsPage() {
       () => setLoading(false)
     );
   }, [user]);
+
+  useEffect(() => {
+    setVisibleCount(PATIENTS_PAGE_SIZE);
+  }, [query, status]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -76,7 +83,7 @@ export function PatientsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-heal-line/60 dark:divide-zinc-800/60">
-            {filtered.map(patient => (
+            {filtered.slice(0, visibleCount).map(patient => (
               <tr key={patient.id} className="hover:bg-heal-canvas/30 dark:hover:bg-zinc-900/30 transition-colors">
                 <td className="px-5 py-3 font-bold text-heal-ink dark:text-white truncate max-w-[140px]">{patient.name}</td>
                 <td className="px-5 py-3 text-xs text-heal-muted truncate">{patient.phone}</td>
@@ -92,57 +99,58 @@ export function PatientsPage() {
   if (loading) return <LoadingState label="Carregando pacientes do Firestore..." />;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Pacientes"
-        title="Central de pacientes"
-        description="Cadastre, busque, edite e arquive pacientes. Por regra de negócio, pacientes não são excluídos."
-        action={
-          <Button type="button" size="lg" icon={<Plus className="h-4 w-4" />} onClick={openCreate}>
-            Novo paciente
-          </Button>
-        }
-      />
+    <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
+      {/* Coluna Central */}
+      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+        <PageHeader
+          title="Central de pacientes"
+          description={`${filtered.length} ${filtered.length === 1 ? 'paciente cadastrado' : 'pacientes cadastrados'}`}
+          action={
+            <Button type="button" size="lg" icon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+              Novo paciente
+            </Button>
+          }
+        />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6 xl:items-start">
-        {/* Left Column: search, filters, cards list */}
-        <div className="space-y-6">
-          <Card className="space-y-4 border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
-            <Input
-              aria-label="Buscar paciente"
-              placeholder="Buscar por nome do paciente..."
-              value={query}
-              onChange={event => setQuery(event.target.value)}
-              icon={<Search className="h-4 w-4" />}
-            />
-            <div className="flex w-full border-b border-heal-line/60 dark:border-zinc-800/60 bg-transparent select-none">
-              {[
-                ['active', 'Ativos'],
-                ['archived', 'Arquivados'],
-                ['all', 'Todos']
-              ].map(([value, label]) => {
-                const active = status === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`relative flex-1 py-3 text-xs font-bold transition-colors text-center ${
-                      active ? 'text-heal-ink dark:text-white' : 'text-heal-muted hover:text-heal-ink dark:hover:text-white'
-                    }`}
-                    onClick={() => setStatus(value as StatusFilter)}
-                  >
-                    {label}
-                    {active && <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-heal-blue" />}
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
+        {/* Flat search and filter container */}
+        <div className="p-4 border-b border-heal-line/60 dark:border-zinc-800/60 space-y-4">
+          <Input
+            aria-label="Buscar paciente"
+            placeholder="Buscar por nome do paciente..."
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            icon={<Search className="h-4 w-4" />}
+          />
+          <div className="flex w-full select-none">
+            {[
+              ['active', 'Ativos'],
+              ['archived', 'Arquivados'],
+              ['all', 'Todos']
+            ].map(([value, label]) => {
+              const active = status === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  className={`relative flex-1 py-3 text-xs font-bold transition-colors text-center cursor-pointer ${
+                    active ? 'text-heal-ink dark:text-white' : 'text-heal-muted hover:text-heal-ink dark:hover:text-white'
+                  }`}
+                  onClick={() => setStatus(value as StatusFilter)}
+                >
+                  {label}
+                  {active && <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-heal-blue" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
+        {/* Content list */}
+        <div className="p-4 sm:p-6 flex-grow space-y-4">
           {filtered.length ? (
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                {filtered.map(patient => (
+                {filtered.slice(0, visibleCount).map(patient => (
                   <PatientCard
                     key={patient.id}
                     patient={patient}
@@ -154,6 +162,18 @@ export function PatientsPage() {
                   />
                 ))}
               </div>
+
+              {visibleCount < filtered.length && (
+                <div className="flex justify-center py-6 border-b border-heal-line/40 dark:border-zinc-800/40">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount(prev => prev + PATIENTS_PAGE_SIZE)}
+                    className="px-5 py-2.5 bg-[#f4f4f5] dark:bg-[#16181c] hover:bg-[#eff3f4] dark:hover:bg-[#2f3336] border border-[#eff3f4] dark:border-[#2f3336] text-[#0f1419] dark:text-[#e7e9ea] rounded-full text-xs font-bold transition-all cursor-pointer hover:border-heal-blue/30 dark:hover:border-heal-blue/30 active:scale-95 select-none"
+                  >
+                    Carregar Mais
+                  </button>
+                </div>
+              )}
 
               {/* Mobile Table */}
               <div className="xl:hidden">
@@ -169,12 +189,12 @@ export function PatientsPage() {
             />
           )}
         </div>
-
-        {/* Right Column: Quick Table sidebar widget */}
-        <aside className="sticky top-20 hidden xl:block">
-          {quickTableCard}
-        </aside>
       </div>
+
+      {/* Coluna Lateral Direita */}
+      <aside className="hidden xl:block w-80 p-5 space-y-6 shrink-0 min-h-screen">
+        {quickTableCard}
+      </aside>
 
       <Modal open={modalOpen} title={editing ? 'Editar paciente' : 'Novo paciente'} onClose={() => setModalOpen(false)}>
         <PatientForm patient={editing} onSubmit={handleSubmit} onCancel={() => setModalOpen(false)} />

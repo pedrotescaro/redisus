@@ -10,6 +10,7 @@ import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { Modal } from '../../components/ui/Modal';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { formatDate } from '../../lib/date';
 import type { Evaluation, ImageDraft, Patient } from '../../lib/types';
 import { listEvaluations, updateEvaluation } from '../evaluations/evaluationService';
@@ -54,6 +55,9 @@ export function PatientDetailsPage() {
   const [clinicalEditNotice, setClinicalEditNotice] = useState('');
   const notice = (location.state as { evaluationNotice?: { type: 'success' | 'warning'; message: string } } | null)?.evaluationNotice;
 
+  const EVALUATIONS_PAGE_SIZE = 5;
+  const [visibleCount, setVisibleCount] = useState(EVALUATIONS_PAGE_SIZE);
+
   useEffect(() => {
     if (!user || !patientId) return;
     void Promise.all([getPatient(user.uid, patientId), listEvaluations(user.uid, patientId)]).then(([nextPatient, nextEvaluations]) => {
@@ -62,6 +66,10 @@ export function PatientDetailsPage() {
       setLoading(false);
     });
   }, [patientId, user]);
+
+  useEffect(() => {
+    setVisibleCount(EVALUATIONS_PAGE_SIZE);
+  }, [patientId]);
 
   const openClinicalEdit = () => {
     if (!pendingEditEvaluation) return;
@@ -153,29 +161,31 @@ export function PatientDetailsPage() {
   );
 
   return (
-    <div className="space-y-5">
-      {notice ? (
-        <div
-          role="status"
-          className={`rounded-xl border px-4 py-3 text-sm font-bold ${
-            notice.type === 'warning'
-              ? 'border-amber-200 bg-amber-50 text-amber-800'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-          }`}
-        >
-          {notice.message}
-        </div>
-      ) : null}
+    <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
+      {/* Coluna Central */}
+      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+        <PageHeader showBack title={patient.name} description="Prontuário e Histórico clínico" />
+        
+        <div className="p-4 sm:p-6 space-y-5">
+          {notice ? (
+            <div
+              role="status"
+              className={`rounded-xl border px-4 py-3 text-sm font-bold ${
+                notice.type === 'warning'
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              }`}
+            >
+              {notice.message}
+            </div>
+          ) : null}
 
-      {clinicalEditNotice ? (
-        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
-          {clinicalEditNotice}
-        </div>
-      ) : null}
+          {clinicalEditNotice ? (
+            <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+              {clinicalEditNotice}
+            </div>
+          ) : null}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6 xl:items-start">
-        {/* Left Column: patient details / evaluations list */}
-        <div className="space-y-5">
           {/* Mobile Patient Info */}
           <div className="xl:hidden">
             {patientInfoCard}
@@ -183,11 +193,11 @@ export function PatientDetailsPage() {
 
           <section className="space-y-3">
             <div className="border-b border-heal-line/60 pb-3 dark:border-zinc-800/60">
-              <h3 className="text-lg font-black text-heal-ink dark:text-white">Histórico de avaliações</h3>
+              <h3 className="text-base font-extrabold text-heal-ink dark:text-white">Histórico de avaliações</h3>
             </div>
             {evaluations.length ? (
               <div className="grid gap-3">
-                {evaluations.map(evaluation => (
+                {evaluations.slice(0, visibleCount).map(evaluation => (
                   <Card key={evaluation.id} className="relative grid gap-4 pt-12 md:grid-cols-[180px_1fr] md:pt-0 md:pr-24 border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
                     <Link
                       to={`/analyzer?patientId=${patient.id}&assessmentId=${evaluation.id}`}
@@ -235,18 +245,30 @@ export function PatientDetailsPage() {
                     </div>
                   </Card>
                 ))}
+
+                {visibleCount < evaluations.length && (
+                  <div className="flex justify-center py-6 border-b border-heal-line/40 dark:border-zinc-800/40">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount(prev => prev + EVALUATIONS_PAGE_SIZE)}
+                      className="px-5 py-2.5 bg-[#f4f4f5] dark:bg-[#16181c] hover:bg-[#eff3f4] dark:hover:bg-[#2f3336] border border-[#eff3f4] dark:border-[#2f3336] text-[#0f1419] dark:text-[#e7e9ea] rounded-full text-xs font-bold transition-all cursor-pointer hover:border-heal-blue/30 dark:hover:border-heal-blue/30 active:scale-95 select-none"
+                    >
+                      Carregar Mais
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <EmptyState title="Sem avaliações" description="Crie uma avaliação para testar subcoleções, upload e ROI." />
             )}
           </section>
         </div>
-
-        {/* Right Column: Sticky details widget */}
-        <aside className="sticky top-20 hidden xl:block space-y-6">
-          {patientInfoCard}
-        </aside>
       </div>
+
+      {/* Coluna Lateral Direita */}
+      <aside className="hidden xl:block w-80 p-5 space-y-6 shrink-0 min-h-screen">
+        {patientInfoCard}
+      </aside>
 
       <Modal open={!!pendingEditEvaluation} title="Atenção: edição de dados clínicos" onClose={() => setPendingEditEvaluation(null)} size="lg">
         <div className="space-y-5">
@@ -271,7 +293,7 @@ export function PatientDetailsPage() {
         open={!!editingEvaluation}
         evaluation={editingEvaluation}
         error={clinicalEditError}
-        saving={savingClinicalEdit}
+        saving={clinicalEditNotice ? false : savingClinicalEdit}
         onClose={closeClinicalEdit}
         onSave={saveClinicalEdit}
       />
