@@ -26,8 +26,10 @@ import { useAuth } from '../../app/providers/AuthProvider';
 import { WoundRoiCanvas } from '../roi/WoundRoiCanvas';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/button';
+import { Card } from '../ui/Card';
 import { Input } from '../ui/input';
 import { Modal } from '../ui/Modal';
+import { PageHeader } from '../ui/PageHeader';
 import { formatDate } from '../../lib/date';
 import type { ClinicalAnalysisAlert, ClinicalAnalysisResult, Evaluation, Patient, Roi } from '../../lib/types';
 import { cn } from '../../lib/utils';
@@ -297,29 +299,23 @@ export function AnalyzerWorkbench() {
 
   return (
     <>
-      <section className="space-y-5">
-        <div className="rounded-2xl border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-heal-blue">HEAL Analyzer</p>
-              <h1 className="mt-2 text-2xl font-black text-heal-ink dark:text-white sm:text-3xl">
-                Analise assistiva da avaliacao clinica, imagem e ROI da ferida
-              </h1>
-              <p className="mt-2 max-w-4xl text-sm leading-6 text-heal-muted dark:text-zinc-400">
-                O modulo relaciona imagem, ROI, dados da avaliacao, dados minimos do paciente e historico evolutivo. O resultado e apoio clinico e exige validacao profissional.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-bold ${status.tone}`}>
-                {analysisLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {status.label}
-              </span>
-              <Badge tone={linkedAssessment ? 'blue' : 'slate'} dot>
-                {linkedAssessment ? 'Avaliacao vinculada' : 'Analise avulsa'}
-              </Badge>
-            </div>
+      <PageHeader
+        title="HEAL Analyzer"
+        description="Analise assistiva de feridas e ROI"
+        action={
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${status.tone}`}>
+              {analysisLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              {status.label}
+            </span>
+            <Badge tone={linkedAssessment ? 'blue' : 'slate'} dot>
+              {linkedAssessment ? 'Avaliacao vinculada' : 'Analise avulsa'}
+            </Badge>
           </div>
-        </div>
+        }
+      />
+
+      <div className="p-4 sm:p-6 flex-grow space-y-5">
 
         {notice ? <Notice tone="success" message={notice} /> : null}
         {error ? <Notice tone="error" message={error} /> : null}
@@ -396,7 +392,7 @@ export function AnalyzerWorkbench() {
             />
           </div>
         </div>
-      </section>
+      </div>
 
       <Modal open={confirmOpen} title="Analise assistiva com dados clinicos" onClose={() => setConfirmOpen(false)} size="lg">
         <div className="space-y-5">
@@ -479,7 +475,7 @@ function ContextPanel({
 
   return (
     <aside className={cn('space-y-4 lg:sticky lg:top-24 lg:self-start', className)}>
-      <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+      <Card padding="sm">
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-blue">Imagem</p>
         <div className="mt-3 overflow-hidden rounded-2xl border border-heal-line bg-heal-canvas dark:border-zinc-800 dark:bg-zinc-950">
@@ -507,9 +503,9 @@ function ContextPanel({
             </p>
           ) : null}
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+      <Card padding="sm">
         <div className="flex items-center gap-2">
           <UserRound className="h-4 w-4 text-heal-blue" />
           <p className="text-sm font-black text-heal-ink dark:text-white">Paciente vinculado</p>
@@ -532,9 +528,9 @@ function ContextPanel({
             {contextLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
           </Button>
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+      <Card padding="sm">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-4 w-4 text-heal-blue" />
           <p className="text-sm font-black text-heal-ink dark:text-white">Avaliacao vinculada</p>
@@ -562,23 +558,23 @@ function ContextPanel({
             Salvar ROI
           </Button>
         </div>
-      </section>
+      </Card>
 
       {selectedFile ? (
-        <section className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+        <Card padding="sm">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">Arquivo atual</p>
           <p className="mt-2 truncate text-sm font-black text-heal-ink dark:text-white" title={selectedFile.name}>{selectedFile.name}</p>
-        </section>
+        </Card>
       ) : null}
 
-      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-soft dark:border-amber-500/20 dark:bg-amber-500/10">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
         <div className="flex items-start gap-3">
           <ShieldAlert className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-300" />
           <p className="text-sm leading-6 text-amber-900 dark:text-amber-50">
             Resultado assistivo. Nao substitui avaliacao clinica profissional.
           </p>
         </div>
-      </section>
+      </div>
     </aside>
   );
 }
@@ -608,7 +604,7 @@ function RoiWorkspace({
 }) {
   return (
     <section className="space-y-4">
-      <div className="rounded-2xl border border-heal-line bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+      <Card padding="sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">Canvas ROI</p>
@@ -660,7 +656,7 @@ function RoiWorkspace({
             Marque somente a area da ferida. Evite incluir rosto, roupa, fundo, maos, instrumentos ou grandes areas de pele saudavel.
           </p>
         ) : null}
-      </div>
+      </Card>
       {children}
     </section>
   );
@@ -668,7 +664,7 @@ function RoiWorkspace({
 
 function EmptyCanvasPanel() {
   return (
-    <section className="flex min-h-[520px] items-center justify-center rounded-2xl border border-dashed border-heal-line bg-white p-6 text-center shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+    <Card padding="lg" className="flex min-h-[520px] items-center justify-center text-center border-dashed">
       <div className="max-w-sm">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue">
           <FileImage className="h-7 w-7" />
@@ -676,7 +672,7 @@ function EmptyCanvasPanel() {
         <h2 className="mt-5 text-xl font-black text-heal-ink dark:text-white">Selecione uma imagem para iniciar</h2>
         <p className="mt-2 text-sm leading-6 text-heal-muted dark:text-zinc-400">O canvas de ROI aparece aqui assim que a foto da ferida for carregada.</p>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -699,7 +695,7 @@ function ClinicalResultPanel({
 }) {
   return (
     <aside className="2xl:sticky 2xl:top-24 2xl:self-start">
-      <div className="rounded-2xl border border-heal-line bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+      <Card>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">Resultado</p>
@@ -825,7 +821,7 @@ function ClinicalResultPanel({
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </aside>
   );
 }
@@ -894,13 +890,13 @@ function TissueClassificationList({ classes }: { classes: ClinicalAnalysisResult
 
 function ResultSection({ children, icon, title }: { children: ReactNode; icon: ReactNode; title: string }) {
   return (
-    <section className="rounded-2xl border border-heal-line bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <Card padding="sm" className="bg-heal-canvas dark:bg-zinc-950 border-heal-line/60 dark:border-zinc-800/60 shadow-none">
       <div className="mb-3 flex items-center gap-2 text-heal-ink dark:text-white">
         {icon}
         <p className="text-sm font-black">{title}</p>
       </div>
       {children}
-    </section>
+    </Card>
   );
 }
 
