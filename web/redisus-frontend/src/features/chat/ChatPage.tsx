@@ -93,8 +93,8 @@ export function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [thinking, setThinking] = useState(false);
 
-  // Focus / fullscreen mode toggle matching DevDeck's Ducky IA (defaults to true)
-  const [isFullscreen, setIsFullscreen] = useState(true);
+  // Focus / fullscreen mode toggle matching DevDeck's Ducky IA (defaults to false)
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // History
