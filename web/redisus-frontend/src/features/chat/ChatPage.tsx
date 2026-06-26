@@ -658,10 +658,10 @@ export function ChatPage() {
               </div>
 
               {/* Bottom fixed input */}
-              <div className="shrink-0 bg-gradient-to-t from-white dark:from-[#060606] via-white dark:via-[#060606] to-white/80 dark:to-[#060606]/80 px-4 pt-2 pb-4 z-20 border-t border-heal-line/40 dark:border-[#1f1f23]/40">
+              <div className="shrink-0 bg-gradient-to-t from-heal-canvas dark:from-[#060606] via-heal-canvas dark:via-[#060606] to-heal-canvas/80 dark:to-[#060606]/80 px-4 pt-2 pb-4 z-20 border-t border-heal-line/40 dark:border-[#1f1f23]/40">
                 <div className="max-w-3xl w-full mx-auto flex flex-col items-center">
                   {/* Quick topics */}
-                  <div className="mb-3 flex gap-2 overflow-x-auto pb-1 w-full">
+                  <div className="mb-3 flex flex-wrap gap-2 justify-center w-full">
                     {quickTopics.map(topic => (
                       <button
                         key={topic}
