@@ -7,6 +7,7 @@ import { useAuth } from '../../app/providers/AuthProvider';
 import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { formatDate, todayISO } from '../../lib/date';
 import type { Appointment, Patient } from '../../lib/types';
 import { subscribeAppointments } from '../agenda/agendaService';
@@ -66,7 +67,7 @@ export function DashboardPage() {
   const upcoming = useMemo(
     () =>
       appointments
-        .filter(item => item.date >= todayISO() && item.status !== 'Cancelado')
+         .filter(item => item.date >= todayISO() && item.status !== 'Cancelado')
         .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
         .slice(0, 5),
     [appointments]
@@ -105,37 +106,55 @@ export function DashboardPage() {
             </div>
           ))
         ) : (
-          <div className="rounded-xl border border-dashed border-heal-line/80 bg-heal-canvas/30 p-6 text-center dark:border-zinc-800/80 dark:bg-zinc-950/30">
-            <CalendarDays className="mx-auto h-6 w-6 text-heal-blue opacity-85" />
-            <p className="mt-3 text-sm font-bold text-heal-ink dark:text-white">Nenhum atendimento futuro</p>
-            <p className="mt-1 text-xs text-heal-muted dark:text-zinc-500">Crie consultas na agenda para aparecerem aqui.</p>
+          <div className="rounded-2xl bg-slate-50/50 dark:bg-zinc-950/40 p-6 text-center select-none">
+            <CalendarDays className="mx-auto h-6 w-6 text-heal-blue" />
+            <p className="mt-3 text-xs font-bold text-heal-ink dark:text-white">Nenhum atendimento futuro</p>
+            <p className="mt-1 text-[10px] text-heal-muted dark:text-zinc-500 font-semibold leading-relaxed">Crie consultas na agenda para aparecerem aqui.</p>
           </div>
         )}
       </div>
     </Card>
   );
 
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6 xl:items-start">
-      {/* Left Column: Main content */}
-      <div className="space-y-6">
-        <Link
-          to="/chat"
-          className="flex min-h-14 items-center gap-3 rounded-2xl border border-heal-line/75 bg-white px-4 shadow-sm transition hover:border-heal-blue/40 hover:bg-heal-softBlue/30 dark:border-zinc-800/85 dark:bg-[#0c0c0e] dark:hover:bg-[#131316]/50"
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-heal-softBlue/60 text-heal-blue dark:bg-blue-950/45">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-black text-heal-ink dark:text-white">Pergunte ou pesquise</p>
-            <p className="truncate text-xs font-semibold text-heal-muted dark:text-zinc-400">Pacientes, agenda, avaliações e retornos já salvos</p>
-          </div>
-          <Search className="h-4.5 w-4.5 text-heal-muted" />
-        </Link>
+  const searchWidget = (
+    <Link
+      to="/chat"
+      className="flex min-h-14 items-center gap-3 rounded-2xl border border-heal-line/75 bg-white px-4 shadow-sm transition hover:border-heal-blue/40 hover:bg-heal-softBlue/30 dark:border-zinc-800/85 dark:bg-[#0c0c0e] dark:hover:bg-[#131316]/50 select-none"
+    >
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-heal-softBlue/60 text-heal-blue dark:bg-blue-950/45 shrink-0">
+        <Sparkles className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-black text-heal-ink dark:text-white">Pergunte ou pesquise</p>
+        <p className="truncate text-xs font-semibold text-heal-muted dark:text-zinc-400">Pacientes, agenda, avaliações e retornos já salvos</p>
+      </div>
+      <Search className="h-4.5 w-4.5 text-heal-muted shrink-0" />
+    </Link>
+  );
 
-        <section className="overflow-hidden rounded-2xl border border-heal-line/75 bg-white p-6 shadow-sm dark:border-zinc-800/85 dark:bg-[#0c0c0e] lg:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
+  const metricsGrid = (
+    <div className="grid grid-cols-2 gap-3 shrink-0">
+      <MetricCard label="Pacientes ativos" value={activePatients.length} icon={<Users className="h-4.5 w-4.5" />} tone="blue" />
+      <MetricCard label="Avaliações" value={evaluationCount} icon={<ClipboardPlus className="h-4.5 w-4.5" />} tone="green" />
+      <MetricCard label="Agenda futura" value={upcoming.length} icon={<CalendarDays className="h-4.5 w-4.5" />} tone="amber" />
+      <MetricCard label="Arquivados" value={archivedPatients} icon={<FileText className="h-4.5 w-4.5" />} tone="slate" />
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
+      {/* Coluna Central */}
+      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+        <PageHeader title="Página Inicial" description="Painel de controle clínico" />
+        
+        <div className="p-4 sm:p-6 space-y-6">
+          {/* Mobile search widget */}
+          <div className="xl:hidden">
+            {searchWidget}
+          </div>
+
+          <section className="overflow-hidden rounded-2xl border border-heal-line/75 bg-white p-6 shadow-sm dark:border-zinc-800/85 dark:bg-[#0c0c0e] lg:p-8">
+            <div className="max-w-xl">
               <Badge tone="blue">Dr. {firstName}</Badge>
               <h1 className="mt-4 text-2xl font-black leading-tight tracking-tight text-heal-ink dark:text-white sm:text-3xl lg:text-4xl">
                 Pronto para acompanhar?
@@ -158,36 +177,36 @@ export function DashboardPage() {
                 ))}
               </div>
             </div>
+          </section>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:w-[320px] xl:w-auto shrink-0">
-              <MetricCard label="Pacientes ativos" value={activePatients.length} icon={<Users className="h-4.5 w-4.5" />} tone="blue" />
-              <MetricCard label="Avaliações" value={evaluationCount} icon={<ClipboardPlus className="h-4.5 w-4.5" />} tone="green" />
-              <MetricCard label="Agenda futura" value={upcoming.length} icon={<CalendarDays className="h-4.5 w-4.5" />} tone="amber" />
-              <MetricCard label="Arquivados" value={archivedPatients} icon={<FileText className="h-4.5 w-4.5" />} tone="slate" />
-            </div>
+          {/* Mobile metrics grid */}
+          <div className="xl:hidden">
+            {metricsGrid}
           </div>
-        </section>
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          {shortcutCards.map(item => (
-            <Link key={item.to} to={item.to} className="group rounded-2xl border border-heal-line/75 bg-white p-5 transition hover:border-heal-blue/40 hover:bg-slate-50/20 dark:border-zinc-800/85 dark:bg-[#0c0c0e] dark:hover:bg-[#131316]/30">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-heal-softBlue/40 text-heal-blue dark:bg-blue-950/30">
-                <item.icon className="h-5 w-5" />
-              </div>
-              <h2 className="mt-4 text-sm font-black text-heal-ink dark:text-white">{item.title}</h2>
-              <p className="mt-1.5 text-xs leading-5 text-heal-muted dark:text-zinc-400">{item.description}</p>
-            </Link>
-          ))}
-        </section>
+          <section className="grid gap-4 sm:grid-cols-2">
+            {shortcutCards.map(item => (
+              <Link key={item.to} to={item.to} className="group rounded-2xl border border-heal-line/75 bg-white p-5 transition hover:border-heal-blue/40 hover:bg-slate-50/20 dark:border-zinc-800/85 dark:bg-[#0c0c0e] dark:hover:bg-[#131316]/30">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-heal-softBlue/40 text-heal-blue dark:bg-blue-950/30">
+                  <item.icon className="h-5 w-5" />
+                </div>
+                <h2 className="mt-4 text-sm font-black text-heal-ink dark:text-white">{item.title}</h2>
+                <p className="mt-1.5 text-xs leading-5 text-heal-muted dark:text-zinc-400">{item.description}</p>
+              </Link>
+            ))}
+          </section>
 
-        {/* Mobile appointments widget */}
-        <div className="xl:hidden">
-          {appointmentsWidget}
+          {/* Mobile appointments widget */}
+          <div className="xl:hidden">
+            {appointmentsWidget}
+          </div>
         </div>
       </div>
 
-      {/* Right Column: Sticky Sidebar widget */}
-      <aside className="sticky top-20 hidden xl:block space-y-6">
+      {/* Coluna Lateral Direita */}
+      <aside className="hidden xl:block w-[360px] p-5 space-y-6 shrink-0 min-h-screen">
+        {searchWidget}
+        {metricsGrid}
         {appointmentsWidget}
       </aside>
     </div>
@@ -195,18 +214,18 @@ export function DashboardPage() {
 }
 
 function MetricCard({ label, value, icon, tone }: { label: string; value: number; icon: ReactNode; tone: 'blue' | 'green' | 'amber' | 'slate' }) {
-  const styles = {
-    blue: 'text-heal-blue',
-    green: 'text-heal-teal',
-    amber: 'text-heal-warning',
-    slate: 'text-heal-muted'
+  const bgStyles = {
+    blue: 'bg-blue-50 text-heal-blue dark:bg-blue-950/40 dark:text-blue-400',
+    green: 'bg-emerald-50 text-heal-teal dark:bg-emerald-950/40 dark:text-emerald-400',
+    amber: 'bg-amber-50 text-heal-warning dark:bg-amber-950/40 dark:text-amber-400',
+    slate: 'bg-slate-50 text-slate-500 dark:bg-zinc-800/50 dark:text-zinc-400'
   };
 
   return (
-    <div className="rounded-xl border border-heal-line/75 bg-white p-4 dark:border-zinc-800/80 dark:bg-[#0c0c0e]">
-      <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-heal-canvas/40 dark:bg-zinc-950/40 ${styles[tone]}`}>{icon}</div>
-      <p className="mt-3 text-2xl font-black text-heal-ink dark:text-white leading-none">{value}</p>
-      <p className="mt-1.5 text-xs font-bold text-heal-muted dark:text-zinc-500 leading-none">{label}</p>
+    <div className="rounded-2xl border border-heal-line/75 bg-white p-4 dark:border-zinc-800/80 dark:bg-[#0c0c0e] select-none">
+      <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${bgStyles[tone]}`}>{icon}</div>
+      <p className="mt-3.5 text-2xl font-black text-heal-ink dark:text-white leading-none">{value}</p>
+      <p className="mt-2 text-xs font-bold text-heal-muted dark:text-zinc-500 leading-none">{label}</p>
     </div>
   );
 }
