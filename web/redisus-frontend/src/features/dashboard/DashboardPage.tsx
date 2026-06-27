@@ -1,4 +1,4 @@
-import { Bot, CalendarDays, ClipboardPlus, FileText, Search, Sparkles, SplitSquareHorizontal, Users } from 'lucide-react';
+import { Bot, CalendarDays, ClipboardPlus, FileText, Search, SplitSquareHorizontal, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -78,15 +78,15 @@ export function DashboardPage() {
 
   // Render appointments widget to avoid duplication
   const appointmentsWidget = (
-    <Card className="border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
+    <Card padding="sm" className="border-heal-line/75 dark:border-zinc-800/80 bg-white dark:bg-[#0c0c0e]">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-blue">Agenda</p>
-          <h2 className="mt-1 text-lg font-black text-heal-ink dark:text-white">Próximos atendimentos</h2>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-heal-blue">Agenda</p>
+          <h2 className="mt-0.5 text-base font-black text-heal-ink dark:text-white leading-tight">Próximos atendimentos</h2>
         </div>
         <Link
           to="/agenda"
-          className="inline-flex h-8 items-center justify-center rounded-xl border border-heal-line bg-white px-3 text-xs font-bold text-heal-ink hover:bg-slate-50 transition-colors dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800"
+          className="inline-flex h-8 items-center justify-center rounded-xl border border-heal-line bg-white px-3 text-xs font-bold text-heal-ink hover:bg-slate-50 transition-colors dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800 shrink-0"
         >
           Ver tudo
         </Link>
@@ -119,16 +119,10 @@ export function DashboardPage() {
   const searchWidget = (
     <Link
       to="/chat"
-      className="flex min-h-14 items-center gap-3 rounded-2xl border border-heal-line/75 bg-white px-4 shadow-sm transition hover:border-heal-blue/40 hover:bg-heal-softBlue/30 dark:border-zinc-800/85 dark:bg-[#0c0c0e] dark:hover:bg-[#131316]/50 select-none"
+      className="relative flex w-full items-center rounded-full border border-heal-line bg-heal-softBlue/20 px-4 py-2.5 transition-all duration-200 hover:border-heal-blue/40 hover:bg-heal-softBlue/30 dark:border-zinc-700/60 dark:bg-black dark:hover:bg-zinc-900/80 dark:hover:border-blue-500/50 select-none group"
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-heal-softBlue/60 text-heal-blue dark:bg-blue-950/45 shrink-0">
-        <Sparkles className="h-5 w-5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-black text-heal-ink dark:text-white">Pergunte ou pesquise</p>
-        <p className="truncate text-xs font-semibold text-heal-muted dark:text-zinc-400">Pacientes, agenda, avaliações e retornos já salvos</p>
-      </div>
-      <Search className="h-4.5 w-4.5 text-heal-muted shrink-0" />
+      <Search className="h-4 w-4 text-heal-muted shrink-0 mr-3 group-hover:text-heal-blue transition-colors" />
+      <span className="text-sm text-heal-muted dark:text-zinc-400 select-none">Buscar pacientes, avaliações...</span>
     </Link>
   );
 
