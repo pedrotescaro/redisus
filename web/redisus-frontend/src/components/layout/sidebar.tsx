@@ -260,9 +260,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <img
             src="/images/logo.png"
             alt="Heal+"
-            className="h-12 w-12 object-contain group-hover:scale-105 transition-transform duration-300"
+            className="h-11 w-11 object-contain group-hover:scale-105 transition-transform duration-300"
           />
-          <span className="text-4xl font-black tracking-tight text-heal-blue">
+          <span className="text-[32px] font-black tracking-tight text-heal-blue">
             Heal+
           </span>
         </Link>
