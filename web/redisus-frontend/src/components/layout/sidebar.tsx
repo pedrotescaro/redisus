@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Bot,
+  Building2,
   CalendarDays,
   ClipboardList,
   FileBarChart,
@@ -120,7 +121,7 @@ function UserProfileWidget({ onSignOut }: { onSignOut: () => void }) {
 
   const displayName = profile?.displayName || user?.displayName || user?.email || 'Usuário';
   const photoURL = profile?.photoURL || user?.photoURL;
-  const handle = '@' + (displayName.toLowerCase().replace(/\s+/g, ''));
+  const email = profile?.email || user?.email || '';
 
   if (!user) return null;
 
@@ -141,8 +142,8 @@ function UserProfileWidget({ onSignOut }: { onSignOut: () => void }) {
             <p className="text-sm font-bold text-heal-ink dark:text-white truncate leading-tight">
               {displayName}
             </p>
-            <p className="text-[11px] text-heal-muted dark:text-zinc-500 font-medium truncate leading-none mt-1">
-              {handle}
+            <p className="text-[11px] text-heal-muted dark:text-zinc-500 font-medium truncate leading-none mt-1" title={email}>
+              {email}
             </p>
           </div>
         </div>
@@ -242,6 +243,7 @@ function MoreDropdown({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const { profile } = useAuth();
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -258,9 +260,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <img
             src="/images/logo.png"
             alt="Heal+"
-            className="h-10 w-10 object-contain group-hover:scale-105 transition-transform duration-300"
+            className="h-12 w-12 object-contain group-hover:scale-105 transition-transform duration-300"
           />
-          <span className="text-3xl font-black tracking-tight text-heal-blue">
+          <span className="text-4xl font-black tracking-tight text-heal-blue">
             Heal+
           </span>
         </Link>
@@ -274,8 +276,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </nav>
       </div>
 
-      {/* Footer: user profile widget only */}
-      <div className="shrink-0">
+      {/* Footer: user profile widget and institution */}
+      <div className="shrink-0 space-y-2.5">
+        <hr className="border-heal-line dark:border-zinc-800 mb-2" />
+        {profile?.clinicName && (
+          <div className="flex items-center gap-3 px-3.5 py-2 text-sm font-semibold text-heal-muted dark:text-zinc-400">
+            <Building2 className="w-5 h-5 text-heal-muted dark:text-zinc-400 shrink-0" />
+            <span className="truncate" title={profile.clinicName}>{profile.clinicName}</span>
+          </div>
+        )}
         <UserProfileWidget onSignOut={handleSignOut} />
       </div>
     </div>
