@@ -67,7 +67,7 @@ onnx>=1.14.0
 # ============================================================
 # Eixo 3: Interoperabilidade SUS (FHIR, e-SUS, DATASUS)
 # ============================================================
-requests>=2.31.0
+requests>=2.34.2
 fhir.resources>=7.0.0  # HL7 FHIR R4 models (opcional)
 google-auth>=2.0.0  # Opcional: ADC para Google Cloud Healthcare API
 
