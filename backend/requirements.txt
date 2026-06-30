@@ -1,7 +1,7 @@
 # Backend API - Additional dependencies
 firebase-admin>=6.0.0
 flask>=3.0.0
-flask-cors>=5.0.0
+flask-cors>=6.0.5
 python-dotenv>=1.0.0
 google-generativeai>=0.3.0
 Pillow>=10.0.0

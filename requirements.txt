@@ -75,7 +75,7 @@ google-auth>=2.0.0  # Opcional: ADC para Google Cloud Healthcare API
 # Eixo 5: Dashboard Web Clínico
 # ============================================================
 flask>=3.0.0
-flask-cors>=4.0.1
+flask-cors>=6.0.5
 
 # ============================================================
 # Opcional: TensorFlow Lite para mobile
