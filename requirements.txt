@@ -18,7 +18,7 @@ onnxruntime>=1.16.0
 onnxruntime-gpu>=1.16.0  # Para GPU NVIDIA
 
 # YOLO (Ultralytics)
-ultralytics>=8.0.0
+ultralytics>=8.4.83
 
 # Segmentação
 segmentation-models-pytorch>=0.3.3
