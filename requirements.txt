@@ -31,7 +31,7 @@ scikit-image>=0.21.0
 albumentations>=1.3.0
 
 # Visualização
-matplotlib>=3.7.0
+matplotlib>=3.11.0
 
 # Threading e Async
 concurrent-log-handler>=0.9.0
