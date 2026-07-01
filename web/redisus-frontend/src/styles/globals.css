@@ -78,13 +78,13 @@ textarea {
 }
 
 .landing-blue-button {
-  background: linear-gradient(135deg, #3f8df6 0%, #72adff 100%);
-  box-shadow: 0 16px 34px rgba(63, 141, 246, 0.34);
+  background: linear-gradient(135deg, #41B6E6 0%, #7fdfff 100%);
+  box-shadow: 0 16px 34px rgba(65, 182, 230, 0.34);
 }
 
 .landing-blue-button:hover,
 .landing-blue-button:focus {
-  background: linear-gradient(135deg, #347feb 0%, #66a4fb 100%);
+  background: linear-gradient(135deg, #35a3d0 0%, #6fd2fc 100%);
 }
 
 .landing-nav-link {
@@ -127,8 +127,8 @@ textarea {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 3px;
+  height: 3px;
 }
 
 ::-webkit-scrollbar-track {
@@ -136,12 +136,20 @@ textarea {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border-strong);
+  background: rgba(15, 20, 25, 0.15);
   border-radius: 9999px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted);
+  background: rgba(15, 20, 25, 0.3);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .sidebar-scroll {
@@ -264,4 +272,20 @@ textarea {
   body {
     background: white !important;
   }
+}
+
+/* Custom Pulse Dot for Landing Page */
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  background: #41B6E6;
+  border-radius: 50%;
+  animation: live-pulse-landing 1.6s ease-in-out infinite;
+  box-shadow: 0 0 8px #41B6E6;
+  flex-shrink: 0;
+}
+
+@keyframes live-pulse-landing {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
 }

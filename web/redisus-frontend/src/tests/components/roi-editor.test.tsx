@@ -7,6 +7,6 @@ describe('RoiEditor', () => {
   it('renderiza controles de ROI', () => {
     render(<RoiEditor open imageUrl="data:image/png;base64," initialRois={[]} onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText(/editor de roi/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /caneta fina/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /desenho livre/i })).toBeInTheDocument();
   });
 });

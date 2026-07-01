@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowRight, ArrowUp, Camera, Image as ImageIcon, LineChart, TrendingDown, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowDown, ArrowRight, ArrowUp, Camera, Image as ImageIcon, LineChart, TrendingDown, TrendingUp, BrainCircuit, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
 
 import { buildEvolutionText } from '../../features/reports/reportService';
 import { formatDate } from '../../lib/date';
@@ -7,6 +8,7 @@ import type { Evaluation, Patient } from '../../lib/types';
 import { RoiImageOverlay } from '../roi/RoiImageOverlay';
 import { Badge } from '../ui/Badge';
 import { Card } from '../ui/Card';
+import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
 interface ComparisonViewProps {
   patient: Patient;
@@ -22,12 +24,81 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
   const painDelta = evaluationB.painLevel - evaluationA.painLevel;
   const sequence = allEvaluations.length ? allEvaluations : [evaluationA, evaluationB];
 
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  const handleGenerateAnalysis = () => {
+    setLoadingAnalysis(true);
+    setAnalysisError(null);
+
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY || '';
+    const model = import.meta.env.VITE_AI_MODEL || 'llama-3.1-8b-instant';
+
+    const userPrompt = `Compare as duas avaliações clínicas de ferida do paciente ${patient.name} para analisar a evolução.
+Avaliação A (Antes - ${formatDate(evaluationA.date)}):
+- Local: ${evaluationA.woundLocation}
+- Dor: ${evaluationA.painLevel}/10
+- Exsudato: ${evaluationA.exudateAmount} (${evaluationA.exudateType})
+- Área estimada: ${areaA ? `${areaA.toFixed(1)}%` : 'sem ROI'}
+- Timers T.I.M.E.R.S.:
+  * Tecido: ${evaluationA.timers.tissue || 'Não informado'}
+  * Infecção: ${evaluationA.timers.infection || 'Não informado'}
+  * Umidade: ${evaluationA.timers.moisture || 'Não informado'}
+  * Bordas: ${evaluationA.timers.edge || 'Não informado'}
+
+Avaliação B (Agora - ${formatDate(evaluationB.date)}):
+- Local: ${evaluationB.woundLocation}
+- Dor: ${evaluationB.painLevel}/10
+- Exsudato: ${evaluationB.exudateAmount} (${evaluationB.exudateType})
+- Área estimada: ${areaB ? `${areaB.toFixed(1)}%` : 'sem ROI'}
+- Timers T.I.M.E.R.S.:
+  * Tecido: ${evaluationB.timers.tissue || 'Não informado'}
+  * Infecção: ${evaluationB.timers.infection || 'Não informado'}
+  * Umidade: ${evaluationB.timers.moisture || 'Não informado'}
+  * Bordas: ${evaluationB.timers.edge || 'Não informado'}
+
+Por favor, gere uma análise comparativa da evolução da lesão contendo:
+1. EVOLUÇÃO GERAL: A lesão está melhorando, estável ou piorando? Considere a variação na área da ferida, dor e exsudato.
+2. DADOS COMPARATIVOS: Destaque de forma simples o que melhorou ou piorou.
+3. CONDUTA EVOLUTIVA: Recomendações de cuidados baseadas nas mudanças observadas.`;
+
+    fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: 'Você é um clínico especialista em estomaterapia e cicatrização de feridas crônicas.' },
+          { role: 'user', content: userPrompt }
+        ]
+      })
+    })
+    .then(async response => {
+      if (!response.ok) throw new Error(`Erro: ${response.status}`);
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content;
+      if (!text) throw new Error('Retorno vazio.');
+      setAnalysis(text);
+    })
+    .catch(err => {
+      console.error(err);
+      setAnalysisError('Falha ao gerar análise comparativa. Verifique sua chave de API ou conexão.');
+    })
+    .finally(() => {
+      setLoadingAnalysis(false);
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Card>
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Comparativo clínico</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-muted dark:text-zinc-500">Comparativo clínico</p>
             <h2 className="mt-1 text-2xl font-black text-heal-ink dark:text-white">{patient.name}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-heal-muted dark:text-zinc-400">{buildEvolutionText(evaluationA, evaluationB)}</p>
           </div>
@@ -45,23 +116,23 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
       </Card>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_420px] min-w-0">
-        <Card className="min-w-0">
+        <Card className="min-w-0 flex flex-col h-full">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
               <LineChart className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Sequencia</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-muted dark:text-zinc-500">Sequencia</p>
               <h3 className="text-lg font-black text-heal-ink dark:text-white">Área visual estimada</h3>
             </div>
           </div>
-          <div className="mt-5 flex h-44 items-end gap-3 overflow-x-auto rounded-2xl bg-heal-canvas p-4 dark:bg-zinc-950">
+          <div className="mt-5 flex flex-grow h-auto items-end gap-3 overflow-x-auto rounded-2xl bg-heal-canvas p-4 dark:bg-zinc-950 min-h-[176px] pb-5">
             {sequence.map(evaluation => {
               const area = estimateRoisAreaPercent(evaluation.images[0]?.rois || []);
               const height = area ? Math.max(14, Math.min(100, area)) : 8;
               const selected = evaluation.id === evaluationA.id || evaluation.id === evaluationB.id;
               return (
-                <div key={evaluation.id} className="flex min-w-20 flex-1 flex-col items-center justify-end gap-2">
+                <div key={evaluation.id} className="flex min-w-20 flex-1 flex-col items-center justify-end gap-2 h-[180px]">
                   <div className={`w-full rounded-t-2xl ${selected ? 'bg-heal-blue' : 'bg-heal-teal'}`} style={{ height: `${height}%` }} />
                   <p className="text-center text-[11px] font-black text-heal-muted dark:text-zinc-400">{formatDate(evaluation.date)}</p>
                 </div>
@@ -71,7 +142,7 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
         </Card>
 
         <Card>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">TIMERS</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-muted dark:text-zinc-500">TIMERS</p>
           <h3 className="mt-1 text-lg font-black text-heal-ink dark:text-white">Comparativo clínico</h3>
           <div className="mt-4 space-y-3">
             <ClinicalRow label="T" title="Tecido" before={evaluationA.timers.tissue} after={evaluationB.timers.tissue} />
@@ -81,6 +152,70 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
           </div>
         </Card>
       </section>
+
+      {/* AI Comparative Analysis Section */}
+      <Card className="no-print">
+        <div className="rounded-2xl border border-heal-blue/20 bg-heal-softBlue/10 p-5 dark:border-blue-500/20 dark:bg-blue-950/20">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
+              <BrainCircuit className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-heal-blue">Análise de IA Generativa</p>
+              <h4 className="text-sm font-bold text-heal-ink dark:text-white">Parecer Clínico Evolutivo (Llama 3.1)</h4>
+            </div>
+          </div>
+
+          {analysis ? (
+            <div className="mt-4 animate-fade-in">
+              <div className="text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
+                <MarkdownRenderer text={analysis} />
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-heal-line/40 dark:border-zinc-800/40 pt-4">
+                <p className="text-[11px] text-heal-muted dark:text-zinc-500 font-medium">
+                  Aviso: Esta análise é gerada por inteligência artificial para apoio clínico e deve ser validada por um profissional de saúde.
+                </p>
+                <button
+                  onClick={handleGenerateAnalysis}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-heal-blue/20 bg-white dark:bg-zinc-900 text-xs font-bold text-heal-blue cursor-pointer hover:bg-heal-softBlue/30 transition-colors"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Regerar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-col items-center py-4 text-center">
+              {loadingAnalysis ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-heal-blue" />
+                  <p className="text-xs font-semibold text-heal-muted dark:text-zinc-400">Analisando evolução clínica da lesão...</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-heal-muted dark:text-zinc-400 mb-4 max-w-md">
+                    Gere uma análise comparativa completa da evolução da ferida (variação de dor, exsudato e leito) com parecer clínico usando inteligência artificial.
+                  </p>
+                  <button
+                    onClick={handleGenerateAnalysis}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-heal-blue hover:bg-heal-blueDark text-white text-xs font-bold shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Gerar Comparativo por IA
+                  </button>
+                </>
+              )}
+
+              {analysisError && (
+                <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>{analysisError}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }

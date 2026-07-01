@@ -19,6 +19,7 @@ import type { ComponentType } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { useAuth } from '../../app/providers/AuthProvider';
+import { useTheme } from '../../app/providers/ThemeProvider';
 import { auth } from '../../lib/firebase';
 import { UserAvatar } from '../profile/UserAvatar';
 
@@ -244,6 +245,8 @@ function MoreDropdown({ onNavigate }: { onNavigate?: () => void }) {
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { profile } = useAuth();
+  const { theme } = useTheme();
+
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -256,15 +259,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full min-h-0 flex-col justify-between bg-white dark:bg-zinc-950 p-5 select-none">
       <div className="space-y-5">
         {/* Logo */}
-        <Link to="/dashboard" className="flex items-center gap-3.5 px-3 py-1 group w-fit mb-2">
+        <Link to="/dashboard" className="flex items-center px-3 py-1 group w-fit mb-2">
           <img
-            src="/images/logo.png"
+            src="/images/Logo_final_modobranco.png"
             alt="Heal+"
-            className="h-11 w-11 object-contain group-hover:scale-105 transition-transform duration-300"
+            className="h-11 w-auto object-contain group-hover:scale-105 transition-transform duration-300"
           />
-          <span className="text-[32px] font-black tracking-tight text-heal-blue">
-            Heal+
-          </span>
         </Link>
 
         {/* Navigation — flat list like DevDeck */}
