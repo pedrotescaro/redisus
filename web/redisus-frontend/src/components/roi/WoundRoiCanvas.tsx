@@ -7,11 +7,15 @@ import {
   CheckCircle2,
   Circle,
   Eraser,
+  Maximize2,
+  Minus,
   MousePointer2,
   PenTool,
   PencilLine,
+  Plus,
   PlusCircle,
   Redo2,
+  Save,
   Undo2,
 } from "lucide-react";
 import {
@@ -95,6 +99,7 @@ export function WoundRoiCanvas({
   const imgRef = useRef<HTMLImageElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
+  const [zoom, setZoom] = useState(1);
   const [tool, setTool] = useState<HealAnalyzerRoiTool>(
     initialSelection?.tool ?? "polygon",
   );
@@ -119,6 +124,7 @@ export function WoundRoiCanvas({
     setIsDrawing(false);
     setDraggingVertexIndex(null);
     activePointerIdRef.current = null;
+    setZoom(1);
   }, [imageSrc, initialSelection]);
 
   const previewPoints = useMemo(() => {
@@ -378,52 +384,172 @@ export function WoundRoiCanvas({
   const canResetDraft = Boolean(points.length || circleDraft);
 
   return (
-    <section className="select-none overflow-hidden rounded-2xl border border-heal-line bg-white shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="border-b border-heal-line bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-blue">
-              Delimitação manual
-            </p>
-            <h2 className="mt-1 text-xl font-black text-heal-ink dark:text-white">
-              Marque a ROI na imagem
-            </h2>
-          </div>
-          <RoiStatusBadge confirmed={confirmed} selectionReady={selectionReady} />
+    <div className="space-y-4 select-none">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-heal-muted">
+            Delimitação manual
+          </p>
+          <h2 className="mt-1 text-xl font-black text-heal-ink dark:text-white flex items-center gap-2 flex-wrap">
+            <span>Marque a ROI na imagem</span>
+            
+            {/* Painel de Ações Rápidas (Paint Style) */}
+            <span className="inline-flex items-center gap-1.5 ml-2">
+              <button
+                type="button"
+                disabled={disabled || !selectionReady || confirmed}
+                onClick={handleConfirm}
+                className="text-heal-ink dark:text-zinc-100 hover:text-heal-blue disabled:opacity-30 transition border-0 bg-transparent p-1 cursor-pointer flex items-center justify-center rounded-lg hover:bg-heal-canvas/80 dark:hover:bg-zinc-800/60"
+                title={confirmLabel}
+              >
+                <Save className="h-4 w-4" />
+              </button>
+              <span className="h-4 w-[1px] bg-heal-line dark:bg-zinc-800 mx-1" />
+              <button
+                type="button"
+                disabled={disabled || !(tool === "polygon" && !polygonClosed && points.length > 0)}
+                onClick={handleUndo}
+                className="text-heal-ink dark:text-zinc-100 hover:text-heal-blue disabled:opacity-30 transition border-0 bg-transparent p-1 cursor-pointer flex items-center justify-center rounded-lg hover:bg-heal-canvas/80 dark:hover:bg-zinc-800/60"
+                title="Desfazer ponto"
+              >
+                <Undo2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                disabled={disabled || !canResetDraft}
+                onClick={() => resetSelection(false)}
+                className="text-heal-ink dark:text-zinc-100 hover:text-heal-blue disabled:opacity-30 transition border-0 bg-transparent p-1 cursor-pointer flex items-center justify-center rounded-lg hover:bg-heal-canvas/80 dark:hover:bg-zinc-800/60"
+                title="Refazer marcação"
+              >
+                <Redo2 className="h-4 w-4" />
+              </button>
+            </span>
+          </h2>
         </div>
-
-        <RoiToolbar
-          activeTool={tool}
-          confirmLabel={confirmLabel}
-          disabled={disabled}
-          canConfirm={!confirmed && selectionReady}
-          canEdit={confirmed}
-          canResetDraft={canResetDraft}
-          canUndo={tool === "polygon" && !polygonClosed && points.length > 0}
-          onConfirm={handleConfirm}
-          onEdit={handleEdit}
-          onResetDraft={() => resetSelection(false)}
-          onClear={() => resetSelection(true)}
-          onToolChange={handleToolChange}
-          onUndo={handleUndo}
-        />
-
-        <RoiTipsCard
-          areaPercent={areaPercent}
-          instruction={instruction}
-          selectionReady={selectionReady}
-          tool={tool}
-        />
+        <RoiStatusBadge confirmed={confirmed} selectionReady={selectionReady} />
       </div>
 
-      <div className="bg-heal-canvas p-3 sm:p-4 dark:bg-zinc-950">
-        <div className="flex min-h-[420px] items-center justify-center overflow-hidden rounded-2xl border border-heal-line bg-slate-950 p-3 shadow-inner sm:min-h-[520px] xl:min-h-[620px] dark:border-zinc-800">
-          <div className="relative inline-block max-h-[74vh] max-w-full">
+      {/* Ferramentas e Configuração (Paint Style) */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* Seletor de Formatos */}
+        <div className="flex items-center gap-1">
+          {TOOL_OPTIONS.map((option) => {
+            const Icon = TOOL_ICONS[option.tool];
+            const active = option.tool === tool;
+            return (
+              <button
+                key={option.tool}
+                type="button"
+                disabled={disabled}
+                onClick={() => handleToolChange(option.tool)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 border-0 cursor-pointer",
+                  active
+                    ? "bg-heal-blue text-white shadow-sm"
+                    : "text-heal-ink dark:text-zinc-100 hover:text-heal-blue bg-transparent hover:bg-heal-canvas/80 dark:hover:bg-zinc-800/60",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span>{roiToolLabel(option.tool)}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <span className="h-4 w-[1px] bg-heal-line dark:bg-zinc-800 mx-1" />
+
+        {/* Lápis de Edição / Borracha de Limpeza */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={disabled || !confirmed}
+            onClick={handleEdit}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg border-0 transition disabled:opacity-30 cursor-pointer",
+              "text-heal-ink dark:text-zinc-100 hover:text-heal-blue bg-transparent hover:bg-heal-canvas/80 dark:hover:bg-zinc-800/60"
+            )}
+            title="Editar ROI atual"
+          >
+            <PencilLine className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={disabled || !canResetDraft}
+            onClick={() => resetSelection(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border-0 text-heal-ink dark:text-zinc-100 hover:text-heal-blue bg-transparent transition disabled:opacity-30 cursor-pointer hover:bg-heal-canvas/80 dark:hover:bg-zinc-800/60"
+            title="Limpar marcação atual"
+          >
+            <Eraser className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Instrução Simples */}
+      <div className="text-xs text-heal-muted dark:text-zinc-400 select-none">
+        <p className="font-medium">
+          <span className="font-bold text-heal-blue">{roiToolLabel(tool)}:</span> {instruction}
+          {selectionReady && (
+            <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-heal-teal/20 bg-heal-tealSoft/50 px-2 py-0.5 text-[10px] font-black text-heal-teal">
+              Área: {areaPercent}%
+            </span>
+          )}
+        </p>
+      </div>
+
+      <div className="relative flex min-h-[350px] items-center justify-center overflow-auto rounded-2xl border border-heal-line bg-slate-950 p-3 shadow-inner sm:min-h-[400px] xl:min-h-[460px] dark:border-zinc-800">
+          {/* Zoom Floating Controls */}
+          <div className="absolute right-4 top-4 z-10 flex items-center gap-1 rounded-xl border border-heal-line bg-white/90 p-1 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/90 backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => setZoom(z => Math.max(1, z - 0.25))}
+              disabled={zoom <= 1}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-heal-muted hover:bg-heal-canvas hover:text-heal-ink disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 border-0 bg-transparent cursor-pointer"
+              title="Diminuir zoom"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="text-[10px] font-bold px-1.5 min-w-[45px] text-center text-heal-ink dark:text-white select-none">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoom(z => Math.min(3, z + 0.25))}
+              disabled={zoom >= 3}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-heal-muted hover:bg-heal-canvas hover:text-heal-ink disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 border-0 bg-transparent cursor-pointer"
+              title="Aumentar zoom"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+            {zoom > 1 && (
+              <button
+                type="button"
+                onClick={() => setZoom(1)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border-l border-heal-line text-heal-muted hover:bg-heal-canvas hover:text-heal-ink dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 pl-1 border-0 bg-transparent cursor-pointer"
+                title="Resetar zoom"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div
+            className="relative inline-block transition-all duration-200"
+            style={zoom > 1 ? {
+              width: `${zoom * 100}%`,
+              maxWidth: 'none',
+            } : {
+              maxHeight: '60vh',
+              maxWidth: '100%',
+            }}
+          >
             <img
               ref={imgRef}
               src={imageSrc}
               alt="Imagem para delimitação manual da ferida"
-              className="max-h-[70vh] w-auto max-w-full rounded-xl object-contain"
+              className={cn(
+                "rounded-xl object-contain transition-all duration-200",
+                zoom === 1 ? "max-h-[56vh] w-auto max-w-full" : "w-full h-auto"
+              )}
               onLoad={(event) =>
                 setImageSize({
                   width: event.currentTarget.naturalWidth,
@@ -525,7 +651,7 @@ export function WoundRoiCanvas({
                   <circle
                     key={`${point.x}-${point.y}-${index}`}
                     cx={toSvgCoordinate(point.x)}
-                    cy={toSvgCoordinate(point.y)}
+                    cy={point ? toSvgCoordinate(point.y) : 0}
                     r={index === 0 && !polygonClosed ? 1.6 : 1.2}
                     fill={index === 0 && !polygonClosed ? "#fde68a" : "#ffffff"}
                     stroke="#0f172a"
@@ -541,165 +667,10 @@ export function WoundRoiCanvas({
           </div>
         </div>
       </div>
-    </section>
   );
 }
 
 export const AnalyzerRoiEditor = WoundRoiCanvas;
-
-type RoiToolbarProps = {
-  activeTool: HealAnalyzerRoiTool;
-  canConfirm: boolean;
-  canEdit: boolean;
-  canResetDraft: boolean;
-  canUndo: boolean;
-  confirmLabel: string;
-  disabled: boolean;
-  onClear: () => void;
-  onConfirm: () => void;
-  onEdit: () => void;
-  onResetDraft: () => void;
-  onToolChange: (tool: HealAnalyzerRoiTool) => void;
-  onUndo: () => void;
-};
-
-function RoiToolbar({
-  activeTool,
-  canConfirm,
-  canEdit,
-  canResetDraft,
-  canUndo,
-  confirmLabel,
-  disabled,
-  onClear,
-  onConfirm,
-  onEdit,
-  onResetDraft,
-  onToolChange,
-  onUndo,
-}: RoiToolbarProps) {
-  const actionClass =
-    "inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40";
-  const quietActionClass =
-    "border-heal-line bg-white text-heal-ink hover:border-heal-blue/40 hover:bg-heal-canvas dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800";
-
-  return (
-    <div className="mt-4 space-y-2 overflow-x-auto pb-1">
-      <div className="inline-flex min-w-max rounded-2xl border border-heal-line bg-heal-canvas p-1 dark:border-zinc-800 dark:bg-zinc-950">
-        {TOOL_OPTIONS.map((option) => {
-          const Icon = TOOL_ICONS[option.tool];
-          const active = option.tool === activeTool;
-          return (
-            <button
-              key={option.tool}
-              type="button"
-              disabled={disabled}
-              onClick={() => onToolChange(option.tool)}
-              className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-xl px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
-                active
-                  ? "bg-white text-heal-blue shadow-sm ring-1 ring-heal-blue/20 dark:bg-zinc-900"
-                  : "text-heal-muted hover:bg-white hover:text-heal-ink dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white",
-              )}
-              title={roiToolLabel(option.tool)}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{roiToolLabel(option.tool)}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex min-w-max gap-2 xl:min-w-0 xl:flex-wrap">
-        <button
-          type="button"
-          className={cn(actionClass, quietActionClass)}
-          disabled={disabled || !canUndo}
-          onClick={onUndo}
-          title="Desfazer ponto"
-        >
-          <Undo2 className="h-4 w-4" />
-          <span>Desfazer ponto</span>
-        </button>
-        <button
-          type="button"
-          className={cn(actionClass, quietActionClass)}
-          disabled={disabled || !canEdit}
-          onClick={onEdit}
-          title="Editar ROI atual"
-        >
-          <PencilLine className="h-4 w-4" />
-          <span>Editar</span>
-        </button>
-        <button
-          type="button"
-          className={cn(actionClass, quietActionClass)}
-          disabled={disabled || !canResetDraft}
-          onClick={onResetDraft}
-          title="Refazer marcação atual"
-        >
-          <Redo2 className="h-4 w-4" />
-          <span>Refazer</span>
-        </button>
-        <button
-          type="button"
-          className={cn(actionClass, quietActionClass)}
-          disabled={disabled || !canResetDraft}
-          onClick={onClear}
-          title="Limpar marcação atual"
-        >
-          <Eraser className="h-4 w-4" />
-          <span>Limpar</span>
-        </button>
-        <button
-          type="button"
-          className={cn(
-            actionClass,
-            "border-heal-blue bg-heal-blue text-white shadow-sm hover:bg-heal-blueDark disabled:border-heal-line disabled:bg-heal-canvas disabled:text-heal-muted dark:disabled:border-zinc-800 dark:disabled:bg-zinc-950",
-          )}
-          disabled={disabled || !canConfirm}
-          onClick={onConfirm}
-          title={confirmLabel}
-        >
-          {confirmLabel.toLowerCase().includes("nova") ? (
-            <PlusCircle className="h-4 w-4" />
-          ) : (
-            <CheckCircle2 className="h-4 w-4" />
-          )}
-          <span>{confirmLabel}</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function RoiTipsCard({
-  areaPercent,
-  instruction,
-  selectionReady,
-  tool,
-}: {
-  areaPercent: number;
-  instruction: string;
-  selectionReady: boolean;
-  tool: HealAnalyzerRoiTool;
-}) {
-  return (
-    <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-heal-line bg-heal-canvas p-3 dark:border-zinc-800 dark:bg-zinc-950 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-sm font-black text-heal-ink dark:text-white">
-          {roiToolLabel(tool)}: <span className="font-semibold text-heal-muted dark:text-zinc-400">{instruction}</span>
-        </p>
-      </div>
-      {selectionReady ? (
-        <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-heal-teal/20 bg-heal-tealSoft px-3 py-1.5 text-xs font-black text-heal-teal">
-          <Circle className="h-3.5 w-3.5" />
-          Area marcada: {areaPercent}%
-        </span>
-      ) : null}
-    </div>
-  );
-}
 
 function RoiStatusBadge({
   confirmed,
@@ -710,7 +681,7 @@ function RoiStatusBadge({
 }) {
   if (confirmed) {
     return (
-      <span className="inline-flex w-fit items-center gap-2 rounded-full border border-heal-teal/20 bg-heal-tealSoft px-3 py-1.5 text-xs font-black text-heal-teal">
+      <span className="inline-flex w-fit items-center gap-2 rounded-full border border-heal-teal/20 bg-heal-tealSoft px-3 py-1.5 text-xs font-black text-heal-teal select-none">
         <CheckCircle2 className="h-3.5 w-3.5" />
         ROI salva
       </span>
@@ -720,7 +691,7 @@ function RoiStatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black",
+        "inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black select-none",
         selectionReady
           ? "border-heal-blue/20 bg-heal-softBlue text-heal-blue"
           : "border-heal-line bg-heal-canvas text-heal-muted dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400",

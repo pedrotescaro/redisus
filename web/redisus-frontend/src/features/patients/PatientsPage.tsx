@@ -85,7 +85,7 @@ export function PatientsPage() {
           <tbody className="divide-y divide-heal-line/60 dark:divide-zinc-800/60">
             {filtered.slice(0, visibleCount).map(patient => (
               <tr key={patient.id} className="hover:bg-heal-canvas/30 dark:hover:bg-zinc-900/30 transition-colors">
-                <td className="px-5 py-3 font-bold text-heal-ink dark:text-white truncate max-w-[140px]">{patient.name}</td>
+                <td className="px-5 py-3 font-bold text-heal-ink dark:text-white truncate max-w-[180px]">{patient.name}</td>
                 <td className="px-5 py-3 text-xs text-heal-muted truncate">{patient.phone}</td>
                 <td className="px-5 py-3 text-xs text-heal-muted truncate">{patient.email || 'Não informado'}</td>
               </tr>
@@ -101,7 +101,7 @@ export function PatientsPage() {
   return (
     <div className="flex flex-col xl:flex-row min-h-screen min-w-0 bg-white dark:bg-[#0c0c0e]">
       {/* Coluna Central */}
-      <div className="flex-grow max-w-2xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
+      <div className="flex-grow max-w-5xl w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
         <PageHeader
           title="Central de pacientes"
           description={`${filtered.length} ${filtered.length === 1 ? 'paciente cadastrado' : 'pacientes cadastrados'}`}
@@ -192,7 +192,7 @@ export function PatientsPage() {
       </div>
 
       {/* Coluna Lateral Direita */}
-      <aside className="hidden xl:block w-80 p-5 space-y-6 shrink-0 min-h-screen">
+      <aside className="hidden xl:block w-96 p-5 space-y-6 shrink-0 min-h-screen">
         {quickTableCard}
       </aside>
 

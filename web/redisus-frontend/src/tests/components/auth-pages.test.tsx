@@ -10,6 +10,10 @@ vi.mock('../../app/providers/AuthProvider', () => ({
   useAuth: () => ({ user: null, profile: null, loading: false })
 }));
 
+vi.mock('../../app/providers/ThemeProvider', () => ({
+  useTheme: () => ({ theme: 'dark', toggleTheme: vi.fn() })
+}));
+
 const serviceMocks = vi.hoisted(() => ({
   loginWithEmail: vi.fn(),
   registerWithEmail: vi.fn(),
@@ -54,7 +58,7 @@ describe('paginas de autenticacao', () => {
 
     await user.type(screen.getByLabelText(/e-mail/i), 'dra@heal.plus');
     if (passwordInput) await user.type(passwordInput, '123456');
-    await user.click(screen.getByRole('button', { name: /entrar login/i }));
+    await user.click(screen.getByRole('button', { name: /^entrar$/i }));
 
     await waitFor(() => expect(serviceMocks.signInWithEmail).toHaveBeenCalledWith('dra@heal.plus', '123456'));
   });

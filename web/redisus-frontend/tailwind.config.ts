@@ -15,9 +15,9 @@ export default {
       },
       colors: {
         heal: {
-          blue: '#3B82F6',
-          blueDark: '#2563EB',
-          blueLight: '#DBEAFE',
+          blue: 'var(--color-primary)',
+          blueDark: 'var(--color-primary-dark)',
+          blueLight: 'var(--color-primary-light)',
           teal: '#10B981',
           tealDark: '#059669',
           tealSoft: '#D1FAE5',
@@ -30,7 +30,7 @@ export default {
           canvas: '#F2F2F7',
           surface: '#FFFFFF',
           surfaceHover: '#EFEFF4',
-          softBlue: '#DBEAFE',
+          softBlue: 'var(--color-soft-blue)',
           success: '#10B981',
           successSoft: '#D1FAE5',
           danger: '#EF4444',

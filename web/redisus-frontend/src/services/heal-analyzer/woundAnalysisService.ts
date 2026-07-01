@@ -72,26 +72,26 @@ function buildConsideredData(options: {
   history: Evaluation[];
   pipeline: WoundAnalysisPipelineResult;
 }) {
-  const considered = ['imagem clinica enviada', 'ROI manual normalizada'];
+  const considered = ['imagem clínica enviada', 'ROI manual normalizada'];
   if (options.pipeline.roiCrop) considered.push('recorte real da ROI');
-  if (options.patient) considered.push('dados minimos do paciente, sem telefone/e-mail no resultado');
-  if (options.assessment) considered.push('dados estruturados da avaliacao');
-  if (options.history.length > 1) considered.push('historico anterior do mesmo paciente/regiao');
-  if (options.assessment?.notes) considered.push('observacoes clinicas');
-  if (!options.pipeline.tissueClassification.enabled) considered.push('classificacao tecidual bloqueada ou indisponivel');
+  if (options.patient) considered.push('dados mínimos do paciente, sem telefone/e-mail no resultado');
+  if (options.assessment) considered.push('dados estruturados da avaliação');
+  if (options.history.length > 1) considered.push('histórico anterior do mesmo paciente/região');
+  if (options.assessment?.notes) considered.push('observações clínicas');
+  if (!options.pipeline.tissueClassification.enabled) considered.push('classificação tecidual bloqueada ou indisponível');
   return considered;
 }
 
 function buildAiSummary(pipeline: WoundAnalysisPipelineResult) {
   if (!pipeline.canAnalyze) {
-    return 'A imagem analisada nao apresenta evidencia visual suficiente de ferida na ROI marcada. Para evitar resultado incorreto, o sistema nao gerou classificacao de tecido.';
+    return 'A imagem analisada não apresenta evidência visual suficiente de ferida na ROI marcada. Para evitar resultado incorreto, o sistema não gerou classificação de tecido.';
   }
 
   if (!pipeline.tissueClassification.enabled) {
-    return 'A ROI marcada apresenta caracteristicas visuais compativeis com area de ferida, com confianca moderada. A classificacao tecidual automatica esta indisponivel ou limitada e deve ser validada por profissional de saude.';
+    return 'A ROI marcada apresenta características visuais compatíveis com área de ferida, com confiança moderada. A classificação tecidual automática está indisponível ou limitada e deve ser validada por profissional de saúde.';
   }
 
-  return 'A ROI marcada passou pela validacao visual e a classificacao tecidual assistiva foi gerada por modelo habilitado, devendo ser interpretada com cautela e validacao profissional.';
+  return 'A ROI marcada passou pela validação visual e a classificação tecidual assistiva foi gerada por modelo habilitado, devendo ser interpretada com cautela e validação profissional.';
 }
 
 export async function buildClinicalAnalysisResult(options: BuildClinicalAnalysisOptions): Promise<ClinicalAnalysisResult> {

@@ -29,6 +29,7 @@ import { subscribeAppointments } from '../agenda/agendaService';
 import { listEvaluations } from '../evaluations/evaluationService';
 import { subscribePatients } from '../patients/patientService';
 import { answerLocalQuestion } from './localAssistant';
+import { MarkdownRenderer } from '../../components/ui/MarkdownRenderer';
 
 /* ──────────────────────────────────────────────
    Types
@@ -193,15 +194,65 @@ export function ChatPage() {
     setInput('');
     setThinking(true);
 
-    // Simulate a small delay for the "thinking" effect
-    setTimeout(() => {
-      const answer = answerLocalQuestion(question, { patients, appointments, evaluationsByPatient });
-      const assistantMsgId = Math.random().toString();
-      const assistantMsg: Message = { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true };
-      setMessages(prev => [...prev, assistantMsg]);
-      setThinking(false);
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY || '';
+    const model = import.meta.env.VITE_AI_MODEL || 'llama-3.1-8b-instant';
 
-      // Streaming text simulation
+    const systemPrompt = `Você é o Assistente Clínico Inteligente da plataforma Heal+, especializado no suporte ao acompanhamento longitudinal de feridas e cicatrização.
+Seu objetivo é auxiliar o profissional de saúde a analisar o histórico dos pacientes, comparar evolução de lesões, resumir parâmetros clínicos e responder a dúvidas sobre os dados cadastrados na clínica.
+
+Aqui estão os dados atuais em tempo real da clínica para você responder com precisão:
+
+=== PACIENTES CADASTRADOS ===
+${patients.map(p => `- Paciente: ${p.name}, Telefone: ${p.phone || 'N/A'}, E-mail: ${p.email || 'N/A'}, Nascimento: ${p.birthDate || 'N/A'}, Status: ${p.archived ? 'Arquivado' : 'Ativo'}. Avaliações salvas: ${(evaluationsByPatient[p.id] || []).length} avaliação(ões).`).join('\n') || 'Nenhum paciente cadastrado.'}
+
+=== PRÓXIMOS ATENDIMENTOS (AGENDA) ===
+${appointments.map(a => `- Compromisso em ${a.date} às ${a.time}: Paciente ${a.patientName} (${a.type}).`).join('\n') || 'Nenhum atendimento na agenda.'}
+
+=== AVALIAÇÕES CLÍNICAS E HISTÓRICO DE FERIDAS ===
+${Object.entries(evaluationsByPatient).map(([pId, evals]) => {
+  const p = patients.find(x => x.id === pId);
+  if (!p || evals.length === 0) return '';
+  return `Paciente: ${p.name}:\n` + evals.map(e => {
+    return `  * Avaliação em ${e.date}: Local: ${e.woundLocation}, Etiologia: ${e.woundEtiology}, Dor: ${e.painLevel}/10, Exsudato: ${e.exudateAmount} (${e.exudateType}), Bordas: ${e.borderCharacteristics}, Pele perilesional: ${e.periwoundSkin}. Timers T.I.M.E.R.S.: Tissue: ${e.timers.tissue || 'N/A'}, Infection: ${e.timers.infection || 'N/A'}, Moisture: ${e.timers.moisture || 'N/A'}, Edge: ${e.timers.edge || 'N/A'}, Repair: ${e.timers.repair || 'N/A'}, Social: ${e.timers.social || 'N/A'}. Observações: ${e.notes || 'N/A'}`;
+  }).join('\n');
+}).filter(Boolean).join('\n') || 'Nenhuma avaliação clínica registrada.'}
+
+Diretrizes de resposta:
+1. Responda de forma clara, objetiva, profissional e humanizada em português.
+2. Sempre use os dados reais fornecidos acima para responder perguntas específicas dos pacientes ou da agenda. Se a informação não estiver nos dados acima, informe educadamente que ela não consta nos registros.
+3. Forneça análises de evolução baseadas nos parâmetros de dor, exsudato e tamanho do leito da ferida quando solicitado.
+4. Lembre-se: Suas análises servem de apoio e não substituem o julgamento de um profissional de saúde.`;
+
+    const groqMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({ role: m.role, content: m.content })),
+      { role: 'user', content: question }
+    ];
+
+    const assistantMsgId = Math.random().toString();
+    const assistantMsg: Message = { id: assistantMsgId, role: 'assistant', content: '...', isStreaming: true };
+    setMessages(prev => [...prev, assistantMsg]);
+
+    fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: groqMessages
+      })
+    })
+    .then(async response => {
+      if (!response.ok) {
+        throw new Error(`Erro API Groq: ${response.status}`);
+      }
+      const data = await response.json();
+      const answer = data.choices?.[0]?.message?.content || 'Desculpe, não consegui obter uma resposta.';
+      
+      setThinking(false);
+      
       let currentIdx = 0;
       const interval = setInterval(() => {
         setMessages(prev =>
@@ -217,7 +268,23 @@ export function ChatPage() {
         );
         currentIdx += 12;
       }, 15);
-    }, 400 + Math.random() * 300);
+    })
+    .catch(err => {
+      console.error(err);
+      setThinking(false);
+      setMessages(prev =>
+        prev.map(msg => {
+          if (msg.id === assistantMsgId) {
+            return {
+              ...msg,
+              content: 'Desculpe, ocorreu um erro ao se comunicar com o assistente inteligente de IA. Verifique sua conexão ou a chave de API.',
+              isStreaming: false
+            };
+          }
+          return msg;
+        })
+      );
+    });
   };
 
   /* ── History helpers ── */
@@ -513,9 +580,9 @@ export function ChatPage() {
                 <span>Histórico</span>
               </button>
 
-              <div className="hidden items-center gap-2 rounded-full bg-heal-canvas dark:bg-zinc-900 px-3 py-1.5 text-[11px] font-black text-heal-muted sm:inline-flex">
-                <Database className="h-3.5 w-3.5 text-heal-teal" />
-                Sem API externa
+              <div className="hidden items-center gap-2 rounded-full bg-heal-canvas dark:bg-zinc-900 px-3 py-1.5 text-[11px] font-bold text-heal-muted sm:inline-flex">
+                <Sparkles className="h-3.5 w-3.5 text-heal-blue animate-pulse" />
+                <span>Llama 3.1 (Groq API)</span>
               </div>
             </div>
           </header>
@@ -567,11 +634,8 @@ export function ChatPage() {
                           key={msg.id}
                           className="flex flex-col items-start w-full py-4 border-b border-heal-line/20 dark:border-[#1f1f23]/10 animate-fade-in"
                         >
-                          <div className="max-w-[85%] text-sm text-heal-ink dark:text-white leading-relaxed font-sans whitespace-pre-line">
-                            {msg.content}
-                            {msg.isStreaming && (
-                              <span className="inline-block w-1.5 h-3.5 bg-heal-blue ml-1 animate-pulse rounded-sm" />
-                            )}
+                          <div className="max-w-[85%] text-sm text-heal-ink dark:text-white leading-relaxed font-sans">
+                            <MarkdownRenderer text={msg.content + (msg.isStreaming ? ' ▎' : '')} />
                           </div>
 
                           {/* Action icons */}

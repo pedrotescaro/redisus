@@ -3,10 +3,10 @@ import type { WoundImageQualityResult } from './imageQualityService';
 import type { RoiCropResult } from './roiCropService';
 
 export const WOUND_ANALYZER_BLOCKED_ROI_MESSAGE =
-  'A ROI selecionada nao apresenta caracteristicas visuais suficientes de ferida para analise assistiva. Revise a marcacao ou selecione uma imagem clinica adequada.';
+  'A ROI selecionada não apresenta características visuais suficientes de ferida para análise assistiva. Revise a marcação ou selecione uma imagem clínica adequada.';
 
 export const WOUND_ANALYZER_UNRELIABLE_CLASSIFICATION_MESSAGE =
-  'Nao foi possivel realizar uma classificacao confiavel da ferida. A imagem ou ROI nao contem evidencia visual suficiente de ferida cronica.';
+  'Não foi possível realizar uma classificação confiável da ferida. A imagem ou ROI não contém evidência visual suficiente de ferida crônica.';
 
 export const WOUND_ANALYSIS_SAFETY_THRESHOLDS = {
   minWoundLikelihood: 0.6,
@@ -103,14 +103,14 @@ function calculateTextureScore(quality: WoundImageQualityResult) {
 
 export function validateWoundInput(options: { image: File | string | null; rois: Roi[] }): WoundInputValidationResult {
   if (!options.image) {
-    return { canProceed: false, reason: 'Selecione uma imagem clinica antes de iniciar a analise.', validRois: [] };
+    return { canProceed: false, reason: 'Selecione uma imagem clínica antes de iniciar a análise.', validRois: [] };
   }
 
   const validRois = options.rois.filter(roi => roi.points.length >= 3);
   if (!validRois.length) {
     return {
       canProceed: false,
-      reason: 'Crie ou carregue uma ROI manual antes da analise visual. O HEAL Analyzer nao classifica imagem inteira como ferida.',
+      reason: 'Crie ou carregue uma ROI manual antes da análise visual. O HEAL Analyzer não classifica imagem inteira como ferida.',
       validRois: []
     };
   }
@@ -238,14 +238,14 @@ export function validateWoundRoi(crop: RoiCropResult, quality: WoundImageQuality
   woundLikelihood = clamp01(woundLikelihood);
 
   const isValid = woundLikelihood >= WOUND_ANALYSIS_SAFETY_THRESHOLDS.minWoundLikelihood && !issues.includes('roi_too_small') && !issues.includes('roi_too_large');
-  let reason = 'A ROI apresenta variacao visual compativel com area de ferida, mas ainda requer validacao profissional.';
+  let reason = 'A ROI apresenta variação visual compatível com área de ferida, mas ainda requer validação profissional.';
 
   if (!isValid) {
-    if (issues.includes('roi_too_small')) reason = 'A ROI marcada e pequena demais para analise visual confiavel.';
-    else if (issues.includes('roi_too_large')) reason = 'Marque somente a area da ferida. Evite incluir rosto, roupa, fundo, maos, instrumentos ou grandes areas de pele saudavel.';
-    else if (issues.includes('probable_clothing_or_object')) reason = 'A ROI contem padroes de cor mais compativeis com roupa, objeto ou fundo do que com leito de ferida.';
-    else if (issues.includes('mostly_intact_skin')) reason = 'A ROI parece conter majoritariamente pele integra, sem evidencia visual suficiente de ferida.';
-    else if (issues.includes('probable_background_or_gauze')) reason = 'A ROI parece conter fundo, gaze ou area neutra demais para analise tecidual.';
+    if (issues.includes('roi_too_small')) reason = 'A ROI marcada é pequena demais para análise visual confiável.';
+    else if (issues.includes('roi_too_large')) reason = 'Marque somente a área da ferida. Evite incluir rosto, roupa, fundo, mãos, instrumentos ou grandes áreas de pele saudável.';
+    else if (issues.includes('probable_clothing_or_object')) reason = 'A ROI contém padrões de cor mais compatíveis com roupa, objeto ou fundo do que com leito de ferida.';
+    else if (issues.includes('mostly_intact_skin')) reason = 'A ROI parece conter majoritariamente pele íntegra, sem evidência visual suficiente de ferida.';
+    else if (issues.includes('probable_background_or_gauze')) reason = 'A ROI parece conter fundo, gaze ou área neutra demais para análise tecidual.';
     else reason = WOUND_ANALYZER_BLOCKED_ROI_MESSAGE;
   }
 

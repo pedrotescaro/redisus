@@ -77,6 +77,23 @@ export async function saveAssessmentImageRois(options: {
   });
 }
 
+function cleanUndefined(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(cleanUndefined);
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val !== undefined) {
+        cleaned[key] = cleanUndefined(val);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 export async function saveClinicalAnalysisResult(options: {
   uid: string;
   result: ClinicalAnalysisResult;
@@ -93,7 +110,7 @@ export async function saveClinicalAnalysisResult(options: {
   };
 
   await setDoc(resultRef, {
-    ...persistableResult,
+    ...cleanUndefined(persistableResult),
     persistedAt: serverTimestamp()
   });
 

@@ -104,28 +104,28 @@ export function buildClinicalContextAlerts(options: {
   const { assessment, clinicalContext, imageQuality, roiValidation } = options;
 
   if (imageQuality.status === 'poor') {
-    addAlert(alerts, 'medium', 'Qualidade de imagem limitada', 'Foco, iluminacao, contraste ou resolucao podem comprometer a leitura assistiva.');
+    addAlert(alerts, 'medium', 'Qualidade de imagem limitada', 'Foco, iluminação, contraste ou resolução podem comprometer a leitura assistiva.');
   }
 
   if (roiValidation && !roiValidation.isValid) {
-    addAlert(alerts, 'high', 'Imagem nao adequada para analise de ferida', roiValidation.reason);
+    addAlert(alerts, 'high', 'Imagem não adequada para análise de ferida', roiValidation.reason);
   }
 
   if (assessment && assessment.painLevel >= 8) {
-    addAlert(alerts, assessment.painLevel >= 9 ? 'high' : 'medium', 'Dor elevada', `A avaliacao registra dor ${assessment.painLevel}/10, exigindo atencao no acompanhamento clinico.`);
+    addAlert(alerts, assessment.painLevel >= 9 ? 'high' : 'medium', 'Dor elevada', `A avaliação registra dor ${assessment.painLevel}/10, exigindo atenção no acompanhamento clínico.`);
   }
 
   const exudate = normalize(exudateText(assessment));
   if (exudate.includes('purulent') || exudate.includes('purulento') || exudate.includes('seropurulent')) {
-    addAlert(alerts, 'medium', 'Padrao de exsudato merece atencao', 'O exsudato informado deve ser correlacionado com exame fisico, sem caracterizar diagnostico definitivo.');
+    addAlert(alerts, 'medium', 'Padrão de exsudato merece atenção', 'O exsudato informado deve ser correlacionado com exame físico, sem caracterizar diagnóstico definitivo.');
   }
 
   if (clinicalContext.odor) {
-    addAlert(alerts, 'medium', 'Odor relatado', 'Ha registro de odor nos dados clinicos, achado que deve ser validado pelo profissional responsavel.');
+    addAlert(alerts, 'medium', 'Odor relatado', 'Há registro de odor nos dados clínicos, achado que deve ser validado pelo profissional responsável.');
   }
 
   if (clinicalContext.missingFields.length) {
-    addAlert(alerts, 'low', 'Dados clinicos incompletos', 'Campos ausentes reduzem a capacidade de analise contextual e comparacao evolutiva.');
+    addAlert(alerts, 'low', 'Dados clínicos incompletos', 'Campos ausentes reduzem a capacidade de análise contextual e comparação evolução.');
   }
 
   return alerts;
@@ -138,19 +138,19 @@ export function buildClinicalContextRecommendations(options: {
   hasAssessment: boolean;
 }) {
   const recommendations = [
-    'Validar os achados com o profissional responsavel e com o exame fisico.',
-    'Manter fotos com mesmo padrao de distancia, angulo e iluminacao.',
-    'Registrar evolucao com frequencia e revisar dor, exsudato, bordas e pele ao redor.'
+    'Validar os achados com o profissional responsável e com o exame físico.',
+    'Manter fotos com mesmo padrão de distância, ângulo e iluminação.',
+    'Registrar evolução com frequência e revisar dor, exsudato, bordas e pele ao redor.'
   ];
 
   if (!options.canAnalyze) {
-    recommendations.unshift('Refazer a foto clinica ou ajustar a ROI antes de tentar nova analise visual.');
+    recommendations.unshift('Refazer a foto clínica ou ajustar a ROI antes de tentar nova análise visual.');
   }
   if (options.imageQuality.status !== 'good') {
-    recommendations.unshift('Refazer a foto com boa iluminacao, foco e enquadramento quando possivel.');
+    recommendations.unshift('Refazer a foto com boa iluminação, foco e enquadramento quando possível.');
   }
-  if (!options.hasPatient) recommendations.push('Vincular um paciente para permitir analise contextual e historico longitudinal.');
-  if (!options.hasAssessment) recommendations.push('Vincular uma avaliacao para considerar dados clinicos estruturados.');
-  recommendations.push('Considerar avaliacao presencial se houver sinais de agravamento, dor intensa, odor, calor local ou piora do exsudato.');
+  if (!options.hasPatient) recommendations.push('Vincular um paciente para permitir análise contextual e histórico longitudinal.');
+  if (!options.hasAssessment) recommendations.push('Vincular uma avaliação para considerar dados clínicos estruturados.');
+  recommendations.push('Considerar avaliação presencial se houver sinais de agravamento, dor intensa, odor, calor local ou piora do exsudato.');
   return recommendations;
 }
