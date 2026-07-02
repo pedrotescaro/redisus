@@ -1,66 +1,123 @@
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc
-} from 'firebase/firestore';
-
-import { db } from '../../lib/firebase';
-import { patientPath, patientsPath } from '../../lib/firestorePaths';
+import { supabase } from '../../lib/supabase';
+import { generateUUID } from '../../lib/uuid';
 import type { Patient } from '../../lib/types';
 import type { PatientFormValues } from './patientSchema';
 
-const mapPatient = (id: string, data: Record<string, unknown>): Patient => ({
-  id,
-  name: String(data.name || ''),
-  phone: String(data.phone || ''),
-  email: String(data.email || ''),
-  birthDate: String(data.birthDate || ''),
-  notes: String(data.notes || ''),
-  archived: Boolean(data.archived),
-  createdAt: data.createdAt as Patient['createdAt'],
-  updatedAt: data.updatedAt as Patient['updatedAt']
-});
-
 export function subscribePatients(uid: string, onData: (patients: Patient[]) => void, onError?: (error: Error) => void) {
-  return onSnapshot(
-    query(collection(db, patientsPath(uid)), orderBy('createdAt', 'desc')),
-    snapshot => onData(snapshot.docs.map(item => mapPatient(item.id, item.data()))),
-    onError
-  );
+  const fetchPatients = async () => {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (onError) onError(new Error(error.message));
+      return;
+    }
+
+    const mapped: Patient[] = (data || []).map(row => ({
+      id: row.id,
+      name: row.name,
+      phone: row.phone || '',
+      email: row.email || '',
+      birthDate: row.birth_date || '',
+      notes: row.notes || '',
+      archived: row.archived || false,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+
+    onData(mapped);
+  };
+
+  fetchPatients();
+
+  const channel = supabase
+    .channel(`patients-changes-${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'patients', filter: `user_id=eq.${uid}` },
+      () => {
+        void fetchPatients();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
 }
 
-export async function getPatient(uid: string, patientId: string) {
-  const snapshot = await getDoc(doc(db, patientPath(uid, patientId)));
-  return snapshot.exists() ? mapPatient(snapshot.id, snapshot.data()) : null;
+export async function getPatient(uid: string, patientId: string): Promise<Patient | null> {
+  const { data, error } = await supabase
+    .from('patients')
+    .select('*')
+    .eq('id', patientId)
+    .eq('user_id', uid)
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    name: data.name,
+    phone: data.phone || '',
+    email: data.email || '',
+    birthDate: data.birth_date || '',
+    notes: data.notes || '',
+    archived: data.archived || false,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
 }
 
-export async function createPatient(uid: string, values: PatientFormValues) {
-  const ref = await addDoc(collection(db, patientsPath(uid)), {
-    ...values,
-    notes: values.notes || '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  });
-  return ref.id;
+export async function createPatient(uid: string, values: PatientFormValues): Promise<string> {
+  const patientId = generateUUID();
+  const { error } = await supabase
+    .from('patients')
+    .insert({
+      id: patientId,
+      user_id: uid,
+      name: values.name,
+      phone: values.phone || '',
+      email: values.email || '',
+      birth_date: values.birthDate || '',
+      notes: values.notes || '',
+      archived: values.archived || false
+    });
+
+  if (error) throw new Error(error.message);
+  return patientId;
 }
 
-export async function updatePatient(uid: string, patientId: string, values: PatientFormValues) {
-  await updateDoc(doc(db, patientPath(uid, patientId)), {
-    ...values,
-    notes: values.notes || '',
-    updatedAt: serverTimestamp()
-  });
+export async function updatePatient(uid: string, patientId: string, values: PatientFormValues): Promise<void> {
+  const { error } = await supabase
+    .from('patients')
+    .update({
+      name: values.name,
+      phone: values.phone || '',
+      email: values.email || '',
+      birth_date: values.birthDate || '',
+      notes: values.notes || '',
+      archived: values.archived || false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', patientId)
+    .eq('user_id', uid);
+
+  if (error) throw new Error(error.message);
 }
 
-export async function setPatientArchived(uid: string, patientId: string, archived: boolean) {
-  await updateDoc(doc(db, patientPath(uid, patientId)), {
-    archived,
-    updatedAt: serverTimestamp()
-  });
+export async function setPatientArchived(uid: string, patientId: string, archived: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('patients')
+    .update({
+      archived,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', patientId)
+    .eq('user_id', uid);
+
+  if (error) throw new Error(error.message);
 }

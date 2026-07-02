@@ -36,6 +36,7 @@ const translations = {
   pt: {
     // Nav
     plataforma: "Plataforma",
+    projeto: "O projeto",
     fluxo: "Fluxo",
     tecnologia: "Tecnologia",
     instituicoes: "Instituições",
@@ -140,6 +141,7 @@ const translations = {
   en: {
     // Nav
     plataforma: "Platform",
+    projeto: "The project",
     fluxo: "Flow",
     tecnologia: "Technology",
     instituicoes: "Institutions",
@@ -418,7 +420,7 @@ export default function HomePage() {
         <div className="mx-auto flex h-[76px] w-full max-w-[1530px] items-center justify-between px-5 md:px-8">
           <Link href="/" className="flex min-w-0 items-center gap-3">
             <Image
-              src={theme === "dark" ? "/images/logo_final.png" : "/images/Logo_final_modobranco.png"}
+              src="/images/Logo_final_modobranco.png"
               alt="Heal+"
               width={120}
               height={44}
@@ -653,66 +655,67 @@ export default function HomePage() {
         </section>
 
         {/* ─── FLUXO SECTION ─── */}
-        <section id="fluxo" className="bg-white dark:bg-[#050608] py-[4.5rem] text-slate-850 dark:text-white/90">
+        <section id="fluxo" className="bg-white dark:bg-[#050608] py-[5.5rem] text-slate-855 dark:text-white/90 transition-colors duration-300 border-b border-slate-100 dark:border-zinc-900">
           <div className="mx-auto max-w-7xl px-5 md:px-8">
-            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
+            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end mb-12">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.24em] text-[#41B6E6] dark:text-[#41B6E6]">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("fluxoLabel")}
                 </p>
-                <h2 className="mt-4 text-4xl font-black leading-tight tracking-[-0.04em] font-headline text-[#0A4D68] dark:text-white md:text-5xl">
+                <h2 className="mt-4 text-3xl font-black leading-tight tracking-[-0.04em] font-headline text-slate-900 dark:text-white md:text-5xl">
                   {t("fluxoTitle")}
                 </h2>
               </div>
-              <p className="text-lg leading-8 text-slate-650 dark:text-slate-400 font-light">
+              <p className="text-base leading-8 text-slate-500 dark:text-zinc-400">
                 {t("fluxoDesc")}
               </p>
             </div>
 
-            <div className="mt-12 grid gap-8 lg:grid-cols-4 md:grid-cols-2">
-              {journeySteps.map((item, idx) => (
-                <div key={item.step} className="relative flex items-stretch">
-                  <article
-                    className="group w-full rounded-[2rem] border border-slate-100 dark:border-slate-900 bg-[#fbfdfd] dark:bg-[#111115] p-7 shadow-sm transition-all duration-350 hover:-translate-y-1 hover:border-[#41B6E6]/30 hover:shadow-soft flex flex-col items-center text-center"
-                  >
-                    {/* Step Number Circle */}
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1A1A1E] text-2xl font-black text-[#41B6E6] font-headline shadow-sm group-hover:bg-[#41B6E6] group-hover:text-white dark:group-hover:text-[#050608] group-hover:border-[#41B6E6] transition-all duration-350">
-                      {item.step}
-                    </div>
+            <div className="relative mt-8">
+              {/* Desktop Horizontal flow line */}
+              <div className="absolute top-[44px] left-[12.5%] right-[12.5%] h-[2px] bg-gradient-to-r from-[#41B6E6] via-[#41B6E6]/60 to-[#41B6E6]/10 hidden lg:block z-0" />
+              
+              {/* Mobile Vertical flow line */}
+              <div className="absolute left-[36px] top-11 bottom-11 w-[2px] bg-gradient-to-b from-[#41B6E6] via-[#41B6E6]/50 to-[#41B6E6]/10 lg:hidden z-0" />
 
-                    <h3 className="mt-6 text-xl font-black tracking-[-0.02em] font-headline text-slate-800 dark:text-white group-hover:text-[#41B6E6] transition-colors duration-300">
-                      {item.title}
-                    </h3>
-                    <p className="mt-3.5 text-sm leading-7 text-slate-500 dark:text-slate-400 font-light">
-                      {item.text}
-                    </p>
-                  </article>
+              <div className="grid gap-8 lg:grid-cols-4 md:grid-cols-2 relative z-10">
+                {journeySteps.map((item, idx) => (
+                  <div key={item.step} className="relative flex items-stretch">
+                    <article
+                      className="group w-full rounded-[1.75rem] border border-slate-100 dark:border-zinc-800/60 bg-slate-50/50 dark:bg-[#0c0c0e] p-6 pl-14 lg:pl-6 transition-all duration-350 hover:-translate-y-1 hover:border-[#41B6E6]/40 hover:shadow-[0_8px_30px_rgba(65,182,230,0.08)] flex flex-col items-start lg:items-center text-left lg:text-center"
+                    >
+                      {/* Step Number Circle */}
+                      <div className="absolute left-4 top-6 lg:relative lg:left-0 lg:top-0 lg:mx-auto z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1A1A1E] text-sm font-black text-[#41B6E6] font-headline shadow-sm group-hover:bg-[#41B6E6] group-hover:text-white dark:group-hover:text-[#050608] group-hover:border-[#41B6E6] transition-all duration-300">
+                        {item.step}
+                      </div>
 
-                  {/* Connecting Arrow between steps (Desktop) */}
-                  {idx < 3 && (
-                    <div className="absolute -right-5 top-[40px] z-20 hidden rounded-full border border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1A1A1E] p-1.5 text-[#41B6E6] shadow-sm lg:flex items-center justify-center w-8 h-8">
-                      <ArrowRight size={16} strokeWidth={3} />
-                    </div>
-                  )}
-                </div>
-              ))}
+                      <h3 className="mt-0 lg:mt-5 text-lg font-bold tracking-[-0.02em] font-headline text-slate-800 dark:text-white group-hover:text-[#41B6E6] transition-colors duration-300">
+                        {item.title}
+                      </h3>
+                      <p className="mt-3 text-xs leading-relaxed text-slate-550 dark:text-zinc-400">
+                        {item.text}
+                      </p>
+                    </article>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
         {/* ─── CLUSTER HIGHLIGHTS SECTION ─── */}
-        <section className="bg-slate-50/50 dark:bg-[#090b0e] border-y border-slate-100 dark:border-slate-900 relative overflow-hidden py-[4.5rem] text-slate-800 dark:text-white">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(65,182,230,0.06),transparent_28%),radial-gradient(circle_at_78%_30%,rgba(65,182,230,0.04),transparent_30%)]" />
+        <section className="bg-slate-50/30 dark:bg-[#090b0e] border-b border-slate-100 dark:border-zinc-900 relative overflow-hidden py-[5.5rem] text-slate-800 dark:text-white transition-colors duration-300">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(65,182,230,0.04),transparent_28%),radial-gradient(circle_at_78%_30%,rgba(65,182,230,0.03),transparent_30%)]" />
           <div className="relative mx-auto max-w-7xl px-5 md:px-8">
             <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.24em] text-[#41B6E6] dark:text-[#41B6E6]">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("clusterSus")}
                 </p>
-                <h2 className="mt-4 text-4xl font-black leading-tight tracking-[-0.04em] font-headline text-[#0A4D68] dark:text-white md:text-5xl">
+                <h2 className="mt-4 text-3xl font-black leading-tight tracking-[-0.04em] font-headline text-slate-900 dark:text-white md:text-5xl">
                   {t("susTitle")}
                 </h2>
-                <p className="mt-5 text-lg leading-8 text-slate-650 dark:text-slate-400 font-light">
+                <p className="mt-5 text-base leading-8 text-slate-500 dark:text-zinc-400">
                   {t("susDesc")}
                 </p>
               </div>
@@ -721,15 +724,15 @@ export default function HomePage() {
                 {platformHighlights.map((item) => (
                   <article
                     key={item.title}
-                    className="rounded-[2rem] border border-slate-100 dark:border-slate-900 bg-white dark:bg-[#111115] p-5 shadow-sm"
+                    className="rounded-[1.75rem] border border-slate-100 dark:border-zinc-800/60 bg-white dark:bg-[#0c0c0e] p-6 shadow-sm transition-all duration-300 hover:border-[#41B6E6]/40 hover:-translate-y-0.5"
                   >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#41B6E6]/10 text-[#41B6E6] dark:text-[#41B6E6]">
-                      <item.icon size={26} />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#41B6E6]/10 text-[#41B6E6]">
+                      <item.icon size={20} />
                     </div>
-                    <h3 className="mt-5 text-xl font-black tracking-[-0.02em] font-headline text-slate-800 dark:text-white">
+                    <h3 className="mt-4 text-base font-bold tracking-[-0.02em] font-headline text-slate-800 dark:text-white">
                       {item.title}
                     </h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-500 dark:text-slate-400 font-light">
+                    <p className="mt-2.5 text-xs leading-relaxed text-slate-550 dark:text-zinc-400">
                       {item.text}
                     </p>
                   </article>
@@ -740,23 +743,23 @@ export default function HomePage() {
         </section>
 
         {/* ─── BASE TÉCNICA SECTION ─── */}
-        <section id="tecnologia" className="bg-white dark:bg-[#050608] py-[4.5rem] text-slate-855 dark:text-white">
+        <section id="tecnologia" className="bg-white dark:bg-[#050608] py-[5.5rem] text-slate-855 dark:text-white transition-colors duration-300 border-b border-slate-100 dark:border-zinc-900">
           <div className="mx-auto max-w-7xl px-5 md:px-8">
-            <div className="mb-9 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.24em] text-[#41B6E6] dark:text-[#41B6E6]">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("techLabel")}
                 </p>
-                <h2 className="mt-4 max-w-2xl text-4xl font-black leading-tight tracking-[-0.04em] font-headline text-[#0A4D68] dark:text-white md:text-5xl">
+                <h2 className="mt-4 max-w-2xl text-3xl font-black leading-tight tracking-[-0.04em] font-headline text-slate-900 dark:text-white md:text-5xl">
                   {t("techTitle")}
                 </h2>
               </div>
               <Link
                 href="/referencias"
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111115] px-5 py-3 text-sm font-black text-[#41B6E6] dark:text-[#41B6E6] hover:text-[#35a3d0] dark:hover:text-[#4fc3f7] shadow-sm transition-transform hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c0c0e] px-5 py-3 text-sm font-black text-[#41B6E6] hover:text-[#35a3d0] dark:hover:text-[#4fc3f7] shadow-sm transition-all duration-300 hover:-translate-y-0.5"
               >
                 {t("techRef")}
-                <BookOpenCheck size={18} />
+                <BookOpenCheck size={16} />
               </Link>
             </div>
 
@@ -764,17 +767,17 @@ export default function HomePage() {
               {techItems.map((item) => (
                 <article
                   key={item.label}
-                  className="rounded-[2rem] border border-slate-100 dark:border-slate-900 bg-[#fbfdfd] dark:bg-[#111115] p-5 shadow-sm"
+                  className="rounded-[1.75rem] border border-slate-100 dark:border-zinc-800/60 bg-slate-50/50 dark:bg-[#0c0c0e] p-6 shadow-sm transition-all duration-300 hover:border-[#41B6E6]/40"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#41B6E6]/10 dark:bg-[#41B6E6]/10 text-[#41B6E6] dark:text-[#41B6E6]">
-                      <item.icon size={25} />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#41B6E6]/10 text-[#41B6E6]">
+                      <item.icon size={20} />
                     </div>
                     <div>
-                      <p className="text-sm font-black uppercase tracking-[0.16em] text-[#41B6E6] dark:text-[#41B6E6]">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                         {item.label}
                       </p>
-                      <p className="mt-3 text-lg font-black leading-7 tracking-[-0.02em] font-headline text-slate-800 dark:text-white">
+                      <p className="mt-2 text-base font-bold leading-normal tracking-[-0.02em] font-headline text-slate-800 dark:text-white">
                         {item.value}
                       </p>
                     </div>
@@ -786,14 +789,15 @@ export default function HomePage() {
         </section>
 
         {/* ─── NEXT STEP CALL-TO-ACTION BANNER ─── */}
-        <section className="bg-white dark:bg-[#050608] px-5 py-[3.75rem] md:px-8">
-          <div className="bg-gradient-to-r from-[#41B6E6]/12 via-white to-[#41B6E6]/8 dark:from-[#41B6E6]/15 dark:via-[#111115] dark:to-[#41B6E6]/5 border border-[#41B6E6]/25 dark:border-[#41B6E6]/25 mx-auto max-w-7xl overflow-hidden rounded-[2.4rem] p-6 text-slate-800 dark:text-white shadow-sm md:p-9">
-            <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+        <section className="bg-white dark:bg-[#050608] px-5 py-[4.5rem] md:px-8 transition-colors duration-300 border-b border-slate-100 dark:border-zinc-900">
+          <div className="relative overflow-hidden rounded-[2rem] border border-[#41B6E6]/25 dark:border-[#41B6E6]/20 bg-slate-50 dark:bg-gradient-to-br dark:from-[#0c0c0e] dark:to-[#050608] p-8 md:p-12 shadow-sm hover:border-[#41B6E6]/40 transition-all duration-300 mx-auto max-w-7xl">
+            <div className="absolute top-0 right-0 -mt-24 -mr-24 h-96 w-96 rounded-full bg-gradient-to-br from-[#41B6E6]/10 to-transparent blur-3xl" />
+            <div className="relative z-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.24em] text-[#41B6E6] dark:text-[#41B6E6]">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("ctaLabel")}
                 </p>
-                <h2 className="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-[-0.04em] font-headline text-[#0A4D68] dark:text-white md:text-5xl">
+                <h2 className="mt-4 max-w-3xl text-3xl font-black leading-tight tracking-[-0.04em] font-headline text-slate-900 dark:text-white md:text-5xl">
                   {t("ctaTitle")}
                 </h2>
               </div>
@@ -802,7 +806,7 @@ export default function HomePage() {
                 className="landing-blue-button inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-base font-black text-white transition-transform hover:-translate-y-0.5"
               >
                 {t("ctaBtn")}
-                <ArrowRight size={20} strokeWidth={3} />
+                <ArrowRight size={18} strokeWidth={2.5} />
               </Link>
             </div>
           </div>
@@ -924,7 +928,7 @@ export default function HomePage() {
                 <div className="flex min-h-[170px] items-center justify-center px-8 py-8">
                   <div className="flex items-center gap-3">
                     <Image
-                      src={theme === "dark" ? "/images/logo_final.png" : "/images/Logo_final_modobranco.png"}
+                      src="/images/Logo_final_modobranco.png"
                       alt="Logo do Heal+"
                       width={160}
                       height={64}
@@ -945,71 +949,77 @@ export default function HomePage() {
       </main>
 
       {/* ─── FOOTER ─── */}
-      <footer className="bg-slate-50 dark:bg-[#111115] text-slate-700 dark:text-slate-400 border-t border-slate-100 dark:border-slate-900">
+      <footer className="bg-white dark:bg-[#050608] text-slate-700 dark:text-slate-400 border-t border-slate-100 dark:border-slate-900 transition-colors duration-300">
         <div className="relative z-10 mx-auto max-w-7xl px-5 py-12 md:px-8">
           <div className="grid gap-10 border-b border-slate-200 dark:border-slate-800 pb-12 lg:grid-cols-[0.8fr_1.2fr]">
             <div>
               <div className="flex items-center gap-3">
                 <Image 
-                  src={theme === "dark" ? "/images/logo_final.png" : "/images/Logo_final_modobranco.png"} 
+                  src="/images/Logo_final_modobranco.png" 
                   alt="Heal+" 
                   width={120} 
                   height={44} 
-                  className="h-10 w-auto object-contain" 
+                  className="h-9 w-auto object-contain" 
                 />
               </div>
-              <p className="mt-5 max-w-md text-sm font-medium leading-7 text-slate-500 dark:text-slate-405 font-light">
+              <p className="mt-4 max-w-md text-xs leading-6 text-slate-550 dark:text-zinc-400 font-medium">
                 {t("footerDesc")}
               </p>
             </div>
 
             <div className="grid gap-8 sm:grid-cols-3">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#41B6E6] dark:text-[#41B6E6]">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("plataforma")}
                 </p>
-                <a href="#projeto" onClick={(e) => handleScroll(e, "projeto")} className="mt-5 block text-lg font-black hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
-                  {t("plataforma")}
-                </a>
-                <a href="#plataforma" onClick={(e) => handleScroll(e, "plataforma")} className="mt-3 block text-lg font-black hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
-                  {t("plataforma")}
-                </a>
+                <div className="mt-4 space-y-3">
+                  <a href="#projeto" onClick={(e) => handleScroll(e, "projeto")} className="block text-sm font-medium text-slate-650 dark:text-zinc-400 hover:text-[#41B6E6] dark:hover:text-[#41B6E6] transition-colors">
+                    {t("projeto")}
+                  </a>
+                  <a href="#plataforma" onClick={(e) => handleScroll(e, "plataforma")} className="block text-sm font-medium text-slate-650 dark:text-zinc-400 hover:text-[#41B6E6] dark:hover:text-[#41B6E6] transition-colors">
+                    {t("plataforma")}
+                  </a>
+                </div>
               </div>
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#41B6E6] dark:text-[#41B6E6]">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("tecnologia")}
                 </p>
-                <a href="#tecnologia" onClick={(e) => handleScroll(e, "tecnologia")} className="mt-5 block text-lg font-black hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
-                  {t("techLabel")}
-                </a>
-                <Link href="/referencias" className="mt-3 block text-lg font-black hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
-                  {t("techRef")}
-                </Link>
+                <div className="mt-4 space-y-3">
+                  <a href="#tecnologia" onClick={(e) => handleScroll(e, "tecnologia")} className="block text-sm font-medium text-slate-650 dark:text-zinc-400 hover:text-[#41B6E6] dark:hover:text-[#41B6E6] transition-colors">
+                    {t("techLabel")}
+                  </a>
+                  <Link href="/referencias" className="block text-sm font-medium text-slate-650 dark:text-zinc-400 hover:text-[#41B6E6] dark:hover:text-[#41B6E6] transition-colors">
+                    {t("techRef")}
+                  </Link>
+                </div>
               </div>
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#41B6E6] dark:text-[#41B6E6]">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("acessar")}
                 </p>
-                <Link href="/login" className="mt-5 block text-lg font-black hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
-                  {t("acessarAreaClinica")}
-                </Link>
-                <a href="#instituicoes" onClick={(e) => handleScroll(e, "instituicoes")} className="mt-3 block text-lg font-black hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
-                  {t("instituicoes")}
-                </a>
+                <div className="mt-4 space-y-3">
+                  <Link href="/login" className="block text-sm font-medium text-slate-650 dark:text-zinc-400 hover:text-[#41B6E6] dark:hover:text-[#41B6E6] transition-colors">
+                    {t("acessarAreaClinica")}
+                  </Link>
+                  <a href="#instituicoes" onClick={(e) => handleScroll(e, "instituicoes")} className="block text-sm font-medium text-slate-650 dark:text-zinc-400 hover:text-[#41B6E6] dark:hover:text-[#41B6E6] transition-colors">
+                    {t("instituicoes")}
+                  </a>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col justify-between gap-5 pt-8 text-sm font-bold text-slate-500 dark:text-slate-400 md:flex-row md:items-center">
+          <div className="flex flex-col justify-between gap-4 pt-8 text-xs font-semibold text-slate-550 dark:text-zinc-500 md:flex-row md:items-center">
             <p>&copy; {new Date().getFullYear()} HEAL+ REDI-SUS. Pesquisa aplicada em saúde digital.</p>
-            <div className="flex flex-wrap gap-5">
-              <a href="#projeto" onClick={(e) => handleScroll(e, "projeto")} className="hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <a href="#projeto" onClick={(e) => handleScroll(e, "projeto")} className="hover:underline hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
+                {t("projeto")}
+              </a>
+              <a href="#plataforma" onClick={(e) => handleScroll(e, "plataforma")} className="hover:underline hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
                 {t("plataforma")}
               </a>
-              <a href="#plataforma" onClick={(e) => handleScroll(e, "plataforma")} className="hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
-                {t("plataforma")}
-              </a>
-              <Link href="/login" className="hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
+              <Link href="/login" className="hover:underline hover:text-[#41B6E6] dark:hover:text-[#41B6E6]">
                 {t("acessarAreaClinica")}
               </Link>
             </div>

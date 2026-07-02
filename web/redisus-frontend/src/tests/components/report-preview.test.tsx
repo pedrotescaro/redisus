@@ -43,7 +43,18 @@ const profile: UserProfile = {
 
 describe('ReportPreview', () => {
   it('mostra dados reais do paciente e avaliacao', () => {
-    render(<ReportPreview patient={patient} evaluation={evaluation} profile={profile} />);
+    render(
+      <ReportPreview
+        patient={patient}
+        evaluation={evaluation}
+        profile={profile}
+        analysis={null}
+        loadingAnalysis={false}
+        analysisError={null}
+        onGenerateAnalysis={() => {}}
+        includeAi={true}
+      />
+    );
     expect(screen.getAllByText('Tania Silva')).toHaveLength(2);
     expect(screen.getByText(/Boa evolucao/i)).toBeInTheDocument();
     expect(screen.getByText(/Assinatura: Dra Ana/i)).toBeInTheDocument();

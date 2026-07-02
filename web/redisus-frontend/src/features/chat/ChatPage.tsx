@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { auth } from '../../lib/firebase';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { Sidebar } from '../../components/layout/sidebar';
 import { Topbar } from '../../components/layout/Topbar';
@@ -40,6 +41,33 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   isStreaming?: boolean;
+  model?: string;
+}
+
+function scoreResponse(text: string): number {
+  if (!text) return -1;
+  const cleaned = text.trim();
+  if (cleaned.length < 10) return 0;
+  
+  const isGenericRules = [
+    "assistente de ia do heal+",
+    "para analise de feridas, recomendo",
+    "para gerar relatorios, use",
+    "ola! sou o assistente de ia"
+  ].some(term => cleaned.toLowerCase().includes(term));
+  
+  if (isGenericRules) {
+    return 0.5;
+  }
+
+  let score = 1.0;
+  if (cleaned.includes('\n-') || cleaned.includes('\n*')) score += 2.0;
+  if (cleaned.includes('###') || cleaned.includes('##')) score += 1.5;
+  if (cleaned.includes('**')) score += 1.0;
+  
+  const lengthBonus = Math.min(cleaned.length / 500.0, 1.5);
+  score += lengthBonus;
+  return score;
 }
 
 interface ChatSession {
@@ -185,7 +213,7 @@ export function ChatPage() {
   const firstName = useMemo(() => (profile?.displayName || user?.displayName || 'Profissional').split(' ')[0], [profile?.displayName, user?.displayName]);
 
   /* ── Send message ── */
-  const send = (override?: string) => {
+  const send = async (override?: string) => {
     const question = (override || input).trim();
     if (!question) return;
 
@@ -223,53 +251,115 @@ Diretrizes de resposta:
 3. Forneça análises de evolução baseadas nos parâmetros de dor, exsudato e tamanho do leito da ferida quando solicitado.
 4. Lembre-se: Suas análises servem de apoio e não substituem o julgamento de um profissional de saúde.`;
 
-    const groqMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: question }
-    ];
-
     const assistantMsgId = Math.random().toString();
     const assistantMsg: Message = { id: assistantMsgId, role: 'assistant', content: '...', isStreaming: true };
     setMessages(prev => [...prev, assistantMsg]);
 
-    fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: groqMessages
-      })
-    })
-    .then(async response => {
-      if (!response.ok) {
-        throw new Error(`Erro API Groq: ${response.status}`);
+    const activeMessages = [...messages, userMsg];
+
+    // Parallel calls
+    const runGroq = async () => {
+      if (!apiKey) throw new Error("Groq API key not set");
+      const groqMessages = [
+        { role: 'system', content: systemPrompt },
+        ...activeMessages.map(m => ({ role: m.role, content: m.content })),
+      ];
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          messages: groqMessages
+        })
+      });
+      if (!res.ok) throw new Error(`Groq status ${res.status}`);
+      const data = await res.json();
+      return {
+        text: data.choices?.[0]?.message?.content || '',
+        modelName: "Llama 3.1 (Groq API)"
+      };
+    };
+
+    const runGemini = async () => {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      const localMode = import.meta.env.VITE_HEAL_ANALYZER_LOCAL_MODE === 'true';
+      if (!localMode) {
+        const user = auth.currentUser;
+        if (user) {
+          const token = await user.getIdToken();
+          headers['Authorization'] = `Bearer ${token}`;
+        }
       }
-      const data = await response.json();
-      const answer = data.choices?.[0]?.message?.content || 'Desculpe, não consegui obter uma resposta.';
       
+      // Inject system prompt context inside the user message so Gemini has full context
+      const fullUserPrompt = `Contexto da Clínica:\n${systemPrompt}\n\nHistórico recente:\n${activeMessages.slice(-5).map(m => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join('\n')}\n\nPergunta atual do usuário: ${question}`;
+
+      const res = await fetch('/api/clinical/ai-chat', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message: fullUserPrompt,
+          conversation_id: activeChatId || 'chat-page-session',
+          context: {}
+        })
+      });
+      if (!res.ok) throw new Error(`Gemini status ${res.status}`);
+      const data = await res.json();
+      const isGemini = data.source === 'gemini';
+      return {
+        text: data.response || '',
+        modelName: isGemini ? "Gemini 2.0 Flash" : "Sistema de Regras (Fallback)"
+      };
+    };
+
+    try {
+      const results = await Promise.allSettled([runGroq(), runGemini()]);
+      const successful: { text: string; modelName: string; score: number }[] = [];
+
+      results.forEach(res => {
+        if (res.status === 'fulfilled' && res.value.text) {
+          const score = scoreResponse(res.value.text);
+          successful.push({ ...res.value, score });
+        }
+      });
+
+      if (successful.length === 0) {
+        throw new Error("Nenhum serviço de IA respondeu com sucesso.");
+      }
+
+      // Select highest score
+      successful.sort((a, b) => b.score - a.score);
+      const best = successful[0];
+
       setThinking(false);
-      
+
       let currentIdx = 0;
       const interval = setInterval(() => {
         setMessages(prev =>
           prev.map(msg => {
             if (msg.id === assistantMsgId) {
-              const nextText = answer.slice(0, currentIdx + 12);
-              const done = nextText.length === answer.length;
+              const nextText = best.text.slice(0, currentIdx + 12);
+              const done = nextText.length === best.text.length;
               if (done) clearInterval(interval);
-              return { ...msg, content: nextText, isStreaming: !done };
+              return { 
+                ...msg, 
+                content: nextText, 
+                isStreaming: !done,
+                model: best.modelName
+              };
             }
             return msg;
           })
         );
         currentIdx += 12;
       }, 15);
-    })
-    .catch(err => {
+
+    } catch (err) {
       console.error(err);
       setThinking(false);
       setMessages(prev =>
@@ -284,7 +374,7 @@ Diretrizes de resposta:
           return msg;
         })
       );
-    });
+    }
   };
 
   /* ── History helpers ── */
@@ -580,9 +670,9 @@ Diretrizes de resposta:
                 <span>Histórico</span>
               </button>
 
-              <div className="hidden items-center gap-2 rounded-full bg-heal-canvas dark:bg-zinc-900 px-3 py-1.5 text-[11px] font-bold text-heal-muted sm:inline-flex">
+              <div className="hidden items-center gap-2 rounded-full bg-heal-canvas dark:bg-zinc-900 px-3 py-1.5 text-[11px] font-bold text-heal-muted sm:inline-flex" title="Escolhe dinamicamente a melhor resposta entre Groq e Gemini">
                 <Sparkles className="h-3.5 w-3.5 text-heal-blue animate-pulse" />
-                <span>Llama 3.1 (Groq API)</span>
+                <span>Groq / Gemini (Adaptativo)</span>
               </div>
             </div>
           </header>
@@ -641,6 +731,11 @@ Diretrizes de resposta:
                           {/* Action icons */}
                           {!msg.isStreaming && (
                             <div className="flex items-center gap-3.5 mt-2.5 text-heal-muted dark:text-[#53535f] select-none">
+                              {msg.model && (
+                                <span className="text-[10px] font-bold text-heal-muted/80 dark:text-zinc-500 mr-2 border border-heal-line dark:border-[#232329]/60 px-2 py-0.5 rounded-md select-none bg-heal-canvas dark:bg-[#131316]/50">
+                                  {msg.model}
+                                </span>
+                              )}
                               <button
                                 onClick={() => navigator.clipboard.writeText(msg.content)}
                                 className="hover:text-heal-ink dark:hover:text-white transition-colors cursor-pointer"

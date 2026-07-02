@@ -46,7 +46,7 @@ export function EditProfilePage() {
     setPhotoError('');
     try {
       await uploadProfilePhoto(user.uid, fileList[0]);
-      setMessage('Foto enviada para o Firebase Storage.');
+      setMessage('Foto enviada para o Supabase Storage.');
     } catch (error) {
       setPhotoError(error instanceof Error ? error.message : 'Não foi possível enviar a foto.');
     }

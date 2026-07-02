@@ -57,10 +57,14 @@ export function PatientsPage() {
 
   const handleSubmit = async (values: PatientFormValues) => {
     if (!user) return;
-    if (editing) await updatePatient(user.uid, editing.id, values);
-    else await createPatient(user.uid, values);
-    setModalOpen(false);
-    setEditing(null);
+    try {
+      if (editing) await updatePatient(user.uid, editing.id, values);
+      else await createPatient(user.uid, values);
+      setModalOpen(false);
+      setEditing(null);
+    } catch (err: any) {
+      alert('Erro ao salvar paciente: ' + (err.message || String(err)));
+    }
   };
 
   const openCreate = () => {

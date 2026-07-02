@@ -1,7 +1,4 @@
-import { arrayUnion, collection, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-
-import { db } from '../../lib/firebase';
-import { analysisResultsPath, evaluationPath, standaloneAnalysisResultsPath } from '../../lib/firestorePaths';
+import { supabase } from '../../lib/supabase';
 import { ensureClinicalRois, ROI_VERSION } from './roiProcessingService';
 import { getPatient } from '../../features/patients/patientService';
 import { listEvaluations } from '../../features/evaluations/evaluationService';
@@ -24,7 +21,10 @@ export async function loadClinicalAnalysisContext(options: {
     return { patient: null, assessment: null, history: [], mode: 'standalone' };
   }
 
-  const [patient, history] = await Promise.all([getPatient(options.uid, patientId), listEvaluations(options.uid, patientId)]);
+  const [patient, history] = await Promise.all([
+    getPatient(options.uid, patientId),
+    listEvaluations(options.uid, patientId)
+  ]);
   const assessment = options.assessmentId ? history.find(item => item.id === options.assessmentId) || null : null;
 
   return {
@@ -51,6 +51,7 @@ export async function saveAssessmentImageRois(options: {
     consentForResearch: Boolean(roi.consentForResearch),
     anonymizedExportReady: Boolean(roi.anonymizedExportReady)
   }));
+  
   const images = options.assessment.images.map(image =>
     image.id === options.imageId
       ? {
@@ -63,18 +64,16 @@ export async function saveAssessmentImageRois(options: {
       : image
   );
 
-  await updateDoc(doc(db, evaluationPath(options.uid, options.assessment.patientId, options.assessment.id)), {
-    images,
-    updatedAt: serverTimestamp(),
-    updatedBy: options.updatedBy,
-    auditLog: arrayUnion({
-      action: 'roi_update_from_heal_analyzer',
-      updatedAt: new Date().toISOString(),
-      updatedBy: options.updatedBy,
-      imageId: options.imageId,
-      roiCount: normalizedRois.length
+  const { error } = await supabase
+    .from('evaluations')
+    .update({
+      images,
+      updated_at: new Date().toISOString()
     })
-  });
+    .eq('id', options.assessment.id)
+    .eq('user_id', options.uid);
+
+  if (error) throw new Error(error.message);
 }
 
 function cleanUndefined(obj: any): any {
@@ -98,21 +97,23 @@ export async function saveClinicalAnalysisResult(options: {
   uid: string;
   result: ClinicalAnalysisResult;
 }) {
-  const linked = options.result.patientId && options.result.assessmentId;
-  const collectionPath = linked
-    ? analysisResultsPath(options.uid, options.result.patientId as string, options.result.assessmentId as string)
-    : standaloneAnalysisResultsPath(options.uid);
-  const resultRef = doc(collection(db, collectionPath), options.result.id);
   const { maskUrl: _maskUrl, overlayUrl: _overlayUrl, ...persistableSegmentation } = options.result.segmentation;
   const persistableResult: ClinicalAnalysisResult = {
     ...options.result,
     segmentation: persistableSegmentation
   };
 
-  await setDoc(resultRef, {
-    ...cleanUndefined(persistableResult),
-    persistedAt: serverTimestamp()
-  });
+  const { error } = await supabase
+    .from('analysis_results')
+    .insert({
+      id: options.result.id,
+      patient_id: options.result.patientId || null,
+      assessment_id: options.result.assessmentId || null,
+      user_id: options.uid,
+      result_data: cleanUndefined(persistableResult)
+    });
 
-  return resultRef.id;
+  if (error) throw new Error(error.message);
+
+  return options.result.id;
 }

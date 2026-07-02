@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react()],
+  envDir: '../../',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -12,20 +13,12 @@ export default defineConfig({
     }
   },
   server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
-    },
     proxy: {
       '/api/clinical': {
         target: process.env.CLINICAL_API_URL || 'http://127.0.0.1:5000/api/v1',
         changeOrigin: true,
         rewrite: path => path.replace(/^\/api\/clinical/, '')
       }
-    }
-  },
-  preview: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
     }
   },
   test: {

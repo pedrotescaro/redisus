@@ -43,6 +43,7 @@ export const router = createBrowserRouter(
           children: [
             { path: '/onboarding', element: <OnboardingPage /> },
             { path: '/chat', element: <ChatPage /> },
+            ...(!localAnalyzerMode ? [{ path: '/analyzer', element: <AnalyzerPage /> }] : []),
             {
               element: <AppShell />,
               children: [
@@ -53,7 +54,6 @@ export const router = createBrowserRouter(
                 { path: '/agenda', element: <AgendaPage /> },
                 { path: '/reports', element: <ReportsPage /> },
                 { path: '/reports/compare', element: <CompareReportsPage /> },
-                ...(!localAnalyzerMode ? [{ path: '/analyzer', element: <AnalyzerPage /> }] : []),
                 { path: '/profile', element: <ProfilePage /> },
                 { path: '/profile/edit', element: <EditProfilePage /> },
                 { path: '/settings', element: <SettingsPage /> },

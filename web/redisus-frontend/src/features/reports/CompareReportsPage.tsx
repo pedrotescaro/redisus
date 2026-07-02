@@ -79,22 +79,37 @@ export function CompareReportsPage() {
           <Select
             label="Paciente"
             placeholder="Selecione"
-            options={filteredPatients.map(patient => ({ value: patient.id, label: patient.name }))}
+            options={
+              filteredPatients.length > 0
+                ? filteredPatients.map(patient => ({ value: patient.id, label: patient.name }))
+                : [{ value: '', label: 'Nenhum paciente encontrado' }]
+            }
             value={patientId}
+            disabled={filteredPatients.length === 0}
             onChange={event => selectPatient(event.target.value)}
           />
           <Select
             label="Antes"
             placeholder="Avaliação inicial"
-            options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
+            options={
+              evaluations.length > 0
+                ? evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))
+                : [{ value: '', label: 'Nenhuma avaliação' }]
+            }
             value={evalAId}
+            disabled={evaluations.length === 0}
             onChange={event => setEvalAId(event.target.value)}
           />
           <Select
             label="Agora"
             placeholder="Avaliação recente"
-            options={evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))}
+            options={
+              evaluations.length > 0
+                ? evaluations.map(evaluation => ({ value: evaluation.id, label: `${evaluation.date} - ${evaluation.woundLocation}` }))
+                : [{ value: '', label: 'Nenhuma avaliação' }]
+            }
             value={evalBId}
+            disabled={evaluations.length === 0}
             onChange={event => setEvalBId(event.target.value)}
           />
         </div>

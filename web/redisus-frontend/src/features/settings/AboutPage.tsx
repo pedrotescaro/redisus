@@ -10,7 +10,7 @@ export function AboutPage() {
 
         <div className="p-4 sm:p-6 space-y-4">
           <p className="text-xs leading-relaxed text-slate-600 dark:text-zinc-400 select-none">
-            Versão web acadêmica do Heal+, reconstruída em React, TypeScript, Vite e Firebase para demonstrar testes de autenticação,
+            Versão web acadêmica do Heal+, reconstruída em React, TypeScript, Vite, Firebase e Supabase para demonstrar testes de autenticação,
             regras, persistência, upload, ROI e relatórios.
           </p>
           <p className="text-[10px] font-bold text-slate-400 dark:text-zinc-600 uppercase tracking-wider select-none">

@@ -1,18 +1,6 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc
-} from 'firebase/firestore';
 import { z } from 'zod';
-
-import { db } from '../../lib/firebase';
-import { appointmentPath, appointmentsPath } from '../../lib/firestorePaths';
+import { supabase } from '../../lib/supabase';
+import { generateUUID } from '../../lib/uuid';
 import type { Appointment } from '../../lib/types';
 
 export const appointmentSchema = z.object({
@@ -27,50 +15,98 @@ export const appointmentSchema = z.object({
 
 export type AppointmentFormValues = z.infer<typeof appointmentSchema>;
 
-const mapAppointment = (id: string, data: Record<string, unknown>): Appointment => ({
-  id,
-  patientId: String(data.patientId || ''),
-  patientName: String(data.patientName || ''),
-  date: String(data.date || ''),
-  time: String(data.time || ''),
-  type: String(data.type || ''),
-  status: (data.status as Appointment['status']) || 'Pendente',
-  notes: String(data.notes || ''),
-  createdAt: data.createdAt as Appointment['createdAt'],
-  updatedAt: data.updatedAt as Appointment['updatedAt']
-});
-
 export function subscribeAppointments(uid: string, onData: (appointments: Appointment[]) => void, onError?: (error: Error) => void) {
-  return onSnapshot(
-    query(collection(db, appointmentsPath(uid)), orderBy('date', 'asc')),
-    snapshot =>
-      onData(
-        snapshot.docs
-          .map(item => mapAppointment(item.id, item.data()))
-          .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
-      ),
-    onError
-  );
+  const fetchAppointments = async () => {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('user_id', uid)
+      .order('date', { ascending: true });
+
+    if (error) {
+      if (onError) onError(new Error(error.message));
+      return;
+    }
+
+    const mapped: Appointment[] = (data || []).map(row => ({
+      id: row.id,
+      patientId: row.patient_id,
+      patientName: row.patient_name,
+      date: row.date,
+      time: row.time,
+      type: row.type,
+      status: (row.status as Appointment['status']) || 'Pendente',
+      notes: row.notes || '',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    })).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+
+    onData(mapped);
+  };
+
+  fetchAppointments();
+
+  const channel = supabase
+    .channel(`appointments-changes-${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'appointments', filter: `user_id=eq.${uid}` },
+      () => {
+        void fetchAppointments();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
 }
 
-export async function createAppointment(uid: string, values: AppointmentFormValues) {
-  const ref = await addDoc(collection(db, appointmentsPath(uid)), {
-    ...values,
-    notes: values.notes || '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  });
-  return ref.id;
+export async function createAppointment(uid: string, values: AppointmentFormValues): Promise<string> {
+  const appointmentId = generateUUID();
+  const { error } = await supabase
+    .from('appointments')
+    .insert({
+      id: appointmentId,
+      user_id: uid,
+      patient_id: values.patientId,
+      patient_name: values.patientName,
+      date: values.date,
+      time: values.time,
+      type: values.type,
+      status: values.status,
+      notes: values.notes || ''
+    });
+
+  if (error) throw new Error(error.message);
+  return appointmentId;
 }
 
-export async function updateAppointment(uid: string, appointmentId: string, values: AppointmentFormValues) {
-  await updateDoc(doc(db, appointmentPath(uid, appointmentId)), {
-    ...values,
-    notes: values.notes || '',
-    updatedAt: serverTimestamp()
-  });
+export async function updateAppointment(uid: string, appointmentId: string, values: AppointmentFormValues): Promise<void> {
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      patient_id: values.patientId,
+      patient_name: values.patientName,
+      date: values.date,
+      time: values.time,
+      type: values.type,
+      status: values.status,
+      notes: values.notes || '',
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', appointmentId)
+    .eq('user_id', uid);
+
+  if (error) throw new Error(error.message);
 }
 
-export async function deleteAppointment(uid: string, appointmentId: string) {
-  await deleteDoc(doc(db, appointmentPath(uid, appointmentId)));
+export async function deleteAppointment(uid: string, appointmentId: string): Promise<void> {
+  const { error } = await supabase
+    .from('appointments')
+    .delete()
+    .eq('id', appointmentId)
+    .eq('user_id', uid);
+
+  if (error) throw new Error(error.message);
 }
