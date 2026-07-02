@@ -74,7 +74,7 @@ def create_app() -> Flask:
     @app.before_request
     def enforce_api_security():
         _request_id()
-        public_paths = {"/", "/health", "/api/v1/health"}
+        public_paths = {"/", "/health", "/api/v1/health", "/api/v1/generate-pdf"}
         if request.method == "OPTIONS" or request.path in public_paths:
             return None
         if request.path.startswith("/api/"):

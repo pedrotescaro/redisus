@@ -81,7 +81,15 @@ function resultStatusLabel(result: ClinicalAnalysisResult | null, hasImage: bool
   return { label: 'Pronto para análise', tone: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900/50 dark:bg-teal-950/20 dark:text-teal-300' };
 }
 
-export function AnalyzerWorkbench() {
+export function AnalyzerWorkbench({
+  showSidebarToggle,
+  isSidebarCollapsed,
+  onToggleSidebar
+}: {
+  showSidebarToggle?: boolean;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+} = {}) {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -340,6 +348,9 @@ export function AnalyzerWorkbench() {
         <PageHeader
           title="HEAL Analyzer"
           description="Analise assistiva de feridas e ROI"
+          showSidebarToggle={showSidebarToggle}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={onToggleSidebar}
           action={
             <div className="flex flex-wrap gap-2 items-center">
               <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${status.tone}`}>

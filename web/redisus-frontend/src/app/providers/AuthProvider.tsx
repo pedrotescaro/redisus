@@ -1,9 +1,8 @@
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-import { auth, db } from '../../lib/firebase';
-import { userPath } from '../../lib/firestorePaths';
+import { auth } from '../../lib/firebase';
+import { supabase } from '../../lib/supabase';
 import type { UserProfile } from '../../lib/types';
 import { ensureUserProfile } from '../../features/auth/authService';
 
@@ -39,14 +38,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setLoadingProfile(true);
-    return onSnapshot(
-      doc(db, userPath(user.uid)),
-      snapshot => {
-        setProfile(snapshot.exists() ? (snapshot.data() as UserProfile) : null);
+
+    const fetchProfile = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', user.uid)
+        .maybeSingle();
+
+      if (error) {
         setLoadingProfile(false);
-      },
-      () => setLoadingProfile(false)
-    );
+        return;
+      }
+
+      if (data) {
+        setProfile({
+          uid: data.uid,
+          displayName: data.display_name,
+          email: data.email,
+          photoURL: data.photo_url || null,
+          providerIds: data.provider_ids || [],
+          role: (data.role as UserProfile['role']) || 'professional',
+          settings: data.settings || {},
+          professionalArea: data.professional_area || '',
+          clinicName: data.clinic_name || '',
+          phone: data.phone || '',
+          onboardingCompleted: data.onboarding_completed || false,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at
+        });
+      }
+      setLoadingProfile(false);
+    };
+
+    void fetchProfile();
+
+    const channel = supabase
+      .channel(`user-profile-changes-${user.uid}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users', filter: `uid=eq.${user.uid}` },
+        () => {
+          void fetchProfile();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const value = useMemo(

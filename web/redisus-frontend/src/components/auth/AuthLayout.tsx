@@ -8,7 +8,7 @@ const highlights = [
   'Avaliação estruturada',
   'Comparativo fotográfico',
   'Relatórios em PDF',
-  'Segurança com Firebase'
+  'Conformidade LGPD e RLS'
 ];
 
 export function AuthLayout({ children }: { children: ReactNode }) {

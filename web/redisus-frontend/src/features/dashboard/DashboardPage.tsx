@@ -154,7 +154,7 @@ export function DashboardPage() {
                 Pronto para acompanhar?
               </h1>
               <p className="mt-3 text-sm leading-6 text-heal-muted dark:text-zinc-400">
-                Avalie feridas, consulte pacientes cadastrados no Firebase, controle a agenda e analise dados com inteligência artificial.
+                Avalie feridas, consulte pacientes cadastrados na plataforma, controle a agenda e analise dados com inteligência artificial.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 {quickActions.map(action => (

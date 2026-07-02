@@ -261,16 +261,97 @@ textarea {
 }
 
 /* ============================================
-   Print
+   Print Styles for Clinical Reports
    ============================================ */
 
 @media print {
-  .no-print {
+  /* Hide layout navigation, sidebar, topbar, filters and buttons */
+  .no-print,
+  aside,
+  nav,
+  header,
+  .no-print-container,
+  button,
+  .lg\:hidden {
     display: none !important;
   }
 
-  body {
-    background: white !important;
+  /* Reset layout constraints and paddings */
+  body, html, #root, main, [class*="min-h-screen"], .flex-1, .flex-grow, .max-w-5xl {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Remove sidebar desktop indent padding */
+  .lg\:pl-\[280px\],
+  div[class*="lg:pl-"] {
+    padding-left: 0 !important;
+  }
+
+  /* Optimize Card styling for printable sheets */
+  .print\:border-0,
+  .card,
+  .Card,
+  [class*="Card_card"] {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Set dark text color for high contrast on A4 paper */
+  p, h1, h2, h3, h4, span, dt, dd, td, th {
+    color: #111827 !important;
+  }
+
+  /* Fix background colors for printer graphic cards */
+  .bg-slate-50\/50,
+  .bg-slate-50,
+  .bg-slate-100 {
+    background-color: #f9fafb !important;
+    border: 1px solid #e5e7eb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent page cuts inside structured diagnostic elements */
+  .rounded-2xl,
+  .rounded-xl,
+  .aspect-\[4\/3\] {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Standard page layout margins */
+  @page {
+    margin: 1.5cm 1.5cm 1.5cm 1.5cm !important;
+    size: A4 portrait;
+  }
+
+  /* Control photo size and layout in printed page */
+  .aspect-\[4\/3\] {
+    max-height: 220px !important;
+    max-width: 290px !important;
+    margin: 0 auto !important;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  /* Adjust margins for tight paper grids */
+  .mt-6, .mt-8 {
+    margin-top: 1rem !important;
+  }
+  
+  .gap-6 {
+    gap: 1rem !important;
   }
 }
 

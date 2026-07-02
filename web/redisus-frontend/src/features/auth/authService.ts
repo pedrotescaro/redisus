@@ -11,10 +11,8 @@ import {
   type AuthProvider,
   type User
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-
-import { auth, db } from '../../lib/firebase';
-import { userPath } from '../../lib/firestorePaths';
+import { auth } from '../../lib/firebase';
+import { supabase } from '../../lib/supabase';
 import type { UserProfile } from '../../lib/types';
 import type { LoginFormValues, RegisterFormValues } from './authSchema';
 
@@ -62,39 +60,50 @@ function providerIds(user: User) {
 }
 
 export async function ensureUserProfile(user: User, extras: Partial<UserProfile> = {}) {
-  const profileRef = doc(db, userPath(user.uid));
-  const profileSnap = await getDoc(profileRef);
+  const { data: profileSnap, error: fetchError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('uid', user.uid)
+    .maybeSingle();
+
+  if (fetchError) throw new Error(fetchError.message);
+
   const baseProfile = {
     uid: user.uid,
-    displayName: extras.displayName || user.displayName || user.email?.split('@')[0] || 'Profissional',
+    display_name: extras.displayName || user.displayName || user.email?.split('@')[0] || 'Profissional',
     email: extras.email || user.email || '',
-    photoURL: extras.photoURL ?? user.photoURL ?? null,
-    providerIds: providerIds(user),
-    role: 'professional' as const,
+    photo_url: extras.photoURL ?? user.photoURL ?? null,
+    provider_ids: providerIds(user),
+    role: 'professional',
     settings: extras.settings || defaultSettings
   };
 
-  if (!profileSnap.exists()) {
-    await setDoc(profileRef, {
-      ...baseProfile,
-      professionalArea: extras.professionalArea || '',
-      clinicName: extras.clinicName || '',
-      phone: extras.phone || '',
-      onboardingCompleted: extras.onboardingCompleted ?? false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+  if (!profileSnap) {
+    const { error: insertError } = await supabase
+      .from('users')
+      .insert({
+        ...baseProfile,
+        professional_area: extras.professionalArea || '',
+        clinic_name: extras.clinicName || '',
+        phone: extras.phone || '',
+        onboarding_completed: extras.onboardingCompleted ?? false
+      });
+    if (insertError) throw new Error(insertError.message);
     return;
   }
 
-  await updateDoc(profileRef, {
-    uid: user.uid,
-    displayName: baseProfile.displayName,
-    email: baseProfile.email,
-    photoURL: baseProfile.photoURL,
-    providerIds: baseProfile.providerIds,
-    updatedAt: serverTimestamp()
-  });
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      display_name: baseProfile.display_name,
+      email: baseProfile.email,
+      photo_url: baseProfile.photo_url,
+      provider_ids: baseProfile.provider_ids,
+      updated_at: new Date().toISOString()
+    })
+    .eq('uid', user.uid);
+
+  if (updateError) throw new Error(updateError.message);
 }
 
 export async function signInWithEmail(email: string, password: string) {
@@ -132,10 +141,26 @@ export const resetPassword = (email: string) => sendPasswordResetEmail(auth, ema
 export const logout = () => signOut(auth);
 
 export async function updateUserProfile(uid: string, values: Partial<UserProfile>) {
-  await updateDoc(doc(db, userPath(uid)), {
-    ...values,
-    updatedAt: serverTimestamp()
-  });
+  const payload: Record<string, any> = {
+    uid,
+    updated_at: new Date().toISOString()
+  };
+  if ('displayName' in values) payload.display_name = values.displayName;
+  if ('email' in values) payload.email = values.email;
+  if ('photoURL' in values) payload.photo_url = values.photoURL;
+  if ('providerIds' in values) payload.provider_ids = values.providerIds;
+  if ('role' in values) payload.role = values.role;
+  if ('settings' in values) payload.settings = values.settings;
+  if ('professionalArea' in values) payload.professional_area = values.professionalArea;
+  if ('clinicName' in values) payload.clinic_name = values.clinicName;
+  if ('phone' in values) payload.phone = values.phone;
+  if ('onboardingCompleted' in values) payload.onboarding_completed = values.onboardingCompleted;
+
+  const { error } = await supabase
+    .from('users')
+    .upsert(payload, { onConflict: 'uid' });
+
+  if (error) throw new Error(error.message);
 }
 
 export const loginWithEmail = (values: LoginFormValues) => signInWithEmail(values.email, values.password);

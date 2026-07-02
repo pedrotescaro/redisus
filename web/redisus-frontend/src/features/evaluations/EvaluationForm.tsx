@@ -333,7 +333,7 @@ export function EvaluationForm({ patients, defaultPatientId, onSubmit }: Evaluat
       {step === 3 ? (
         <Card>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-heal-teal">Revisão</p>
-          <h3 className="mt-1 text-xl font-black text-heal-ink dark:text-white">Pronto para salvar no Firebase</h3>
+          <h3 className="mt-1 text-xl font-black text-heal-ink dark:text-white">Pronto para salvar na nuvem</h3>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             <ReviewItem label="Paciente" value={watch('patientName') || 'Não selecionado'} />
             <ReviewItem label="Data" value={watch('date')} />
@@ -344,7 +344,7 @@ export function EvaluationForm({ patients, defaultPatientId, onSubmit }: Evaluat
           </div>
           <div className="mt-5 rounded-2xl bg-heal-softBlue p-4 text-sm leading-6 text-heal-muted dark:bg-blue-950/30 dark:text-zinc-400">
             <PenLine className="mr-2 inline h-4 w-4 text-heal-blue" />
-            As imagens serão enviadas ao Firebase Storage e as ROIs normalizadas ficarão salvas no documento da avaliação.
+            As imagens serão enviadas ao Supabase Storage e as ROIs normalizadas ficarão salvas na avaliação.
           </div>
         </Card>
       ) : null}

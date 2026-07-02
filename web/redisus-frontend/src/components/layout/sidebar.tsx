@@ -252,6 +252,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       await signOut(auth);
     } catch (err) {
       console.error('Error signing out:', err);
+    } finally {
+      window.location.href = '/login';
     }
   };
 

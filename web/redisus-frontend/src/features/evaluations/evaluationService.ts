@@ -1,20 +1,5 @@
-import {
-  arrayUnion,
-  collection,
-  doc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc
-} from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-
-import { db, storage, storageBucketName } from '../../lib/firebase';
-import { evaluationPath, evaluationsPath } from '../../lib/firestorePaths';
-import { getFileExtension, woundImagePath } from '../../lib/storagePaths';
+import { supabase } from '../../lib/supabase';
+import { generateUUID } from '../../lib/uuid';
 import type { Evaluation, ImageDraft, WoundImage } from '../../lib/types';
 import { validateImageFile } from '../../lib/validators';
 import type { EvaluationFormValues } from './evaluationSchema';
@@ -31,39 +16,6 @@ interface EvaluationAuditOptions {
   updatedBy?: string;
 }
 
-const mapEvaluation = (id: string, data: Record<string, unknown>): Evaluation => ({
-  id,
-  patientId: String(data.patientId || ''),
-  patientName: String(data.patientName || ''),
-  date: String(data.date || ''),
-  woundLocation: String(data.woundLocation || ''),
-  woundEtiology: String(data.woundEtiology || ''),
-  painLevel: Number(data.painLevel || 0),
-  exudateAmount: String(data.exudateAmount || ''),
-  exudateType: String(data.exudateType || ''),
-  borderCharacteristics: String(data.borderCharacteristics || ''),
-  periwoundSkin: String(data.periwoundSkin || ''),
-  infectionSigns: Array.isArray(data.infectionSigns) ? data.infectionSigns.map(String) : [],
-  timers: {
-    tissue: String((data.timers as Record<string, unknown>)?.tissue || ''),
-    infection: String((data.timers as Record<string, unknown>)?.infection || ''),
-    moisture: String((data.timers as Record<string, unknown>)?.moisture || ''),
-    edge: String((data.timers as Record<string, unknown>)?.edge || ''),
-    repair: String((data.timers as Record<string, unknown>)?.repair || ''),
-    social: String((data.timers as Record<string, unknown>)?.social || '')
-  },
-  comorbidities: Array.isArray(data.comorbidities) ? data.comorbidities.map(String) : [],
-  medications: Array.isArray(data.medications) ? data.medications.map(String) : [],
-  notes: String(data.notes || ''),
-  images: Array.isArray(data.images) ? (data.images as WoundImage[]) : [],
-  imageUploadStatus: data.imageUploadStatus === 'failed' || data.imageUploadStatus === 'complete' ? data.imageUploadStatus : undefined,
-  imageUploadError: typeof data.imageUploadError === 'string' ? data.imageUploadError : null,
-  updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : undefined,
-  auditLog: Array.isArray(data.auditLog) ? (data.auditLog as Evaluation['auditLog']) : [],
-  createdAt: data.createdAt as Evaluation['createdAt'],
-  updatedAt: data.updatedAt as Evaluation['updatedAt']
-});
-
 function validateEvaluationImages(images: ImageDraft[]) {
   for (const image of images) {
     if (!image.file) continue;
@@ -73,17 +25,7 @@ function validateEvaluationImages(images: ImageDraft[]) {
 }
 
 function friendlyImageUploadError(error: unknown) {
-  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : '';
-
-  if (code === 'storage/unauthorized') {
-    return 'A avaliação foi salva, mas as regras do Firebase Storage bloquearam o envio das imagens.';
-  }
-
-  if (code === 'storage/canceled') {
-    return 'A avaliação foi salva, mas o envio das imagens foi cancelado.';
-  }
-
-  return 'A avaliação foi salva sem imagens porque o Firebase Storage não está disponível para este projeto. Crie/ative o bucket do Storage e tente enviar as imagens novamente.';
+  return typeof error === 'object' && error && 'message' in error ? String((error as any).message) : String(error);
 }
 
 function existingImageFromDraft(image: ImageDraft): WoundImage | null {
@@ -101,43 +43,95 @@ function existingImageFromDraft(image: ImageDraft): WoundImage | null {
   };
 }
 
-let storageBucketCheck: Promise<string | null> | null = null;
-
-async function getStorageBucketError() {
-  if (!storageBucketName || storageBucketName.startsWith('missing-')) {
-    return 'A avaliação foi salva sem imagens porque o bucket do Firebase Storage não está configurado.';
-  }
-
-  if (typeof fetch === 'undefined') return null;
-
-  storageBucketCheck ??= fetch(`https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(storageBucketName)}/o?maxResults=1`)
-    .then(response => {
-      if (response.status === 404) {
-        return `A avaliação foi salva sem imagens porque o bucket ${storageBucketName} ainda não existe. Ative o Firebase Storage no plano Blaze e tente enviar as imagens novamente.`;
-      }
-      return null;
-    })
-    .catch(() => null);
-
-  return storageBucketCheck;
-}
-
 export function subscribeEvaluations(
   uid: string,
   patientId: string,
   onData: (evaluations: Evaluation[]) => void,
   onError?: (error: Error) => void
 ) {
-  return onSnapshot(
-    query(collection(db, evaluationsPath(uid, patientId)), orderBy('date', 'desc')),
-    snapshot => onData(snapshot.docs.map(item => mapEvaluation(item.id, item.data()))),
-    onError
-  );
+  const fetchEvaluations = async () => {
+    const { data, error } = await supabase
+      .from('evaluations')
+      .select('*')
+      .eq('user_id', uid)
+      .eq('patient_id', patientId)
+      .order('date', { ascending: false });
+
+    if (error) {
+      if (onError) onError(new Error(error.message));
+      return;
+    }
+
+    const mapped: Evaluation[] = (data || []).map(row => ({
+      id: row.id,
+      patientId: row.patient_id,
+      patientName: row.patient_name || '',
+      date: row.date,
+      woundLocation: row.wound_location || '',
+      woundEtiology: row.wound_etiology || '',
+      painLevel: Number(row.pain_level || 0),
+      exudateAmount: row.exudate_amount || '',
+      exudateType: row.exudate_type || '',
+      borderCharacteristics: row.border_characteristics || '',
+      periwoundSkin: row.periwound_skin || '',
+      infectionSigns: row.infection_signs || [],
+      timers: row.timers || {},
+      comorbidities: row.comorbidities || [],
+      medications: row.medications || [],
+      notes: row.notes || '',
+      images: row.images || []
+    }));
+
+    onData(mapped);
+  };
+
+  fetchEvaluations();
+
+  const channel = supabase
+    .channel(`evaluations-changes-${patientId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'evaluations', filter: `patient_id=eq.${patientId}` },
+      () => {
+        void fetchEvaluations();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
 }
 
-export async function listEvaluations(uid: string, patientId: string) {
-  const snapshot = await getDocs(query(collection(db, evaluationsPath(uid, patientId)), orderBy('date', 'desc')));
-  return snapshot.docs.map(item => mapEvaluation(item.id, item.data()));
+export async function listEvaluations(uid: string, patientId: string): Promise<Evaluation[]> {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .select('*')
+    .eq('user_id', uid)
+    .eq('patient_id', patientId)
+    .order('date', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data || []).map(row => ({
+    id: row.id,
+    patientId: row.patient_id,
+    patientName: row.patient_name || '',
+    date: row.date,
+    woundLocation: row.wound_location || '',
+    woundEtiology: row.wound_etiology || '',
+    painLevel: Number(row.pain_level || 0),
+    exudateAmount: row.exudate_amount || '',
+    exudateType: row.exudate_type || '',
+    borderCharacteristics: row.border_characteristics || '',
+    periwoundSkin: row.periwound_skin || '',
+    infectionSigns: row.infection_signs || [],
+    timers: row.timers || {},
+    comorbidities: row.comorbidities || [],
+    medications: row.medications || [],
+    notes: row.notes || '',
+    images: row.images || []
+  }));
 }
 
 async function uploadEvaluationImages(uid: string, patientId: string, evaluationId: string, images: ImageDraft[]) {
@@ -154,57 +148,76 @@ async function uploadEvaluationImages(uid: string, patientId: string, evaluation
     const error = validateImageFile(image.file);
     if (error) throw new Error(error);
 
-    const bucketError = await getStorageBucketError();
-    if (bucketError) {
-      if (existingImage) uploaded.push(existingImage);
-      return { uploadedImages: uploaded, imageUploadError: bucketError };
-    }
-
-    const path = woundImagePath(uid, patientId, evaluationId, image.id, getFileExtension(image.file));
-    const fileRef = ref(storage, path);
-    let downloadURL = '';
+    const ext = image.file.name.split('.').pop() || 'png';
+    const storagePath = `${uid}/${generateUUID()}.${ext}`;
 
     try {
-      await uploadBytes(fileRef, image.file, { contentType: image.file.type });
-      downloadURL = await getDownloadURL(fileRef);
-    } catch (error) {
-      if (existingImage) uploaded.push(existingImage);
-      return { uploadedImages: uploaded, imageUploadError: friendlyImageUploadError(error) };
-    }
+      const { error: uploadError } = await supabase.storage
+        .from('wound-images')
+        .upload(storagePath, image.file, {
+          contentType: image.file.type,
+          upsert: false
+        });
 
-    uploaded.push({
-      id: image.id,
-      storagePath: path,
-      downloadURL,
-      fileName: image.file.name,
-      contentType: image.file.type,
-      size: image.file.size,
-      rois: image.rois,
-      uploadedAt: new Date().toISOString()
-    });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('wound-images')
+        .getPublicUrl(storagePath);
+
+      uploaded.push({
+        id: image.id,
+        storagePath,
+        downloadURL: urlData.publicUrl,
+        fileName: image.file.name,
+        contentType: image.file.type,
+        size: image.file.size,
+        rois: image.rois,
+        uploadedAt: new Date().toISOString()
+      });
+    } catch (uploadError: any) {
+      if (existingImage) uploaded.push(existingImage);
+      return { uploadedImages: uploaded, imageUploadError: friendlyImageUploadError(uploadError) };
+    }
   }
 
   return { uploadedImages: uploaded };
 }
 
-export async function createEvaluation(uid: string, values: EvaluationFormValues, images: ImageDraft[]) {
-  const evaluationRef = doc(collection(db, evaluationsPath(uid, values.patientId)));
+export async function createEvaluation(uid: string, values: EvaluationFormValues, images: ImageDraft[]): Promise<EvaluationWriteResult> {
   const requestedImageCount = images.filter(image => image.file || image.existingDownloadURL).length;
+  const evaluationId = generateUUID();
 
   validateEvaluationImages(images);
-  const { uploadedImages, imageUploadError } = await uploadEvaluationImages(uid, values.patientId, evaluationRef.id, images);
+  const { uploadedImages, imageUploadError } = await uploadEvaluationImages(uid, values.patientId, evaluationId, images);
 
-  await setDoc(evaluationRef, {
-    ...values,
-    images: uploadedImages,
-    imageUploadStatus: imageUploadError ? 'failed' : 'complete',
-    imageUploadError: imageUploadError || null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  });
+  const { error } = await supabase
+    .from('evaluations')
+    .insert({
+      id: evaluationId,
+      patient_id: values.patientId,
+      user_id: uid,
+      patient_name: values.patientName || '',
+      date: values.date,
+      wound_location: values.woundLocation || '',
+      wound_etiology: values.woundEtiology || '',
+      pain_level: values.painLevel,
+      exudate_amount: values.exudateAmount || '',
+      exudate_type: values.exudateType || '',
+      border_characteristics: values.borderCharacteristics || '',
+      periwound_skin: values.periwoundSkin || '',
+      infection_signs: values.infectionSigns || [],
+      timers: values.timers || {},
+      comorbidities: values.comorbidities || [],
+      medications: values.medications || [],
+      notes: values.notes || '',
+      images: uploadedImages
+    });
+
+  if (error) throw new Error(error.message);
 
   return {
-    id: evaluationRef.id,
+    id: evaluationId,
     uploadedImageCount: uploadedImages.length,
     requestedImageCount,
     imageUploadError
@@ -217,31 +230,36 @@ export async function updateEvaluation(
   evaluationId: string,
   images: ImageDraft[],
   auditOptions: EvaluationAuditOptions = {}
-) {
+): Promise<EvaluationWriteResult> {
   const requestedImageCount = images.filter(image => image.file || image.existingDownloadURL).length;
 
   validateEvaluationImages(images);
   const { uploadedImages, imageUploadError } = await uploadEvaluationImages(uid, values.patientId, evaluationId, images);
 
-  const updatePayload: Record<string, unknown> = {
-    ...values,
-    images: uploadedImages,
-    imageUploadStatus: imageUploadError ? 'failed' : 'complete',
-    imageUploadError: imageUploadError || null,
-    updatedBy: auditOptions.updatedBy || uid,
-    updatedAt: serverTimestamp()
-  };
+  const { error } = await supabase
+    .from('evaluations')
+    .update({
+      patient_name: values.patientName || '',
+      date: values.date,
+      wound_location: values.woundLocation || '',
+      wound_etiology: values.woundEtiology || '',
+      pain_level: values.painLevel,
+      exudate_amount: values.exudateAmount || '',
+      exudate_type: values.exudateType || '',
+      border_characteristics: values.borderCharacteristics || '',
+      periwound_skin: values.periwoundSkin || '',
+      infection_signs: values.infectionSigns || [],
+      timers: values.timers || {},
+      comorbidities: values.comorbidities || [],
+      medications: values.medications || [],
+      notes: values.notes || '',
+      images: uploadedImages,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', evaluationId)
+    .eq('user_id', uid);
 
-  if (auditOptions.previousData) {
-    updatePayload.auditLog = arrayUnion({
-      action: 'clinical_record_update',
-      updatedAt: new Date().toISOString(),
-      updatedBy: auditOptions.updatedBy || uid,
-      previousData: auditOptions.previousData
-    });
-  }
-
-  await updateDoc(doc(db, evaluationPath(uid, values.patientId, evaluationId)), updatePayload);
+  if (error) throw new Error(error.message);
 
   return {
     id: evaluationId,

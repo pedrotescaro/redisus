@@ -12,73 +12,24 @@ interface ReportPreviewProps {
   patient: Patient;
   evaluation: Evaluation;
   profile: UserProfile | null;
+  analysis: string | null;
+  loadingAnalysis: boolean;
+  analysisError: string | null;
+  onGenerateAnalysis: () => void;
+  includeAi: boolean;
 }
 
-export function ReportPreview({ patient, evaluation, profile }: ReportPreviewProps) {
+export function ReportPreview({
+  patient,
+  evaluation,
+  profile,
+  analysis,
+  loadingAnalysis,
+  analysisError,
+  onGenerateAnalysis,
+  includeAi
+}: ReportPreviewProps) {
   const image = evaluation.images[0];
-
-  const [analysis, setAnalysis] = useState<string | null>(null);
-  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-
-  const handleGenerateAnalysis = () => {
-    setLoadingAnalysis(true);
-    setAnalysisError(null);
-
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY || '';
-    const model = import.meta.env.VITE_AI_MODEL || 'llama-3.1-8b-instant';
-
-    const userPrompt = `Analise a seguinte avaliação clínica de ferida do paciente ${patient.name} realizada em ${formatDateLong(evaluation.date)}.
-Detalhes da ferida:
-- Local: ${evaluation.woundLocation}
-- Etiologia: ${evaluation.woundEtiology}
-- Dor: ${evaluation.painLevel}/10
-- Exsudato: ${evaluation.exudateAmount} (${evaluation.exudateType})
-- Bordas: ${evaluation.borderCharacteristics}
-- Pele perilesional: ${evaluation.periwoundSkin}
-- Timers T.I.M.E.R.S.:
-  * Tissue: ${evaluation.timers.tissue || 'Não informado'}
-  * Infection: ${evaluation.timers.infection || 'Não informado'}
-  * Moisture: ${evaluation.timers.moisture || 'Não informado'}
-  * Edge: ${evaluation.timers.edge || 'Não informado'}
-  * Repair: ${evaluation.timers.repair || 'Não informado'}
-  * Social: ${evaluation.timers.social || 'Não informado'}
-- Observações: ${evaluation.notes || 'Sem observações adicionais'}
-
-Por favor, gere um parecer clínico estruturado contendo:
-1. RESUMO CLÍNICO: Um resumo rápido da situação da lesão.
-2. PONTOS DE ATENÇÃO: Alertas sobre possíveis riscos (como dor elevada ou infecção).
-3. PROPOSTA DE CONDUTA (T.I.M.E.R.S.): Sugestões práticas de cuidados e curativos baseados na avaliação.`;
-
-    fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: 'Você é um clínico especialista em estomaterapia e cicatrização de feridas crônicas.' },
-          { role: 'user', content: userPrompt }
-        ]
-      })
-    })
-    .then(async response => {
-      if (!response.ok) throw new Error(`Erro: ${response.status}`);
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (!text) throw new Error('Retorno vazio.');
-      setAnalysis(text);
-    })
-    .catch(err => {
-      console.error(err);
-      setAnalysisError('Falha ao gerar análise. Verifique sua chave de API ou conexão.');
-    })
-    .finally(() => {
-      setLoadingAnalysis(false);
-    });
-  };
 
   return (
     <Card className="print:border-0 print:shadow-none p-6">
@@ -171,68 +122,83 @@ Por favor, gere um parecer clínico estruturado contendo:
       ) : null}
 
       {/* AI Analysis Section */}
-      <div className="mt-8 border-t border-heal-line pt-6 dark:border-zinc-800 no-print">
-        <div className="rounded-2xl border border-heal-blue/20 bg-heal-softBlue/10 p-5 dark:border-blue-500/20 dark:bg-blue-950/20">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
-              <BrainCircuit className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-wide text-heal-blue">Análise de IA Generativa</p>
-              <h4 className="text-sm font-bold text-heal-ink dark:text-white">Parecer Clínico Automatizado (Llama 3.1)</h4>
-            </div>
-          </div>
-
-          {analysis ? (
-            <div className="mt-4 animate-fade-in">
-              <div className="text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
-                <MarkdownRenderer text={analysis} />
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-3 border-t border-heal-line/40 dark:border-zinc-800/40 pt-4">
-                <p className="text-[11px] text-heal-muted dark:text-zinc-500 font-medium">
-                  Aviso: Esta análise é gerada por inteligência artificial para apoio clínico e deve ser validada por um profissional de saúde.
-                </p>
-                <button
-                  onClick={handleGenerateAnalysis}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-heal-blue/20 bg-white dark:bg-zinc-900 text-xs font-bold text-heal-blue cursor-pointer hover:bg-heal-softBlue/30 transition-colors"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  Regerar
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-4 flex flex-col items-center py-4 text-center">
-              {loadingAnalysis ? (
-                <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="h-6 w-6 animate-spin text-heal-blue" />
-                  <p className="text-xs font-semibold text-heal-muted dark:text-zinc-400">Analisando parâmetros clínicos da ferida...</p>
+      {includeAi && (
+        analysis ? (
+          <div className="mt-8 border-t border-heal-line pt-6 dark:border-zinc-800">
+            <div className="rounded-2xl border border-heal-blue/20 bg-heal-softBlue/10 p-5 dark:border-blue-500/20 dark:bg-blue-950/20">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
+                  <BrainCircuit className="h-5 w-5" />
                 </div>
-              ) : (
-                <>
-                  <p className="text-xs text-heal-muted dark:text-zinc-400 mb-4 max-w-md">
-                    Gere uma análise completa contendo resumo clínico, pontos de atenção e conduta baseada no framework T.I.M.E.R.S. usando inteligência artificial.
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide text-heal-blue">Análise de IA Generativa</p>
+                  <h4 className="text-sm font-bold text-heal-ink dark:text-white">Parecer Clínico Automatizado</h4>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
+                  <MarkdownRenderer text={analysis} />
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-heal-line/40 dark:border-zinc-800/40 pt-4 no-print">
+                  <p className="text-[11px] text-heal-muted dark:text-zinc-500 font-medium">
+                    Aviso: Esta análise é gerada por inteligência artificial para apoio clínico e deve ser validada por um profissional de saúde.
                   </p>
                   <button
-                    onClick={handleGenerateAnalysis}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-heal-blue hover:bg-heal-blueDark text-white text-xs font-bold shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    onClick={onGenerateAnalysis}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-heal-blue/20 bg-white dark:bg-zinc-900 text-xs font-bold text-heal-blue cursor-pointer hover:bg-heal-softBlue/30 transition-colors"
                   >
-                    <Sparkles className="h-4 w-4" />
-                    Gerar Análise por IA
+                    <Sparkles className="h-3 w-3" />
+                    Regerar
                   </button>
-                </>
-              )}
-
-              {analysisError && (
-                <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>{analysisError}</span>
                 </div>
-              )}
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        ) : (
+          <div className="mt-8 border-t border-heal-line pt-6 dark:border-zinc-800 no-print">
+            <div className="rounded-2xl border border-heal-blue/20 bg-heal-softBlue/10 p-5 dark:border-blue-500/20 dark:bg-blue-950/20">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
+                  <BrainCircuit className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide text-heal-blue">Análise de IA Generativa</p>
+                  <h4 className="text-sm font-bold text-heal-ink dark:text-white">Parecer Clínico Automatizado</h4>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col items-center py-4 text-center">
+                {loadingAnalysis ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-heal-blue" />
+                    <p className="text-xs font-semibold text-heal-muted dark:text-zinc-400">Analisando parâmetros clínicos da ferida...</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-heal-muted dark:text-zinc-400 mb-4 max-w-md">
+                      Gere uma análise completa contendo resumo clínico, pontos de atenção e conduta baseada no framework T.I.M.E.R.S. usando inteligência artificial.
+                    </p>
+                    <button
+                      onClick={onGenerateAnalysis}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-heal-blue hover:bg-heal-blueDark text-white text-xs font-bold shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Gerar Análise por IA
+                    </button>
+                  </>
+                )}
+
+                {analysisError && (
+                  <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>{analysisError}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      )}
 
       {/* Signatures */}
       <div className="mt-8 border-t border-heal-line pt-4 text-sm text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
@@ -275,6 +241,35 @@ function renderTimerContent(value: string) {
         if (colonIndex > -1) {
           const label = part.substring(0, colonIndex).trim();
           const val = part.substring(colonIndex + 1).trim();
+          
+          const isMultiValue = val.includes(',') && (val.includes('%') || val.includes('cm') || val.length > 25);
+          if (isMultiValue) {
+            const subParts = val.split(',').map(s => s.trim()).filter(Boolean);
+            return (
+              <div key={idx} className="flex flex-col gap-1.5 border-b border-slate-100 dark:border-zinc-800/80 pb-2 pt-1 last:border-0 last:pb-0">
+                <span className="font-medium text-slate-400 dark:text-zinc-500">{label}</span>
+                <div className="pl-2.5 space-y-1 border-l-2 border-slate-100 dark:border-zinc-800/80">
+                  {subParts.map((sp, sIdx) => {
+                    const match = sp.match(/^(.*?)\s+(\d+%)$/);
+                    if (match) {
+                      return (
+                        <div key={sIdx} className="flex justify-between text-[11px] text-slate-700 dark:text-zinc-350">
+                          <span className="font-medium text-slate-400 dark:text-zinc-500">{match[1]}</span>
+                          <span className="font-bold text-slate-800 dark:text-zinc-200">{match[2]}</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={sIdx} className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200">
+                        {sp}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div key={idx} className="flex justify-between text-xs border-b border-slate-100 dark:border-zinc-800 pb-1 last:border-0 last:pb-0">
               <span className="font-medium text-slate-400 dark:text-zinc-500">{label}</span>
