@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowRight, ArrowUp, Camera, Image as ImageIcon, LineChart, TrendingDown, TrendingUp, BrainCircuit, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
+import { auth } from '../../lib/firebase';
 
 import { buildEvolutionText } from '../../features/reports/reportService';
 import { formatDate } from '../../lib/date';
@@ -9,6 +10,33 @@ import { RoiImageOverlay } from '../roi/RoiImageOverlay';
 import { Badge } from '../ui/Badge';
 import { Card } from '../ui/Card';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
+import { ModelSelector } from '../ui/ModelSelector';
+
+function scoreResponse(text: string): number {
+  if (!text) return -1;
+  const cleaned = text.trim();
+  if (cleaned.length < 10) return 0;
+  
+  const isGenericRules = [
+    "assistente de ia do heal+",
+    "para analise de feridas, recomendo",
+    "para gerar relatorios, use",
+    "ola! sou o assistente de ia"
+  ].some(term => cleaned.toLowerCase().includes(term));
+  
+  if (isGenericRules) {
+    return 0.5;
+  }
+
+  let score = 1.0;
+  if (cleaned.includes('\n-') || cleaned.includes('\n*')) score += 2.0;
+  if (cleaned.includes('###') || cleaned.includes('##')) score += 1.5;
+  if (cleaned.includes('**')) score += 1.0;
+  
+  const lengthBonus = Math.min(cleaned.length / 500.0, 1.5);
+  score += lengthBonus;
+  return score;
+}
 
 interface ComparisonViewProps {
   patient: Patient;
@@ -27,6 +55,7 @@ export function ComparisonView({ patient, evaluationA, evaluationB, allEvaluatio
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>('adaptive');
 
   const handleGenerateAnalysis = () => {
     setLoadingAnalysis(true);
@@ -63,34 +92,98 @@ Por favor, gere uma análise comparativa da evolução da lesão contendo:
 2. DADOS COMPARATIVOS: Destaque de forma simples o que melhorou ou piorou.
 3. CONDUTA EVOLUTIVA: Recomendações de cuidados baseadas nas mudanças observadas.`;
 
-    fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: 'Você é um clínico especialista em estomaterapia e cicatrização de feridas crônicas.' },
-          { role: 'user', content: userPrompt }
-        ]
-      })
-    })
-    .then(async response => {
-      if (!response.ok) throw new Error(`Erro: ${response.status}`);
+    const systemInstruction = 'Você é um clínico especialista em estomaterapia e cicatrização de feridas crônicas.';
+
+    const runGroq = async () => {
+      if (!apiKey) throw new Error("Groq API key not set");
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: userPrompt }
+          ]
+        })
+      });
+      if (!response.ok) throw new Error(`Groq status ${response.status}`);
       const data = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (!text) throw new Error('Retorno vazio.');
-      setAnalysis(text);
-    })
-    .catch(err => {
-      console.error(err);
-      setAnalysisError('Falha ao gerar análise comparativa. Verifique sua chave de API ou conexão.');
-    })
-    .finally(() => {
-      setLoadingAnalysis(false);
-    });
+      return {
+        text: data.choices?.[0]?.message?.content || '',
+        modelName: 'Llama 3.1 (Groq)'
+      };
+    };
+
+    const runGemini = async () => {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      const localMode = import.meta.env.VITE_HEAL_ANALYZER_LOCAL_MODE === 'true';
+      if (!localMode) {
+        const userCred = auth.currentUser;
+        if (userCred) {
+          const token = await userCred.getIdToken();
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+      
+      const response = await fetch('/api/clinical/ai-chat', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message: `System instruction: ${systemInstruction}\n\nUser request: ${userPrompt}`,
+          conversation_id: 'comparison-' + evaluationA.id + '-' + evaluationB.id,
+          context: {}
+        })
+      });
+      if (!response.ok) throw new Error(`Gemini status ${response.status}`);
+      const data = await response.json();
+      const isGemini = data.source === 'gemini';
+      return {
+        text: data.response || '',
+        modelName: isGemini ? "Gemini 2.5 Flash" : "Sistema de Regras (Fallback)"
+      };
+    };
+
+    const generateCall = async () => {
+      if (selectedModel === 'gemini') {
+        return await runGemini();
+      } else if (selectedModel === 'groq') {
+        return await runGroq();
+      } else {
+        const results = await Promise.allSettled([runGroq(), runGemini()]);
+        const successful: { text: string; modelName: string; score: number }[] = [];
+        results.forEach(res => {
+          if (res.status === 'fulfilled' && res.value.text) {
+            const score = scoreResponse(res.value.text);
+            successful.push({ text: res.value.text, modelName: res.value.modelName, score });
+          }
+        });
+
+        if (successful.length === 0) {
+          throw new Error("Nenhum serviço de IA respondeu com sucesso.");
+        }
+
+        successful.sort((a, b) => b.score - a.score);
+        return { text: successful[0].text, modelName: successful[0].modelName };
+      }
+    };
+
+    generateCall()
+      .then(res => {
+        setAnalysis(res.text);
+      })
+      .catch(err => {
+        console.error(err);
+        setAnalysisError('Falha ao gerar análise comparativa. Verifique sua chave de API ou conexão.');
+      })
+      .finally(() => {
+        setLoadingAnalysis(false);
+      });
   };
 
   return (
@@ -160,9 +253,18 @@ Por favor, gere uma análise comparativa da evolução da lesão contendo:
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
               <BrainCircuit className="h-5 w-5" />
             </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-wide text-heal-blue">Análise de IA Generativa</p>
-              <h4 className="text-sm font-bold text-heal-ink dark:text-white">Parecer Clínico Evolutivo (Llama 3.1)</h4>
+            <div className="flex-grow flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-heal-blue">Análise de IA Generativa</p>
+                <h4 className="text-sm font-bold text-heal-ink dark:text-white">Parecer Clínico Evolutivo</h4>
+              </div>
+              <div className="no-print">
+                <ModelSelector
+                  value={selectedModel}
+                  onChange={setSelectedModel}
+                  align="right"
+                />
+              </div>
             </div>
           </div>
 

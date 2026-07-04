@@ -131,7 +131,7 @@ def _call_gemini_with_key(api_key: str, prompt: Any, system_instruction: str) ->
             import google.generativeai as genai
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
+                model_name="gemini-2.5-flash",
                 system_instruction=system_instruction,
             )
             response = model.generate_content(prompt)
@@ -161,7 +161,7 @@ def _call_gemini_vision(image_bytes: bytes, prompt: str) -> Optional[str]:
             with _gemini_lock:
                 import google.generativeai as genai
                 genai.configure(api_key=key)
-                model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+                model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                 response = model.generate_content([prompt, pil_image])
                 if response and response.text:
                     return response.text
@@ -211,7 +211,7 @@ def _init_gemini():
         import google.generativeai as genai
         genai.configure(api_key=keys[0])
         _gemini_model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
+            model_name="gemini-2.5-flash",
             system_instruction=_GEMINI_SYSTEM_INSTRUCTION,
         )
         return _gemini_model

@@ -10,6 +10,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Select } from '../../components/ui/Select';
+import { ModelSelector } from '../../components/ui/ModelSelector';
 import type { Evaluation, Patient } from '../../lib/types';
 import { listEvaluations } from '../evaluations/evaluationService';
 import { subscribePatients } from '../patients/patientService';
@@ -210,6 +211,7 @@ export function ReportsPage() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [includeAi, setIncludeAi] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('adaptive');
 
   useEffect(() => {
     if (!user) return undefined;
@@ -331,8 +333,13 @@ Por favor, gere um parecer clínico estruturado contendo:
       return data.response || '';
     };
 
-    Promise.allSettled([runGroq(), runGemini()])
-      .then(results => {
+    const generateCall = async () => {
+      if (selectedModel === 'gemini') {
+        return await runGemini();
+      } else if (selectedModel === 'groq') {
+        return await runGroq();
+      } else {
+        const results = await Promise.allSettled([runGroq(), runGemini()]);
         const successful: { text: string; score: number }[] = [];
         results.forEach(res => {
           if (res.status === 'fulfilled' && res.value) {
@@ -346,7 +353,13 @@ Por favor, gere um parecer clínico estruturado contendo:
         }
 
         successful.sort((a, b) => b.score - a.score);
-        setAnalysis(successful[0].text);
+        return successful[0].text;
+      }
+    };
+
+    generateCall()
+      .then(text => {
+        setAnalysis(text);
       })
       .catch(err => {
         console.error(err);
@@ -484,7 +497,7 @@ Por favor, gere um parecer clínico estruturado contendo:
         />
 
         {/* Flat selectors */}
-        <div className="no-print grid gap-4 md:grid-cols-2 p-4 border-b border-heal-line/60 dark:border-zinc-800/60">
+        <div className="no-print grid gap-4 md:grid-cols-3 p-4 border-b border-heal-line/60 dark:border-zinc-800/60">
           <Select
             label="Paciente"
             options={
@@ -510,6 +523,15 @@ Por favor, gere um parecer clínico estruturado contendo:
             disabled={evaluations.length === 0}
             onChange={event => setEvaluationId(event.target.value)}
           />
+          <div className="flex flex-col gap-1 bg-transparent">
+            <label className="text-[11px] font-bold text-heal-muted dark:text-zinc-500 uppercase tracking-wider mb-1">Modelo de IA</label>
+            <ModelSelector
+              value={selectedModel}
+              onChange={setSelectedModel}
+              align="left"
+              className="w-full"
+            />
+          </div>
         </div>
 
         {/* Report Preview */}

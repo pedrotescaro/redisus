@@ -22,7 +22,7 @@ import {
   UserRound,
   BrainCircuit
 } from 'lucide-react';
-
+import { auth } from '../../lib/firebase';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { subscribePatients } from '../../features/patients/patientService';
 import { subscribeEvaluations } from '../../features/evaluations/evaluationService';
@@ -32,6 +32,7 @@ import { WoundRoiCanvas } from '../roi/WoundRoiCanvas';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/Card';
+import { ModelSelector } from '../ui/ModelSelector';
 import { Input } from '../ui/input';
 import { Modal } from '../ui/Modal';
 import { PageHeader } from '../ui/PageHeader';
@@ -790,6 +791,34 @@ function ClinicalResultPanel({
   const [loadingAiAnalysis, setLoadingAiAnalysis] = useState(false);
   const [aiAnalysisError, setAiAnalysisError] = useState<string | null>(null);
   const [resultTab, setResultTab] = useState<'neural' | 'generative'>('neural');
+  const [selectedModel, setSelectedModel] = useState<string>('adaptive');
+
+  // Helper score function for adaptive selection
+  const scoreResponse = (text: string): number => {
+    if (!text) return -1;
+    const cleaned = text.trim();
+    if (cleaned.length < 10) return 0;
+    
+    const isGenericRules = [
+      "assistente de ia do heal+",
+      "para analise de feridas, recomendo",
+      "para gerar relatorios, use",
+      "ola! sou o assistente de ia"
+    ].some(term => cleaned.toLowerCase().includes(term));
+    
+    if (isGenericRules) {
+      return 0.5;
+    }
+
+    let score = 1.0;
+    if (cleaned.includes('\n-') || cleaned.includes('\n*')) score += 2.0;
+    if (cleaned.includes('###') || cleaned.includes('##')) score += 1.5;
+    if (cleaned.includes('**')) score += 1.0;
+    
+    const lengthBonus = Math.min(cleaned.length / 500.0, 1.5);
+    score += lengthBonus;
+    return score;
+  };
 
   const handleGenerateAiAnalysis = () => {
     if (!analysis) return;
@@ -827,34 +856,98 @@ Por favor, como especialista em estomaterapia, gere um Parecer Clínico Generati
 2. SINAIS DE ALERTA: Avalie se há suspeitas de infecção (baseado nos alertas de dor, exsudato ou pistas visuais).
 3. DIRETRIZES DE TRATAMENTO: Sugira o tipo de cobertura ou curativo ideal baseado no tecido e exsudato.`;
 
-    fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: 'Você é um clínico especialista em estomaterapia e cicatrização de feridas crônicas.' },
-          { role: 'user', content: userPrompt }
-        ]
-      })
-    })
-    .then(async response => {
-      if (!response.ok) throw new Error(`Erro: ${response.status}`);
+    const systemInstruction = 'Você é um clínico especialista em estomaterapia e cicatrização de feridas crônicas.';
+
+    const runGroq = async () => {
+      if (!apiKey) throw new Error("Groq API key not set");
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: userPrompt }
+          ]
+        })
+      });
+      if (!response.ok) throw new Error(`Groq status ${response.status}`);
       const data = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (!text) throw new Error('Retorno vazio.');
-      setAiAnalysis(text);
-    })
-    .catch(err => {
-      console.error(err);
-      setAiAnalysisError('Falha ao gerar parecer por IA. Verifique sua chave de API ou conexão.');
-    })
-    .finally(() => {
-      setLoadingAiAnalysis(false);
-    });
+      return {
+        text: data.choices?.[0]?.message?.content || '',
+        modelName: 'Llama 3.1 (Groq)'
+      };
+    };
+
+    const runGemini = async () => {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      const localMode = import.meta.env.VITE_HEAL_ANALYZER_LOCAL_MODE === 'true';
+      if (!localMode) {
+        const userCred = auth.currentUser;
+        if (userCred) {
+          const token = await userCred.getIdToken();
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+      
+      const response = await fetch('/api/clinical/ai-chat', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message: `System instruction: ${systemInstruction}\n\nUser request: ${userPrompt}`,
+          conversation_id: 'analyzer-analysis-' + (analysis.createdAt || Date.now()),
+          context: {}
+        })
+      });
+      if (!response.ok) throw new Error(`Gemini status ${response.status}`);
+      const data = await response.json();
+      const isGemini = data.source === 'gemini';
+      return {
+        text: data.response || '',
+        modelName: isGemini ? "Gemini 2.5 Flash" : "Sistema de Regras (Fallback)"
+      };
+    };
+
+    const generateCall = async () => {
+      if (selectedModel === 'gemini') {
+        return await runGemini();
+      } else if (selectedModel === 'groq') {
+        return await runGroq();
+      } else {
+        const results = await Promise.allSettled([runGroq(), runGemini()]);
+        const successful: { text: string; modelName: string; score: number }[] = [];
+        results.forEach(res => {
+          if (res.status === 'fulfilled' && res.value.text) {
+            const score = scoreResponse(res.value.text);
+            successful.push({ text: res.value.text, modelName: res.value.modelName, score });
+          }
+        });
+
+        if (successful.length === 0) {
+          throw new Error("Nenhum serviço de IA respondeu com sucesso.");
+        }
+
+        successful.sort((a, b) => b.score - a.score);
+        return { text: successful[0].text, modelName: successful[0].modelName };
+      }
+    };
+
+    generateCall()
+      .then(res => {
+        setAiAnalysis(res.text);
+      })
+      .catch(err => {
+        console.error(err);
+        setAiAnalysisError('Falha ao gerar parecer por IA. Verifique sua chave de API ou conexão.');
+      })
+      .finally(() => {
+        setLoadingAiAnalysis(false);
+      });
   };
 
   useEffect(() => {
@@ -899,7 +992,7 @@ Por favor, como especialista em estomaterapia, gere um Parecer Clínico Generati
               onClick={() => setResultTab('generative')}
             >
               <div className="inline-flex items-center gap-1.5 justify-center">
-                <span>IA Generativa (Llama 3.1)</span>
+                <span>IA Generativa</span>
                 {loadingAiAnalysis && <LoaderCircle className="h-3 w-3 animate-spin text-heal-blue" />}
               </div>
               {resultTab === 'generative' && <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-heal-blue" />}
@@ -1034,9 +1127,16 @@ Por favor, como especialista em estomaterapia, gere um Parecer Clínico Generati
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-heal-softBlue text-heal-blue dark:bg-blue-950/40">
                       <BrainCircuit className="h-4.5 w-4.5" />
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-wide text-heal-blue">Parecer de IA Generativa</p>
-                      <h4 className="text-xs font-bold text-heal-ink dark:text-white">Laudo de Estomaterapia (Llama 3.1)</h4>
+                    <div className="flex-grow flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-wide text-heal-blue">Parecer de IA Generativa</p>
+                        <h4 className="text-xs font-bold text-heal-ink dark:text-white">Laudo de Estomaterapia</h4>
+                      </div>
+                        <ModelSelector
+                          value={selectedModel}
+                          onChange={setSelectedModel}
+                          align="right"
+                        />
                     </div>
                   </div>
 
