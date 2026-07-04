@@ -63,8 +63,8 @@ function generateLatex(patient: Patient, evaluation: Evaluation, profile: any, i
     escaped = escaped.replace(/\\#\\#\\#\s*(.*?)(?:\n|\r\n?)/g, '\\subsubsection*{$1}\n');
     escaped = escaped.replace(/\\#\\#\s*(.*?)(?:\n|\r\n?)/g, '\\subsection*{$1}\n');
     escaped = escaped.replace(/\\#\s*(.*?)(?:\n|\r\n?)/g, '\\section*{$1}\n');
-    escaped = escaped.replace(/\\*\\*(.*?)\\*\\*/g, '\\textbf{$1}');
-    escaped = escaped.replace(/\\*(.*?)\\*/g, '\\textit{$1}');
+    escaped = escaped.replace(/\*\*(.*?)\*\*/g, '\\textbf{$1}');
+    escaped = escaped.replace(/\*(.*?)\*/g, '\\textit{$1}');
     escaped = escaped.replace(/(?:^|\n)\s*-\s+(.*?)(?=\n|$)/g, '\n\\item $1');
     return escaped;
   };
@@ -196,6 +196,9 @@ ${includeAi && aiText ? `
 \\begin{center}
   \\begin{minipage}{0.5\\textwidth}
     \\centering
+    ${evaluation.signature ? `
+      \\includegraphics[height=1.2cm]{${evaluation.signature}} \\\\
+    ` : '\\vspace{1.2cm}'}
     \\rule{6cm}{0.4pt} \\\\
     \\small ${sanitize(profile?.displayName || 'Profissional Responsável')} \\\\
     \\small Assinatura do Profissional

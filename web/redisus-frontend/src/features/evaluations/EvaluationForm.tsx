@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Camera, PenLine, ScanLine, Trash2, Upload } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { EvaluationStepper } from '../../components/evaluations/EvaluationStepper';
@@ -59,6 +59,59 @@ export function EvaluationForm({ patients, defaultPatientId, onSubmit }: Evaluat
   const [submitError, setSubmitError] = useState('');
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
   const [timersDraft, setTimersDraft] = useState<TimersDraft>(defaultTimersDraft);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  const getCoordinates = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+  };
+
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const coords = getCoordinates(e);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.beginPath();
+    ctx.moveTo(coords.x, coords.y);
+    setIsDrawing(true);
+  };
+
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const coords = getCoordinates(e);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.lineTo(coords.x, coords.y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    setValue('signature', dataUrl);
+  };
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setValue('signature', '');
+  };
   const {
     register,
     handleSubmit,
@@ -94,6 +147,27 @@ export function EvaluationForm({ patients, defaultPatientId, onSubmit }: Evaluat
       setValue('periwoundSkin', nextPeriwound, { shouldValidate: true });
     }
   }, [periwoundSkin, setValue, timersDraft.periwoundConditions, timersDraft.periwoundMoisture]);
+
+  useEffect(() => {
+    if (step === 3 && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.strokeStyle = '#1A56DB';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+      }
+      const existingSignature = watch('signature');
+      if (existingSignature && ctx) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = existingSignature;
+      }
+    }
+  }, [step]);
 
   useEffect(() => {
     setValue(
@@ -345,6 +419,34 @@ export function EvaluationForm({ patients, defaultPatientId, onSubmit }: Evaluat
           <div className="mt-5 rounded-2xl bg-heal-softBlue p-4 text-sm leading-6 text-heal-muted dark:bg-blue-950/30 dark:text-zinc-400">
             <PenLine className="mr-2 inline h-4 w-4 text-heal-blue" />
             As imagens serão enviadas ao Supabase Storage e as ROIs normalizadas ficarão salvas na avaliação.
+          </div>
+          
+          <div className="mt-6 border-t border-heal-line/60 dark:border-zinc-800/60 pt-6">
+            <label className="text-xs font-black uppercase tracking-[0.18em] text-heal-muted dark:text-zinc-500">
+              Assinatura do Profissional
+            </label>
+            <p className="text-xs text-heal-muted dark:text-zinc-400 mt-1 mb-3">
+              Desenhe sua assinatura no quadro abaixo. Ela será incluída no relatório gerado.
+            </p>
+            <div className="relative border border-heal-line dark:border-zinc-800 rounded-xl bg-slate-50 dark:bg-zinc-950 overflow-hidden w-full max-w-md h-40">
+              <canvas
+                ref={canvasRef}
+                width={400}
+                height={160}
+                className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
+                onPointerDown={startDrawing}
+                onPointerMove={draw}
+                onPointerUp={stopDrawing}
+                onPointerLeave={stopDrawing}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={clearSignature}
+              className="mt-2 text-xs font-bold text-heal-muted hover:text-red-500 transition-colors"
+            >
+              Limpar Assinatura
+            </button>
           </div>
         </Card>
       ) : null}

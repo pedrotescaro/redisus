@@ -1028,6 +1028,22 @@ def generate_pdf():
             return jsonify({"error": "missing_latex_code"}), 400
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Detect and decode base64 data URLs (e.g. digital signatures)
+            import base64
+            base64_matches = re.findall(r'\\includegraphics(?:\[.*?\])?\{(data:image/([a-zA-Z0-9]+);base64,([a-zA-Z0-9+/=\s\r\n]+))\}', latex_code)
+            for idx, (full_data_url, ext, b64_data) in enumerate(base64_matches):
+                local_filename = f"sig_{idx}.{ext}"
+                local_filepath = os.path.join(tmpdir, local_filename)
+                try:
+                    clean_b64 = re.sub(r'\s+', '', b64_data)
+                    img_data = base64.b64decode(clean_b64)
+                    with open(local_filepath, "wb") as out_file:
+                        out_file.write(img_data)
+                    latex_code = latex_code.replace(full_data_url, local_filename)
+                except Exception as b64_exc:
+                    current_app.logger.error(f"Failed to decode base64 image: {b64_exc}")
+                    latex_code = latex_code.replace(full_data_url, "")
+
             # Detect and download remote image URLs
             urls = re.findall(r'\\includegraphics(?:\[.*?\])?\{(https?://.*?)\}', latex_code)
             for idx, url in enumerate(urls):

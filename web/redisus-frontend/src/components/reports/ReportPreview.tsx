@@ -202,8 +202,16 @@ export function ReportPreview({
 
       {/* Signatures */}
       <div className="mt-8 border-t border-heal-line pt-4 text-sm text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
-        <p>{profile?.displayName ? `Assinatura: ${profile.displayName}` : 'Assinatura: profissional não informado'}</p>
-        <p className="mt-2 font-bold text-heal-blue">Cuidado inteligente. Evolução visível.</p>
+        <div className="flex flex-col gap-2">
+          {evaluation.signature && (
+            <div className="mb-2">
+              <p className="text-xs font-semibold mb-1 text-slate-400 dark:text-zinc-500">Assinatura digitalizada:</p>
+              <img src={evaluation.signature} alt="Assinatura" className="h-12 w-auto border border-heal-line dark:border-zinc-800 rounded bg-white p-1 object-contain max-w-[200px]" />
+            </div>
+          )}
+          <p>{profile?.displayName ? `Assinatura: ${profile.displayName}` : 'Assinatura: profissional não informado'}</p>
+        </div>
+        <p className="mt-4 font-bold text-heal-blue">Cuidado inteligente. Evolução visível.</p>
         <p className="mt-2">{CLINICAL_DISCLAIMER}</p>
       </div>
     </Card>

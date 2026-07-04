@@ -79,7 +79,8 @@ export function subscribeEvaluations(
       comorbidities: row.comorbidities || [],
       medications: row.medications || [],
       notes: row.notes || '',
-      images: row.images || []
+      images: row.images || [],
+      signature: row.signature || ''
     }));
 
     onData(mapped);
@@ -130,7 +131,8 @@ export async function listEvaluations(uid: string, patientId: string): Promise<E
     comorbidities: row.comorbidities || [],
     medications: row.medications || [],
     notes: row.notes || '',
-    images: row.images || []
+    images: row.images || [],
+    signature: row.signature || ''
   }));
 }
 
@@ -211,7 +213,8 @@ export async function createEvaluation(uid: string, values: EvaluationFormValues
       comorbidities: values.comorbidities || [],
       medications: values.medications || [],
       notes: values.notes || '',
-      images: uploadedImages
+      images: uploadedImages,
+      signature: values.signature || ''
     });
 
   if (error) throw new Error(error.message);
@@ -254,6 +257,7 @@ export async function updateEvaluation(
       medications: values.medications || [],
       notes: values.notes || '',
       images: uploadedImages,
+      signature: values.signature || '',
       updated_at: new Date().toISOString()
     })
     .eq('id', evaluationId)

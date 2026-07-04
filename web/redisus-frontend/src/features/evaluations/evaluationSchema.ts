@@ -22,7 +22,8 @@ export const evaluationSchema = z.object({
   }),
   comorbidities: z.array(z.string()).default([]),
   medications: z.array(z.string()).default([]),
-  notes: z.string().max(2000).optional().default('')
+  notes: z.string().max(2000).optional().default(''),
+  signature: z.string().optional()
 });
 
 export type EvaluationFormValues = z.infer<typeof evaluationSchema>;

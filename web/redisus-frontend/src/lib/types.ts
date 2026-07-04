@@ -100,6 +100,7 @@ export interface Evaluation {
   medications: string[];
   notes: string;
   images: WoundImage[];
+  signature?: string;
   imageUploadStatus?: 'complete' | 'failed';
   imageUploadError?: string | null;
   updatedBy?: string;
