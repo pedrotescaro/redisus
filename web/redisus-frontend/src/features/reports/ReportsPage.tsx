@@ -101,8 +101,16 @@ function generateLatex(patient: Patient, evaluation: Evaluation, profile: any, i
 \\usepackage[T1]{fontenc}
 \\usepackage[portuguese]{babel}
 \\usepackage{graphicx}
-\\usepackage{geometry}
-\\geometry{a4paper, left=20mm, right=20mm, top=20mm, bottom=20mm}
+% Margens manuais sem geometry
+\\pdfpagewidth=\\paperwidth
+\\pdfpageheight=\\paperheight
+\\setlength{\\topmargin}{-1.5cm}
+\\setlength{\\textheight}{24cm}
+\\setlength{\\oddsidemargin}{-0.5cm}
+\\setlength{\\evensidemargin}{-0.5cm}
+\\setlength{\\textwidth}{18cm}
+\\setlength{\\headheight}{0cm}
+\\setlength{\\headsep}{0cm}
 \\usepackage{xcolor}
 \\usepackage{hyperref}
 
