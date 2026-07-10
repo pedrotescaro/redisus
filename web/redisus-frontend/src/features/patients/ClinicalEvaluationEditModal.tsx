@@ -28,6 +28,11 @@ interface EditDraft {
   painLevel: string;
   exudateAmount: string;
   exudateType: string;
+  borderCharacteristics: string;
+  periwoundSkin: string;
+  infectionSigns: string[];
+  comorbidities: string[];
+  medications: string[];
   notes: string;
 }
 
@@ -48,7 +53,12 @@ function draftFromEvaluation(evaluation: Evaluation): EditDraft {
     painLevel: String(evaluation.painLevel),
     exudateAmount: evaluation.exudateAmount,
     exudateType: evaluation.exudateType,
-    notes: evaluation.notes
+    borderCharacteristics: evaluation.borderCharacteristics || '',
+    periwoundSkin: evaluation.periwoundSkin || '',
+    infectionSigns: evaluation.infectionSigns || [],
+    comorbidities: evaluation.comorbidities || [],
+    medications: evaluation.medications || [],
+    notes: evaluation.notes || ''
   };
 }
 
@@ -148,9 +158,18 @@ export function ClinicalEvaluationEditModal({
   const previewURL = replacementPreviewURL || evaluation.images[0]?.downloadURL || '';
   const previewRois = replacementPreviewURL ? [] : evaluation.images[0]?.rois || [];
 
-  const updateDraft = (field: keyof EditDraft, value: string) => {
+  const updateDraft = (field: keyof EditDraft, value: any) => {
     setDraft(current => (current ? { ...current, [field]: value } : current));
     setErrors(current => ({ ...current, [field]: undefined }));
+  };
+
+  const toggleArrayItem = (field: 'infectionSigns' | 'comorbidities' | 'medications', item: string) => {
+    if (!draft) return;
+    const currentArray = draft[field] || [];
+    const nextArray = currentArray.includes(item)
+      ? currentArray.filter(i => i !== item)
+      : [...currentArray, item];
+    updateDraft(field, nextArray);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -168,12 +187,12 @@ export function ClinicalEvaluationEditModal({
       painLevel: Number(draft.painLevel),
       exudateAmount: draft.exudateAmount,
       exudateType: draft.exudateType,
-      borderCharacteristics: evaluation.borderCharacteristics,
-      periwoundSkin: evaluation.periwoundSkin,
-      infectionSigns: evaluation.infectionSigns,
+      borderCharacteristics: draft.borderCharacteristics.trim(),
+      periwoundSkin: draft.periwoundSkin.trim(),
+      infectionSigns: draft.infectionSigns,
       timers: evaluation.timers || defaultTimers,
-      comorbidities: evaluation.comorbidities,
-      medications: evaluation.medications,
+      comorbidities: draft.comorbidities,
+      medications: draft.medications,
       notes: draft.notes.trim()
     };
 
@@ -257,8 +276,93 @@ export function ClinicalEvaluationEditModal({
               onChange={event => updateDraft('exudateType', event.target.value)}
               error={errors.exudateType}
             />
+            <Select
+              label="Características da borda"
+              value={draft.borderCharacteristics}
+              options={optionsWithCurrent(FORM_OPTIONS.borderCharacteristics, draft.borderCharacteristics)}
+              onChange={event => updateDraft('borderCharacteristics', event.target.value)}
+              error={errors.borderCharacteristics}
+            />
+            <Select
+              label="Pele perilesional"
+              value={draft.periwoundSkin}
+              options={optionsWithCurrent(FORM_OPTIONS.periwoundSkin, draft.periwoundSkin)}
+              onChange={event => updateDraft('periwoundSkin', event.target.value)}
+              error={errors.periwoundSkin}
+            />
+            <div className="md:col-span-2 border-t border-heal-line/60 dark:border-zinc-800/60 pt-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-heal-muted mb-2">Sinais de Infecção</p>
+              <div className="flex flex-wrap gap-2">
+                {FORM_OPTIONS.infectionSigns.map(sign => {
+                  const checked = draft.infectionSigns.includes(sign);
+                  return (
+                    <label key={sign} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer select-none ${
+                      checked
+                        ? 'border-red-500 bg-red-50/50 text-red-700 dark:bg-red-950/20 dark:text-red-300'
+                        : 'border-heal-line bg-white hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/50 text-heal-muted'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        className="sr-only"
+                        onChange={() => toggleArrayItem('infectionSigns', sign)}
+                      />
+                      {sign}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="md:col-span-2 border-t border-heal-line/60 dark:border-zinc-800/60 pt-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-heal-muted mb-2">Comorbidades</p>
+              <div className="flex flex-wrap gap-2">
+                {FORM_OPTIONS.comorbidities.map(c => {
+                  const checked = draft.comorbidities.includes(c);
+                  return (
+                    <label key={c} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer select-none ${
+                      checked
+                        ? 'border-heal-blue bg-heal-softBlue/50 text-heal-blue dark:bg-blue-950/20 dark:text-blue-300'
+                        : 'border-heal-line bg-white hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/50 text-heal-muted'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        className="sr-only"
+                        onChange={() => toggleArrayItem('comorbidities', c)}
+                      />
+                      {c}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="md:col-span-2 border-t border-heal-line/60 dark:border-zinc-800/60 pt-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-heal-muted mb-2">Medicamentos em uso</p>
+              <div className="flex flex-wrap gap-2">
+                {FORM_OPTIONS.medications.map(m => {
+                  const checked = draft.medications.includes(m);
+                  return (
+                    <label key={m} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer select-none ${
+                      checked
+                        ? 'border-purple-500 bg-purple-50/50 text-purple-700 dark:bg-purple-950/20 dark:text-purple-300'
+                        : 'border-heal-line bg-white hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/50 text-heal-muted'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        className="sr-only"
+                        onChange={() => toggleArrayItem('medications', m)}
+                      />
+                      {m}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
             <Textarea
-              className="md:col-span-2"
+              className="md:col-span-2 border-t border-heal-line/60 dark:border-zinc-800/60 pt-4"
               label="Observações clínicas"
               value={draft.notes}
               onChange={event => updateDraft('notes', event.target.value)}

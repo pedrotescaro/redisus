@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 FRONTEND_DIR = REPO_ROOT / "web" / "redisus-frontend"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 5000
-FRONTEND_HOST = "127.0.0.1"
+FRONTEND_HOST = "localhost"
 FRONTEND_PORT = 3000
 ANALYZER_URL = f"http://{FRONTEND_HOST}:{FRONTEND_PORT}/analyzer"
 BACKEND_HEALTH_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}/health"
@@ -94,7 +94,7 @@ def _start_frontend() -> subprocess.Popen[bytes]:
         "dev",
         "--",
         "--host",
-        FRONTEND_HOST,
+        "0.0.0.0",
         "--port",
         str(FRONTEND_PORT),
     ]
