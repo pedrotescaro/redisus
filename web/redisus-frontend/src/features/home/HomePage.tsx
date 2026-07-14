@@ -3,7 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useTheme } from "../../app/providers/ThemeProvider";
 import {
-  Activity,
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
@@ -30,6 +29,8 @@ import {
   Workflow,
   Sun,
   Moon,
+  Menu,
+  X,
 } from "lucide-react";
 
 const translations = {
@@ -65,9 +66,9 @@ const translations = {
     
     // Plataforma section
     plataformaTitle: "Uma central clínica para acompanhar feridas com clareza.",
-    plataformaDesc: "A Home precisa vender a ideia do produto antes de explicar a tecnologia. Por isso, o Heal+ aparece como uma solução real para reduzir retrabalho, organizar evidências e tornar a evolução mais visível.",
+    plataformaDesc: "Do primeiro registro ao acompanhamento longitudinal, o Heal+ conecta dados, imagens e decisões em uma experiência clínica simples de entender e rápida de usar.",
     focoExp: "Foco da experiência",
-    focoDesc: "Mostrar valor clínico rápido, sem deixar a página com cara de documentação técnica ou tela genérica de sistema.",
+    focoDesc: "Menos tempo procurando informações. Mais contexto para avaliar, comparar a evolução e documentar cada conduta com segurança.",
     cardCadastrar: "Cadastrar",
     cardCadastrarDesc: "Organize pacientes, contatos, histórico e dados iniciais em uma experiência direta para a rotina clínica.",
     cardAvaliar: "Avaliar",
@@ -80,7 +81,7 @@ const translations = {
     // Fluxo section
     fluxoLabel: "Fluxo do módulo",
     fluxoTitle: "Do cadastro ao relatório, tudo segue uma sequência lógica.",
-    fluxoDesc: "A tela fica mais forte quando mostra como o profissional usaria o Heal+ na prática. Esse bloco cria uma narrativa simples e mais próxima de uma landing de produto.",
+    fluxoDesc: "Cada etapa preserva o contexto da anterior, reduzindo retrabalho e criando um histórico confiável para a equipe, o paciente e a instituição.",
     step1Title: "Entrada clínica",
     step1Desc: "O profissional registra o paciente, adiciona dados iniciais e cria a base do acompanhamento.",
     step2Title: "Imagem e avaliação",
@@ -170,9 +171,9 @@ const translations = {
     
     // Plataforma section
     plataformaTitle: "A clinical hub to monitor wounds with clarity.",
-    plataformaDesc: "The Home page needs to sell the product concept before explaining the technical details. Therefore, Heal+ stands out as a practical solution to reduce rework, organize evidence, and track evolution visually.",
+    plataformaDesc: "From the first record to longitudinal follow-up, Heal+ connects data, images, and decisions in a clinical experience that is easy to understand and quick to use.",
     focoExp: "Experience Focus",
-    focoDesc: "Show clinical value quickly, without making the page look like technical documentation or a generic system screen.",
+    focoDesc: "Less time searching for information. More context to assess, compare progress, and document every care decision safely.",
     cardCadastrar: "Register",
     cardCadastrarDesc: "Organize patients, contacts, history, and intake data in a direct, easy-to-use clinical routine experience.",
     cardAvaliar: "Evaluate",
@@ -185,7 +186,7 @@ const translations = {
     // Fluxo section
     fluxoLabel: "Module Flow",
     fluxoTitle: "From intake to reporting, everything follows a logical path.",
-    fluxoDesc: "The page is stronger when it illustrates how professionals use Heal+ in practice. This section creates a simple narrative aligned with a real product experience.",
+    fluxoDesc: "Every step preserves the context of the previous one, reducing rework and creating a reliable history for teams, patients, and institutions.",
     step1Title: "Clinical Intake",
     step1Desc: "The practitioner registers the patient, adds initial records, and initializes the follow-up timeline.",
     step2Title: "Imaging & Assessment",
@@ -276,12 +277,38 @@ export default function HomePage() {
   const { theme, toggleTheme } = useTheme();
   const [lang, setLang] = useState<"pt" | "en">("pt");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const faqAnswerRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const scrollProgressRef = useRef<HTMLDivElement | null>(null);
 
   // Custom Toast State
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
-  const [toastTimeoutId, setToastTimeoutId] = useState<any>(null);
+  const [toastTimeoutId, setToastTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let ticking = false;
+
+    const updateScrollState = () => {
+      const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = scrollableHeight > 0 ? window.scrollY / scrollableHeight : 0;
+      scrollProgressRef.current?.style.setProperty("transform", `scaleX(${Math.min(progress, 1)})`);
+      setIsScrolled(window.scrollY > 18);
+      ticking = false;
+    };
+
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(updateScrollState);
+        ticking = true;
+      }
+    };
+
+    updateScrollState();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const triggerToast = (msg: string) => {
     if (toastTimeoutId) clearTimeout(toastTimeoutId);
@@ -296,6 +323,7 @@ export default function HomePage() {
   // Smooth scroll handler
   const handleScroll = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
+    setIsMobileNavOpen(false);
     const element = document.getElementById(id);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -413,29 +441,35 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white text-slate-800 dark:bg-[#050608] dark:text-[#f2f4f7] font-sans antialiased selection:bg-[#41B6E6]/20 transition-colors duration-300">
+    <div className="min-h-screen overflow-x-hidden bg-white font-sans text-slate-800 antialiased selection:bg-[#41B6E6]/20 transition-colors duration-300 dark:bg-[#050608] dark:text-[#f2f4f7]">
       
       {/* ─── HEADER (NAVBAR) ─── */}
-      <nav className="fixed left-0 top-0 z-50 w-full border-b border-slate-100 dark:border-slate-900 bg-white/95 dark:bg-[#050608]/95 text-slate-900 dark:text-white shadow-sm backdrop-blur-2xl transition-all duration-300">
-        <div className="mx-auto flex h-[76px] w-full max-w-[1530px] items-center justify-between px-5 md:px-8">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
+      <nav
+        className={`fixed left-0 top-0 z-50 w-full border-b text-slate-900 backdrop-blur-2xl transition-all duration-300 dark:text-white ${
+          isScrolled
+            ? "border-slate-200/80 bg-white/88 shadow-[0_12px_40px_rgba(15,76,104,0.08)] dark:border-white/10 dark:bg-[#050608]/88"
+            : "border-slate-100/80 bg-white/78 dark:border-white/5 dark:bg-[#050608]/78"
+        }`}
+      >
+        <div className="mx-auto flex h-[72px] w-full max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-5 md:h-[76px] md:px-8">
+          <Link href="/" className="group flex min-w-0 items-center gap-3" aria-label="Heal+ — início">
             <Image
               src="/images/Logo_final_modobranco.png"
               alt="Heal+"
               width={120}
               height={44}
               priority
-              className="h-10 w-auto object-contain shrink-0"
+              className="h-8 w-auto shrink-0 object-contain transition-transform duration-300 group-hover:scale-[1.03] sm:h-10"
             />
           </Link>
 
-          <div className="hidden items-center gap-7 lg:flex">
+          <div className="hidden items-center gap-1 rounded-full border border-slate-200/80 bg-white/65 p-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04] xl:flex">
             {navItems.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
                 onClick={(e) => handleScroll(e, item.href.substring(1))}
-                className="text-sm font-extrabold text-slate-650 dark:text-slate-400 transition-colors hover:text-[#41B6E6] dark:hover:text-[#41B6E6]"
+                className="rounded-full px-4 py-2 text-sm font-bold text-slate-600 transition-all hover:bg-[#41B6E6]/10 hover:text-[#087aa5] dark:text-slate-300 dark:hover:text-[#6cd6ff]"
               >
                 {item.label}
               </a>
@@ -451,7 +485,8 @@ export default function HomePage() {
                 setLang(nextLang);
                 triggerToast(nextLang === "pt" ? "Idioma: Português (BR)" : "Language: English (US)");
               }}
-              className="flex items-center gap-1.5 rounded-full border border-slate-250 dark:border-slate-800 bg-transparent px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:border-[#41B6E6] dark:hover:border-[#41B6E6] hover:bg-slate-50 dark:hover:bg-[#1E1E24] transition-all duration-205 cursor-pointer"
+              className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-white/60 px-3 py-2 text-xs font-bold text-slate-700 transition-all hover:border-[#41B6E6]/60 hover:bg-[#41B6E6]/5 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300 md:flex"
+              aria-label={lang === "pt" ? "Switch to English" : "Mudar para português"}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/>
@@ -463,7 +498,7 @@ export default function HomePage() {
             {/* Dark/Light mode toggle switch */}
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors text-slate-600 dark:text-slate-350 mr-1"
+              className="rounded-full p-2.5 text-slate-600 transition-all hover:bg-[#41B6E6]/10 hover:text-[#087aa5] dark:text-slate-300 dark:hover:text-[#6cd6ff]"
               aria-label="Alternar Tema"
             >
               {theme === "dark" ? <Sun size={20} className="text-[#41B6E6]" /> : <Moon size={20} className="text-slate-750" />}
@@ -471,22 +506,73 @@ export default function HomePage() {
 
             <Link
               href="/login"
-              className="hidden rounded-full px-4 py-2 text-sm font-extrabold text-slate-650 dark:text-slate-400 transition-colors hover:text-[#41B6E6] dark:hover:text-[#41B6E6] sm:inline-flex"
+              className="hidden rounded-full px-3 py-2 text-sm font-extrabold text-slate-600 transition-colors hover:text-[#087aa5] dark:text-slate-300 dark:hover:text-[#6cd6ff] lg:inline-flex"
             >
               {t("entrar")}
             </Link>
             <Link
               href="/login"
-              className="landing-blue-button inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white transition-transform hover:-translate-y-0.5"
+              className="landing-blue-button group inline-flex h-11 items-center justify-center gap-2 rounded-full px-3 text-sm font-black text-white transition-transform hover:-translate-y-0.5 sm:px-5"
+              aria-label={t("acessarAreaClinica")}
             >
-              {t("acessar")}
-              <ArrowRight size={18} strokeWidth={3} />
+              <span className="hidden sm:inline">{t("acessar")}</span>
+              <ArrowRight size={18} strokeWidth={3} className="transition-transform group-hover:translate-x-0.5" />
             </Link>
+
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(open => !open)}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white/70 text-slate-700 transition-colors hover:border-[#41B6E6]/50 hover:text-[#087aa5] dark:border-white/10 dark:bg-white/[0.04] dark:text-white xl:hidden"
+              aria-label={isMobileNavOpen ? "Fechar menu" : "Abrir menu"}
+              aria-expanded={isMobileNavOpen}
+            >
+              {isMobileNavOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
+        </div>
+
+        {isMobileNavOpen && (
+          <div className="landing-mobile-menu border-t border-slate-100 bg-white/96 px-4 py-4 shadow-xl backdrop-blur-2xl dark:border-white/10 dark:bg-[#080a0d]/96 xl:hidden">
+            <div className="mx-auto grid max-w-[1440px] gap-2">
+              {navItems.map((item, index) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  onClick={(event) => handleScroll(event, item.href.substring(1))}
+                  className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-extrabold text-slate-700 transition-colors hover:bg-[#41B6E6]/10 hover:text-[#087aa5] dark:text-slate-200 dark:hover:text-[#6cd6ff]"
+                  style={{ animationDelay: `${index * 45}ms` }}
+                >
+                  {item.label}
+                  <ArrowUpRight size={17} />
+                </a>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextLang = lang === "pt" ? "en" : "pt";
+                  setLang(nextLang);
+                  setIsMobileNavOpen(false);
+                  triggerToast(nextLang === "pt" ? "Idioma: Português (BR)" : "Language: English (US)");
+                }}
+                className="mt-1 flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-extrabold text-slate-700 dark:border-white/10 dark:text-slate-200 md:hidden"
+              >
+                {lang === "pt" ? "Português (BR)" : "English (US)"}
+                <Globe2 size={17} className="text-[#41B6E6]" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="absolute inset-x-0 bottom-[-1px] h-[2px] overflow-hidden">
+          <div
+            ref={scrollProgressRef}
+            className="h-full origin-left bg-gradient-to-r from-[#1aa9df] via-[#63d4f7] to-[#2563eb] shadow-[0_0_12px_rgba(65,182,230,0.75)]"
+            style={{ transform: "scaleX(0)" }}
+          />
         </div>
       </nav>
 
-      <main className="pt-[76px]">
+      <main className="pt-[72px] md:pt-[76px]">
         
         {/* ─── HERO SECTION ─── */}
         <section
@@ -585,8 +671,8 @@ export default function HomePage() {
         </section>
 
         {/* ─── CHECKBOX BADGES STRIP ─── */}
-        <section className="border-b border-slate-100 dark:border-slate-900 bg-white dark:bg-[#050608] py-6">
-          <div className="mx-auto grid max-w-7xl gap-4 px-5 md:grid-cols-4 md:px-8">
+        <section className="border-b border-slate-100 bg-white py-5 dark:border-slate-900 dark:bg-[#050608]">
+          <div className="mx-auto grid max-w-7xl grid-cols-2 gap-3 px-5 md:grid-cols-4 md:px-8" data-reveal-group>
             {[
               t("badge1"),
               t("badge2"),
@@ -595,7 +681,8 @@ export default function HomePage() {
             ].map((item) => (
               <div 
                 key={item} 
-                className="flex items-center justify-center gap-2 rounded-2xl bg-[#41B6E6]/5 dark:bg-[#41B6E6]/5 border border-[#41B6E6]/10 dark:border-[#41B6E6]/10 px-4 py-3 text-center text-sm font-black text-[#41B6E6] dark:text-[#41B6E6]"
+                data-reveal
+                className="landing-proof-pill flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#41B6E6]/10 bg-[#41B6E6]/5 px-3 py-3 text-center text-xs font-black text-[#159dce] dark:border-[#41B6E6]/10 dark:bg-[#41B6E6]/5 dark:text-[#6cd6ff] sm:text-sm"
               >
                 <BadgeCheck size={18} />
                 {item}
@@ -606,8 +693,8 @@ export default function HomePage() {
 
         {/* ─── PLATAFORMA SECTION ─── */}
         <section id="plataforma" className="bg-[#fcfdfe] dark:bg-[#090b0e] py-[4.5rem] text-slate-850 dark:text-white/90">
-          <div className="mx-auto grid max-w-7xl gap-9 px-5 md:px-8 lg:grid-cols-[0.82fr_1.18fr]">
-            <div>
+          <div className="mx-auto grid max-w-7xl gap-10 px-5 md:px-8 lg:grid-cols-[0.82fr_1.18fr] lg:gap-14">
+            <div className="lg:sticky lg:top-32 lg:self-start" data-reveal>
               <p className="text-sm font-black uppercase tracking-[0.24em] text-[#41B6E6] dark:text-[#41B6E6]">
                 {t("plataforma")}
               </p>
@@ -633,11 +720,12 @@ export default function HomePage() {
             </div>
 
             {/* Clinical Flow Cards */}
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2" data-reveal-group>
               {clinicalFlow.map((item) => (
                 <article
                   key={item.title}
-                  className="group rounded-[2rem] border border-slate-100 dark:border-slate-900 bg-white dark:bg-[#111115] p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-[#41B6E6]/30 dark:hover:border-[#41B6E6]/30 hover:shadow-soft"
+                  data-reveal
+                  className="landing-interactive-card group rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1.5 hover:border-[#41B6E6]/30 hover:shadow-[0_22px_60px_rgba(15,76,104,0.12)] dark:border-slate-900 dark:bg-[#111115] dark:hover:border-[#41B6E6]/30"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#41B6E6]/10 dark:bg-[#41B6E6]/10 text-[#41B6E6] dark:text-[#41B6E6] transition-colors group-hover:bg-[#41B6E6] dark:group-hover:bg-[#41B6E6] group-hover:text-white dark:group-hover:text-[#050608]">
                     <item.icon size={26} />
@@ -679,7 +767,7 @@ export default function HomePage() {
               <div className="absolute left-[36px] top-11 bottom-11 w-[2px] bg-gradient-to-b from-[#41B6E6] via-[#41B6E6]/50 to-[#41B6E6]/10 lg:hidden z-0" />
 
               <div className="grid gap-8 lg:grid-cols-4 md:grid-cols-2 relative z-10">
-                {journeySteps.map((item, idx) => (
+                {journeySteps.map((item) => (
                   <div key={item.step} className="relative flex items-stretch">
                     <article
                       className="group w-full rounded-[1.75rem] border border-slate-100 dark:border-zinc-800/60 bg-slate-50/50 dark:bg-[#0c0c0e] p-6 pl-14 lg:pl-6 transition-all duration-350 hover:-translate-y-1 hover:border-[#41B6E6]/40 hover:shadow-[0_8px_30px_rgba(65,182,230,0.08)] flex flex-col items-start lg:items-center text-left lg:text-center"
@@ -707,8 +795,8 @@ export default function HomePage() {
         <section className="bg-slate-50/30 dark:bg-[#090b0e] border-b border-slate-100 dark:border-zinc-900 relative overflow-hidden py-[5.5rem] text-slate-800 dark:text-white transition-colors duration-300">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(65,182,230,0.04),transparent_28%),radial-gradient(circle_at_78%_30%,rgba(65,182,230,0.03),transparent_30%)]" />
           <div className="relative mx-auto max-w-7xl px-5 md:px-8">
-            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-              <div>
+            <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-14">
+              <div data-reveal>
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("clusterSus")}
                 </p>
@@ -720,11 +808,12 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2" data-reveal-group>
                 {platformHighlights.map((item) => (
                   <article
                     key={item.title}
-                    className="rounded-[1.75rem] border border-slate-100 dark:border-zinc-800/60 bg-white dark:bg-[#0c0c0e] p-6 shadow-sm transition-all duration-300 hover:border-[#41B6E6]/40 hover:-translate-y-0.5"
+                    data-reveal
+                    className="landing-interactive-card rounded-[1.75rem] border border-slate-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-[#41B6E6]/40 hover:shadow-[0_18px_50px_rgba(15,76,104,0.10)] dark:border-zinc-800/60 dark:bg-[#0c0c0e]"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#41B6E6]/10 text-[#41B6E6]">
                       <item.icon size={20} />
@@ -745,7 +834,7 @@ export default function HomePage() {
         {/* ─── BASE TÉCNICA SECTION ─── */}
         <section id="tecnologia" className="bg-white dark:bg-[#050608] py-[5.5rem] text-slate-855 dark:text-white transition-colors duration-300 border-b border-slate-100 dark:border-zinc-900">
           <div className="mx-auto max-w-7xl px-5 md:px-8">
-            <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end" data-reveal>
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("techLabel")}
@@ -763,11 +852,12 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2" data-reveal-group>
               {techItems.map((item) => (
                 <article
                   key={item.label}
-                  className="rounded-[1.75rem] border border-slate-100 dark:border-zinc-800/60 bg-slate-50/50 dark:bg-[#0c0c0e] p-6 shadow-sm transition-all duration-300 hover:border-[#41B6E6]/40"
+                  data-reveal
+                  className="landing-interactive-card rounded-[1.75rem] border border-slate-100 bg-slate-50/50 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#41B6E6]/40 hover:bg-white hover:shadow-[0_18px_50px_rgba(15,76,104,0.10)] dark:border-zinc-800/60 dark:bg-[#0c0c0e] dark:hover:bg-[#101216]"
                 >
                   <div className="flex items-start gap-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#41B6E6]/10 text-[#41B6E6]">
@@ -790,23 +880,24 @@ export default function HomePage() {
 
         {/* ─── NEXT STEP CALL-TO-ACTION BANNER ─── */}
         <section className="bg-white dark:bg-[#050608] px-5 py-[4.5rem] md:px-8 transition-colors duration-300 border-b border-slate-100 dark:border-zinc-900">
-          <div className="relative overflow-hidden rounded-[2rem] border border-[#41B6E6]/25 dark:border-[#41B6E6]/20 bg-slate-50 dark:bg-gradient-to-br dark:from-[#0c0c0e] dark:to-[#050608] p-8 md:p-12 shadow-sm hover:border-[#41B6E6]/40 transition-all duration-300 mx-auto max-w-7xl">
-            <div className="absolute top-0 right-0 -mt-24 -mr-24 h-96 w-96 rounded-full bg-gradient-to-br from-[#41B6E6]/10 to-transparent blur-3xl" />
+          <div className="landing-cta-panel relative mx-auto max-w-7xl overflow-hidden rounded-[2.25rem] border border-[#41B6E6]/25 p-8 shadow-[0_24px_80px_rgba(15,76,104,0.12)] transition-all duration-300 hover:border-[#41B6E6]/45 md:p-12" data-reveal>
+            <div className="landing-cta-orb absolute -right-24 -top-24 h-96 w-96 rounded-full blur-3xl" />
+            <div className="landing-cta-orb landing-cta-orb-secondary absolute -bottom-44 left-[30%] h-80 w-80 rounded-full blur-3xl" />
             <div className="relative z-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-[#41B6E6]">
                   {t("ctaLabel")}
                 </p>
-                <h2 className="mt-4 max-w-3xl text-3xl font-black leading-tight tracking-[-0.04em] font-headline text-slate-900 dark:text-white md:text-5xl">
+                <h2 className="mt-4 max-w-3xl font-headline text-3xl font-black leading-tight tracking-[-0.04em] text-white md:text-5xl">
                   {t("ctaTitle")}
                 </h2>
               </div>
               <Link
                 href="/login"
-                className="landing-blue-button inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-base font-black text-white transition-transform hover:-translate-y-0.5"
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-white px-8 py-4 text-base font-black text-[#087aa5] shadow-[0_16px_45px_rgba(0,0,0,0.18)] transition-all hover:-translate-y-1 hover:shadow-[0_20px_55px_rgba(0,0,0,0.24)]"
               >
                 {t("ctaBtn")}
-                <ArrowRight size={18} strokeWidth={2.5} />
+                <ArrowRight size={18} strokeWidth={2.5} className="transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
           </div>
@@ -815,7 +906,7 @@ export default function HomePage() {
         {/* ─── FAQ SECTION ─── */}
         <section id="faq" className="bg-[#fcfdfe] dark:bg-[#090b0e] py-[4.5rem] text-slate-850 dark:text-white border-t border-slate-100 dark:border-slate-900">
           <div className="mx-auto max-w-5xl px-5 md:px-8">
-            <div className="text-center">
+            <div className="text-center" data-reveal>
               <div className="mx-auto inline-flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.28em] text-[#41B6E6] dark:text-[#41B6E6]">
                 <span className="h-px w-10 bg-[#41B6E6]/30 dark:bg-[#41B6E6]/30" />
                 <span>{t("faqLabel")}</span>
@@ -830,7 +921,7 @@ export default function HomePage() {
             </div>
 
             {/* Previous Accordion Layout with Smooth Height Animation */}
-            <div className="mx-auto mt-10 grid max-w-4xl gap-3.5">
+            <div className="mx-auto mt-10 grid max-w-4xl gap-3.5" data-reveal-group>
               {[
                 {
                   question: t("faqQ1"),
@@ -851,6 +942,7 @@ export default function HomePage() {
               ].map((faq, idx) => (
                 <article
                   key={idx}
+                  data-reveal
                   className={`rounded-[1.25rem] border px-6 py-5 shadow-sm transition-all duration-350 md:px-8 hover:shadow-soft hover:border-[#41B6E6]/30 ${
                     openFaq === idx
                       ? "border-[#41B6E6]/30 bg-gradient-to-r from-[#41B6E6]/3 to-transparent border-l-4 border-l-[#41B6E6] dark:from-[#41B6E6]/6"
@@ -901,13 +993,13 @@ export default function HomePage() {
           className="border-t border-slate-100 dark:border-slate-900 bg-white dark:bg-[#050608] py-[4.5rem] text-slate-800 dark:text-slate-300"
         >
           <div className="mx-auto max-w-7xl px-5 md:px-8">
-            <div className="mt-4">
-              <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-900 md:grid-cols-4 md:divide-x md:divide-y-0">
+            <div className="mt-4" data-reveal>
+              <div className="grid grid-cols-2 divide-x divide-y divide-slate-100 overflow-hidden rounded-[2rem] border border-slate-100 dark:divide-slate-900 dark:border-slate-900 md:grid-cols-4 md:divide-y-0">
                 
                 {institutionalLogos.map((logo) => (
                   <div
                     key={logo.name}
-                    className="flex min-h-[170px] items-center justify-center px-8 py-8"
+                    className="landing-logo-cell flex min-h-[140px] items-center justify-center px-5 py-8 transition-colors hover:bg-[#41B6E6]/5 md:min-h-[170px] md:px-8"
                   >
                     <Image
                       src={
@@ -925,7 +1017,7 @@ export default function HomePage() {
                   </div>
                 ))}
 
-                <div className="flex min-h-[170px] items-center justify-center px-8 py-8">
+                <div className="landing-logo-cell flex min-h-[140px] items-center justify-center px-5 py-8 transition-colors hover:bg-[#41B6E6]/5 md:min-h-[170px] md:px-8">
                   <div className="flex items-center gap-3">
                     <Image
                       src="/images/Logo_final_modobranco.png"

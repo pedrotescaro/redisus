@@ -370,3 +370,160 @@ textarea {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.8); }
 }
+
+/* ============================================
+   Heal+ Landing Experience
+   ============================================ */
+
+section[id] {
+  scroll-margin-top: 92px;
+}
+
+.landing-blue-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.landing-blue-button::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: linear-gradient(110deg, transparent 22%, rgba(255,255,255,0.38) 46%, transparent 70%);
+  transform: translateX(-130%);
+  transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.landing-blue-button:hover::after,
+.landing-blue-button:focus-visible::after {
+  transform: translateX(130%);
+}
+
+.landing-proof-pill {
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-proof-pill::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.78) 48%, transparent 66%);
+  transform: translateX(-130%);
+  animation: landing-pill-shine 7s ease-in-out infinite;
+}
+
+.dark .landing-proof-pill::after {
+  background: linear-gradient(105deg, transparent 30%, rgba(108,214,255,0.08) 48%, transparent 66%);
+}
+
+.landing-interactive-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-interactive-card[data-reveal] {
+  transition:
+    opacity 780ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 280ms ease,
+    box-shadow 360ms ease,
+    background-color 280ms ease;
+}
+
+.landing-interactive-card[data-reveal]:hover {
+  transform: translateY(-6px) scale(1);
+}
+
+.landing-cta-panel {
+  background: linear-gradient(125deg, #075775 0%, #0c8cb8 48%, #2459d6 120%);
+}
+
+.dark .landing-cta-panel {
+  background: linear-gradient(125deg, #082c3a 0%, #075775 52%, #0c3b76 120%);
+}
+
+.landing-cta-orb {
+  background: rgba(108, 214, 255, 0.32);
+  animation: landing-cta-pulse 7s ease-in-out infinite;
+}
+
+.landing-cta-orb-secondary {
+  background: rgba(37, 99, 235, 0.22);
+  animation-delay: -2.8s;
+}
+
+.landing-logo-cell img {
+  transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1), filter 350ms ease;
+}
+
+.landing-logo-cell:hover img {
+  filter: saturate(1.1);
+  transform: scale(1.045);
+}
+
+.landing-mobile-menu {
+  transform-origin: top;
+  animation: landing-menu-open 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.landing-mobile-menu a,
+.landing-mobile-menu button {
+  opacity: 0;
+  animation: landing-menu-item 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+[data-reveal] {
+  opacity: 1 !important;
+  translate: none !important;
+  animation: none !important;
+}
+
+@keyframes landing-pill-shine {
+  0%, 58% { transform: translateX(-130%); }
+  76%, 100% { transform: translateX(130%); }
+}
+
+@keyframes landing-cta-pulse {
+  0%, 100% { opacity: 0.65; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes landing-menu-open {
+  from { opacity: 0; transform: translateY(-8px) scaleY(0.96); }
+  to { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+
+@keyframes landing-menu-item {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .landing-proof-pill::after,
+  .landing-cta-orb,
+  .landing-mobile-menu,
+  .landing-mobile-menu a,
+  .landing-mobile-menu button {
+    opacity: 1;
+    animation: none !important;
+    transform: none;
+  }
+
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    translate: none;
+    animation: none !important;
+    transition: none;
+  }
+
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+  }
+}
