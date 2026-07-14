@@ -1,27 +1,71 @@
-# HEAL+ / REDISUS
+<p align="center">
+  <a href="https://studio-4378774075-5a265.web.app" aria-label="Acessar o site do HEAL+">
+    <img src="web/redisus-frontend/public/images/Logo_final_modobranco.png" alt="HEAL+" width="420">
+  </a>
+</p>
 
-Plataforma de apoio ao diagnóstico e acompanhamento longitudinal de feridas, com backend clínico em Python, frontend web em Next.js e pipeline de IA para imagem médica.
+<h1 align="center">HEAL+ / REDISUS</h1>
 
-[![CI Python](https://github.com/pedrotescaro/redisus/actions/workflows/ci-python.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/ci-python.yml)
-[![CI Web](https://github.com/pedrotescaro/redisus/actions/workflows/ci-web.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/ci-web.yml)
-[![CodeQL](https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml)
-[![Secret Scan](https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml)
-[![Artifact Guard](https://github.com/pedrotescaro/redisus/actions/workflows/artifact-guard.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/artifact-guard.yml)
-[![Dependency Review](https://github.com/pedrotescaro/redisus/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/dependency-review.yml)
-[![Release](https://github.com/pedrotescaro/redisus/actions/workflows/release.yml/badge.svg)](https://github.com/pedrotescaro/redisus/actions/workflows/release.yml)
-[![Latest Release](https://img.shields.io/github/v/release/pedrotescaro/redisus?label=release)](https://github.com/pedrotescaro/redisus/releases/tag/v0.1.0-alpha)
-[![License](https://img.shields.io/github/license/pedrotescaro/redisus)](LICENSE)
+<p align="center"><strong>Cuidado inteligente. Evolução visível.</strong></p>
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0A0A0A)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
-![Firebase](https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore%20%7C%20Storage-FFCA28?logo=firebase&logoColor=black)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
-![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)
-![FHIR](https://img.shields.io/badge/HL7%20FHIR-R4-orange)
-![SQLite](https://img.shields.io/badge/SQLite-Local%20DB-003B57?logo=sqlite&logoColor=white)
+<p align="center">
+  Plataforma de apoio ao diagnóstico e acompanhamento longitudinal de feridas, com backend clínico em Python, frontend web em Next.js e pipeline de IA para imagem médica.
+</p>
+
+<p align="center">
+  <a href="https://studio-4378774075-5a265.web.app"><strong>Acessar o HEAL+</strong></a>
+  · <a href="#trilha-rápida-para-desenvolvedores">Começar</a>
+  · <a href="#documentação-principal">Ler a documentação</a>
+  · <a href="https://github.com/pedrotescaro/redisus/issues">Participar do projeto</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/pedrotescaro/redisus/actions/workflows/ci-python.yml"><img alt="CI Python" src="https://github.com/pedrotescaro/redisus/actions/workflows/ci-python.yml/badge.svg"></a>
+  <a href="https://github.com/pedrotescaro/redisus/actions/workflows/ci-web.yml"><img alt="CI Web" src="https://github.com/pedrotescaro/redisus/actions/workflows/ci-web.yml/badge.svg"></a>
+  <a href="https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/pedrotescaro/redisus/actions/workflows/codeql.yml/badge.svg"></a>
+  <a href="https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml"><img alt="Secret Scan" src="https://github.com/pedrotescaro/redisus/actions/workflows/secret-scan.yml/badge.svg"></a>
+  <a href="https://github.com/pedrotescaro/redisus/actions/workflows/artifact-guard.yml"><img alt="Artifact Guard" src="https://github.com/pedrotescaro/redisus/actions/workflows/artifact-guard.yml/badge.svg"></a>
+  <a href="https://github.com/pedrotescaro/redisus/actions/workflows/dependency-review.yml"><img alt="Dependency Review" src="https://github.com/pedrotescaro/redisus/actions/workflows/dependency-review.yml/badge.svg"></a>
+  <a href="https://github.com/pedrotescaro/redisus/actions/workflows/release.yml"><img alt="Release" src="https://github.com/pedrotescaro/redisus/actions/workflows/release.yml/badge.svg"></a>
+  <a href="https://github.com/pedrotescaro/redisus/releases/tag/v0.1.0-alpha"><img alt="Latest Release" src="https://img.shields.io/github/v/release/pedrotescaro/redisus?label=release"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/pedrotescaro/redisus"></a>
+</p>
+
+<p align="center">
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&amp;logoColor=white">
+  <img alt="Flask 3.x" src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&amp;logoColor=white">
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?logo=next.js&amp;logoColor=white">
+  <img alt="React 19" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&amp;logoColor=0A0A0A">
+  <img alt="TypeScript 5" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&amp;logoColor=white">
+  <img alt="Firebase" src="https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore%20%7C%20Storage-FFCA28?logo=firebase&amp;logoColor=black">
+  <img alt="PyTorch 2.x" src="https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&amp;logoColor=white">
+  <img alt="OpenCV 4.x" src="https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&amp;logoColor=white">
+  <img alt="HL7 FHIR R4" src="https://img.shields.io/badge/HL7%20FHIR-R4-orange">
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-Local%20DB-003B57?logo=sqlite&amp;logoColor=white">
+</p>
+
+<details>
+<summary><strong>Sumário</strong></summary>
+
+- [Visão geral](#visão-geral)
+- [Problema](#problema)
+- [O que este repositório é hoje](#o-que-este-repositório-é-hoje)
+- [Trilha rápida para desenvolvedores](#trilha-rápida-para-desenvolvedores)
+- [Fluxo clínico principal](#fluxo-clínico-principal)
+- [Funcionalidades atuais](#funcionalidades-atuais)
+- [Tecnologias usadas](#tecnologias-usadas)
+- [Guia acadêmico da IA do projeto](#guia-acadêmico-da-ia-do-projeto)
+- [Arquitetura real do repositório](#arquitetura-real-do-repositório)
+- [Documentação principal](#documentação-principal)
+- [Como rodar localmente](#como-rodar-localmente)
+- [Testes e verificação](#testes-e-verificação)
+- [Segurança](#segurança)
+- [Licença](#licença)
+- [Importante](#importante)
+- [Legados preservados](#legados-preservados)
+- [Próximos passos](#próximos-passos)
+
+</details>
 
 ## Visão Geral
 
