@@ -1,4 +1,27 @@
 models:
+  - id: wound-segmentation-small-unet-v2
+    version: local-research-candidate
+    status: experimental-research-only
+    task: wound-vs-background-segmentation
+    artifact_uri: local-only://ml/outputs/co2wounds_v2_unet_v2_final/best_small_unet.pt
+    local_cache_path:
+      - models/wound_segmentation/best_small_unet.pt
+    sha256: generated-per-local-checkpoint
+    license: CO2Wounds-V2 non-commercial research terms; review upstream conflict
+    intended_use: Research-only refinement of clinician-confirmed wound ROI.
+    limitations:
+      - Not clinically validated and not cleared for autonomous decisions.
+      - Dataset does not expose patient ids, so patient-level split cannot be verified.
+      - Dataset terms do not authorize silent commercial deployment.
+      - Requires external and multicenter validation across devices and skin tones.
+    metrics:
+      source: ml/outputs/co2wounds_v2_unet_v2_final/final_metrics.json
+      selection_metric: macro_dice
+    thresholds:
+      source: validation-calibrated-checkpoint
+    model_card: ml/model_cards/wound_segmentation.md
+    notes: Runtime is opt-in and abstains on implausible or low-confidence masks.
+
   - id: heal-two-stage-resnet50
     version: pending
     status: runtime-preferred

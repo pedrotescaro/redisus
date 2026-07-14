@@ -15,6 +15,7 @@ FILES_TO_MERGE = [
     "src/processing/wound_classifier_cv.py",
     "src/processing/wound_detector_cv.py",
     "src/processing/dl_tissue_pipeline.py",
+    "src/processing/wound_segmentation_dl.py",
     "src/processing/clinical_wound_analyzer_core.py",
 ]
 

@@ -264,6 +264,7 @@ def _serialize_headless_report_legacy(report: Any) -> dict[str, Any]:
         "push_score",
         "lighting_analysis",
         "wound_zones",
+        "wound_segmentation",
         "tissue_analysis_trace",
         "roi",
         "rois",

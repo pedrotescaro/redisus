@@ -35,7 +35,35 @@ Fluxo esperado depois de baixar o dataset fora do Git:
 ```bash
 python ml/scripts/prepare_co2wounds_v2.py --root data/external/co2wounds-v2 --accept-non-commercial-research-license
 python ml/scripts/validate_masks.py --manifest ml/datasets/co2wounds_v2_train.jsonl
-python ml/scripts/train_segmentation.py --accept-experimental-non-commercial-use --epochs 30
+python ml/scripts/train_segmentation.py --accept-experimental-non-commercial-use --image-size 128 --epochs 8 --scheduler cosine
 ```
 
-O script aceita o layout oficial `train`, `train_anns`, `val`, `val_anns` ou o layout COCO `annotations/merged_annotations.json` + `imgs/`, gerando mascaras binarizadas quando necessario.
+O preparador localiza automaticamente a pasta `split/` do ZIP oficial. Imagens
+identicas com anotacoes separadas sao agrupadas, suas mascaras sao unidas e o
+grupo inteiro permanece em um unico split. O treino e bloqueado se ainda houver
+qualquer hash de imagem repetido entre treino e validacao.
+
+## Auditoria do classificador
+
+Antes de treinar classificacao etiologica, audite o acervo local:
+
+```bash
+python ml/scripts/audit_classification_dataset.py --root dataset/medetec_consolidated --fail-on-cross-label-conflict
+```
+
+Imagens identicas com rotulos diferentes bloqueiam o treino. Imagens do mesmo
+paciente tambem devem permanecer no mesmo split quando um identificador
+desidentificado de paciente estiver disponivel.
+
+## Inferencia e exportacao
+
+```bash
+python ml/scripts/infer_single_image.py --image caminho/ferida.jpg --model ml/outputs/co2wounds_v2_unet_v2_final/best_small_unet.pt --allow-non-commercial-research
+python ml/scripts/export_model.py --checkpoint ml/outputs/co2wounds_v2_unet_v2_final/best_small_unet.pt --format torchscript --output ml/models/wound_segmentation.ts --allow-non-commercial-research
+```
+
+Para usar o checkpoint de pesquisa no analisador headless, configure
+`HEAL_ENABLE_EXPERIMENTAL_WOUND_SEGMENTER=1`, o caminho do checkpoint e
+`HEAL_ALLOW_NONCOMMERCIAL_RESEARCH_MODEL=1`. O resultado inclui limiar,
+incerteza, cobertura, versao e motivo de fallback. Nao habilite um checkpoint
+nao comercial em produto ou atendimento real.

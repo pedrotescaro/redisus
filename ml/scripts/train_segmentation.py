@@ -9,8 +9,10 @@ clinically validated model.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import random
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -19,8 +21,18 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageOps
 from torch.utils.data import DataLoader, Dataset
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from src.processing.wound_segmentation_dl import (
+    MODEL_ARCHITECTURE,
+    SmallUNet,
+    letterbox_pil,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,6 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-size", type=int, default=384)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--base-channels", type=int, default=16)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--scheduler", choices=["none", "cosine"], default="none")
     parser.add_argument("--early-stopping-patience", type=int, default=0)
@@ -42,6 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--overwrite-output", action="store_true")
+    parser.add_argument("--strict-audit", action="store_true")
     parser.add_argument("--accept-experimental-non-commercial-use", action="store_true")
     return parser.parse_args()
 
@@ -106,6 +120,42 @@ def audit_records(
     }
 
 
+def record_sha256(record: dict[str, Any]) -> str:
+    stored = record.get("image_sha256")
+    if stored:
+        return str(stored)
+    path = Path(record.get("image", ""))
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def audit_split_leakage(
+    train_records: list[dict[str, Any]],
+    val_records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    train_by_hash = {record_sha256(record): record for record in train_records}
+    val_by_hash = {record_sha256(record): record for record in val_records}
+    overlap = sorted(set(train_by_hash) & set(val_by_hash))
+    return {
+        "train_unique_hashes": len(train_by_hash),
+        "val_unique_hashes": len(val_by_hash),
+        "exact_overlap_count": len(overlap),
+        "overlap_examples": [
+            {
+                "sha256": digest,
+                "train_id": train_by_hash[digest].get("id"),
+                "val_id": val_by_hash[digest].get("id"),
+            }
+            for digest in overlap[:20]
+        ],
+        "patient_level_separation_verified": False,
+        "limitation": "Public records do not expose patient identifiers.",
+    }
+
+
 class ManifestSegmentationDataset(Dataset):
     def __init__(self, records: list[dict[str, Any]], image_size: int, augment: bool = False):
         self.records = [record for record in records if record.get("image") and record.get("mask")]
@@ -118,63 +168,43 @@ class ManifestSegmentationDataset(Dataset):
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         record = self.records[index]
         with Image.open(record["image"]) as image:
-            image = image.convert("RGB").resize((self.image_size, self.image_size), Image.BILINEAR)
+            image = image.convert("RGB").copy()
         with Image.open(record["mask"]) as mask:
-            mask = mask.convert("L").resize((self.image_size, self.image_size), Image.NEAREST)
+            mask = mask.convert("L").copy()
 
+        if self.augment:
+            if random.random() < 0.5:
+                image = ImageOps.mirror(image)
+                mask = ImageOps.mirror(mask)
+            if random.random() < 0.5:
+                image = ImageOps.flip(image)
+                mask = ImageOps.flip(mask)
+            if random.random() < 0.60:
+                angle = random.uniform(-15.0, 15.0)
+                image = image.rotate(angle, resample=Image.Resampling.BILINEAR, fillcolor=(0, 0, 0))
+                mask = mask.rotate(angle, resample=Image.Resampling.NEAREST, fillcolor=0)
+            image = ImageEnhance.Brightness(image).enhance(random.uniform(0.88, 1.12))
+            image = ImageEnhance.Contrast(image).enhance(random.uniform(0.88, 1.12))
+            image = ImageEnhance.Color(image).enhance(random.uniform(0.94, 1.06))
+
+        image, _ = letterbox_pil(
+            image,
+            self.image_size,
+            resample=Image.Resampling.BILINEAR,
+            fill=(0, 0, 0),
+        )
+        mask, _ = letterbox_pil(
+            mask,
+            self.image_size,
+            resample=Image.Resampling.NEAREST,
+            fill=0,
+        )
         image_array = np.asarray(image, dtype=np.float32) / 255.0
         mask_array = (np.asarray(mask, dtype=np.float32) > 0).astype(np.float32)
-
-        if self.augment and random.random() < 0.5:
-            image_array = np.ascontiguousarray(np.flip(image_array, axis=1))
-            mask_array = np.ascontiguousarray(np.flip(mask_array, axis=1))
 
         image_tensor = torch.from_numpy(image_array.transpose(2, 0, 1))
         mask_tensor = torch.from_numpy(mask_array[None, :, :])
         return image_tensor, mask_tensor
-
-
-class ConvBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int):
-        super().__init__()
-        self.block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, value: torch.Tensor) -> torch.Tensor:
-        return self.block(value)
-
-
-class SmallUNet(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.enc1 = ConvBlock(3, 32)
-        self.enc2 = ConvBlock(32, 64)
-        self.enc3 = ConvBlock(64, 128)
-        self.pool = nn.MaxPool2d(2)
-        self.bottleneck = ConvBlock(128, 256)
-        self.up3 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
-        self.dec3 = ConvBlock(256, 128)
-        self.up2 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
-        self.dec2 = ConvBlock(128, 64)
-        self.up1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
-        self.dec1 = ConvBlock(64, 32)
-        self.head = nn.Conv2d(32, 1, kernel_size=1)
-
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
-        enc1 = self.enc1(image)
-        enc2 = self.enc2(self.pool(enc1))
-        enc3 = self.enc3(self.pool(enc2))
-        bottleneck = self.bottleneck(self.pool(enc3))
-        dec3 = self.dec3(torch.cat([self.up3(bottleneck), enc3], dim=1))
-        dec2 = self.dec2(torch.cat([self.up2(dec3), enc2], dim=1))
-        dec1 = self.dec1(torch.cat([self.up1(dec2), enc1], dim=1))
-        return self.head(dec1)
 
 
 def dice_loss(logits: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
@@ -189,8 +219,8 @@ def combined_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     return 0.5 * F.binary_cross_entropy_with_logits(logits, targets) + 0.5 * dice_loss(logits, targets)
 
 
-def metric_counts(logits: torch.Tensor, targets: torch.Tensor) -> dict[str, int]:
-    preds = torch.sigmoid(logits) >= 0.5
+def metric_counts(probabilities: torch.Tensor, targets: torch.Tensor, threshold: float = 0.5) -> dict[str, int]:
+    preds = probabilities >= threshold
     truth = targets >= 0.5
     return {
         "tp": int((preds & truth).sum().item()),
@@ -220,6 +250,22 @@ def metrics_from_counts(counts: dict[str, int]) -> dict[str, float]:
         "false_positive_rate": safe_div(fp, fp + tn),
         "false_negative_rate": safe_div(fn, fn + tp),
     }
+
+
+def macro_overlap_metrics(
+    probabilities: torch.Tensor,
+    targets: torch.Tensor,
+    threshold: float,
+) -> tuple[float, float]:
+    preds = probabilities >= threshold
+    truth = targets >= 0.5
+    reduce_dims = (1, 2, 3)
+    tp = (preds & truth).sum(dim=reduce_dims).float()
+    fp = (preds & ~truth).sum(dim=reduce_dims).float()
+    fn = (~preds & truth).sum(dim=reduce_dims).float()
+    dice = (2 * tp + 1e-6) / (2 * tp + fp + fn + 1e-6)
+    iou = (tp + 1e-6) / (tp + fp + fn + 1e-6)
+    return float(dice.sum().item()), float(iou.sum().item())
 
 
 def resolve_device(requested: str) -> torch.device:
@@ -260,11 +306,17 @@ def run_epoch(
     loader: DataLoader,
     device: torch.device,
     optimizer: torch.optim.Optimizer | None = None,
-) -> tuple[float, dict[str, float]]:
+    thresholds: tuple[float, ...] = (0.5,),
+) -> tuple[float, dict[str, float], dict[str, dict[str, float]]]:
     training = optimizer is not None
     model.train(training)
     total_loss = 0.0
-    total_counts = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    total_counts = {
+        threshold: {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+        for threshold in thresholds
+    }
+    macro_sums = {threshold: {"dice": 0.0, "iou": 0.0} for threshold in thresholds}
+    evaluated_samples = 0
 
     for images, masks in loader:
         images = images.to(device)
@@ -278,11 +330,27 @@ def run_epoch(
                 optimizer.step()
 
         total_loss += float(loss.item()) * images.shape[0]
-        counts = metric_counts(logits.detach().cpu(), masks.detach().cpu())
-        for key, value in counts.items():
-            total_counts[key] += value
+        probabilities = torch.sigmoid(logits.detach().cpu())
+        targets = masks.detach().cpu()
+        evaluated_samples += int(images.shape[0])
+        for threshold in thresholds:
+            counts = metric_counts(probabilities, targets, threshold)
+            for key, value in counts.items():
+                total_counts[threshold][key] += value
+            macro_dice, macro_iou = macro_overlap_metrics(probabilities, targets, threshold)
+            macro_sums[threshold]["dice"] += macro_dice
+            macro_sums[threshold]["iou"] += macro_iou
 
-    return total_loss / max(len(loader.dataset), 1), metrics_from_counts(total_counts)
+    threshold_metrics: dict[str, dict[str, float]] = {}
+    for threshold in thresholds:
+        metrics = metrics_from_counts(total_counts[threshold])
+        metrics["macro_dice"] = safe_div(macro_sums[threshold]["dice"], evaluated_samples)
+        metrics["macro_iou"] = safe_div(macro_sums[threshold]["iou"], evaluated_samples)
+        threshold_metrics[f"{threshold:.2f}"] = metrics
+    selected_key = max(threshold_metrics, key=lambda key: threshold_metrics[key]["macro_dice"])
+    selected_metrics = dict(threshold_metrics[selected_key])
+    selected_metrics["decision_threshold"] = float(selected_key)
+    return total_loss / max(len(loader.dataset), 1), selected_metrics, threshold_metrics
 
 
 def main() -> None:
@@ -313,15 +381,18 @@ def main() -> None:
         min_positive_ratio=args.min_positive_ratio,
         max_positive_ratio=args.max_positive_ratio,
     )
+    split_audit = audit_split_leakage(train_dataset.records, val_dataset.records)
 
     plan = {
         "dataset": "CO2Wounds-V2",
-        "license_scope": "academic_research_prototype_only",
-        "model": "SmallUNet",
+        "license_scope": "academic_research_non_commercial_only",
+        "model": MODEL_ARCHITECTURE,
+        "base_channels": args.base_channels,
         "train_records": len(train_dataset),
         "val_records": len(val_dataset),
         "train_audit": train_audit,
         "val_audit": val_audit,
+        "split_audit": split_audit,
         "image_size": args.image_size,
         "epochs": args.epochs,
         "batch_size": args.batch_size,
@@ -335,20 +406,31 @@ def main() -> None:
     }
     (output_dir / "training_plan.json").write_text(json.dumps(plan, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(plan, indent=2, ensure_ascii=False))
+    if split_audit["exact_overlap_count"]:
+        raise SystemExit("Treino bloqueado: existem imagens identicas nos splits de treino e validacao.")
+    if args.strict_audit and (train_audit["failures"] or val_audit["failures"]):
+        raise SystemExit("Treino bloqueado por --strict-audit: revise mascaras invalidas no plano de treino.")
     if args.dry_run:
         return
 
     device = resolve_device(args.device)
     plan["device_resolved"] = str(device)
     (output_dir / "training_plan.json").write_text(json.dumps(plan, indent=2, ensure_ascii=False), encoding="utf-8")
-    model = SmallUNet().to(device)
+    model = SmallUNet(base_channels=args.base_channels).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
     scheduler = (
         torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(args.epochs, 1))
         if args.scheduler == "cosine"
         else None
     )
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    loader_generator = torch.Generator().manual_seed(args.seed)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        generator=loader_generator,
+    )
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     best_dice = -1.0
@@ -360,7 +442,7 @@ def main() -> None:
         checkpoint_path = output_dir / "last_small_unet.pt"
         if not checkpoint_path.exists():
             raise SystemExit(f"--resume solicitado, mas checkpoint nao encontrado: {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
         model.load_state_dict(checkpoint["model_state_dict"])
         if checkpoint.get("optimizer_state_dict"):
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
@@ -391,8 +473,21 @@ def main() -> None:
 
     for epoch in range(start_epoch, args.epochs + 1):
         started_at = time.perf_counter()
-        train_loss, train_metrics = run_epoch(model=model, loader=train_loader, device=device, optimizer=optimizer)
-        val_loss, val_metrics = run_epoch(model=model, loader=val_loader, device=device)
+        train_loss, train_metrics, _ = run_epoch(
+            model=model,
+            loader=train_loader,
+            device=device,
+            optimizer=optimizer,
+        )
+        val_loss, val_metrics, val_threshold_metrics = run_epoch(
+            model=model,
+            loader=val_loader,
+            device=device,
+            thresholds=(
+                0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55,
+                0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90,
+            ),
+        )
         current_lr = float(optimizer.param_groups[0]["lr"])
         if scheduler is not None:
             scheduler.step()
@@ -404,25 +499,32 @@ def main() -> None:
             "val_loss": val_loss,
             "train_metrics": train_metrics,
             "val_metrics": val_metrics,
+            "val_threshold_metrics": val_threshold_metrics,
         }
         history.append(record)
         print(json.dumps(record, indent=2), flush=True)
 
-        if val_metrics["dice"] > best_dice:
-            best_dice = val_metrics["dice"]
+        if val_metrics["macro_dice"] > best_dice:
+            best_dice = val_metrics["macro_dice"]
             best_epoch = epoch
             epochs_without_improvement = 0
             torch.save(
                 {
                     "model_state_dict": model.state_dict(),
                     "model": "SmallUNet",
+                    "architecture": MODEL_ARCHITECTURE,
+                    "base_channels": args.base_channels,
+                    "model_version": f"co2wounds-small-unet-epoch-{epoch}",
                     "dataset": "CO2Wounds-V2",
+                    "license_scope": "academic_research_non_commercial_only",
                     "clinical_status": "experimental_not_clinically_validated",
                     "epoch": epoch,
                     "best_epoch": best_epoch,
                     "best_dice": best_dice,
                     "training_args": vars(args),
                     "val_metrics": val_metrics,
+                    "decision_threshold": val_metrics["decision_threshold"],
+                    "split_audit": split_audit,
                 },
                 output_dir / "best_small_unet.pt",
             )
@@ -445,13 +547,19 @@ def main() -> None:
                 "optimizer_state_dict": optimizer.state_dict(),
                 "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
                 "model": "SmallUNet",
+                "architecture": MODEL_ARCHITECTURE,
+                "base_channels": args.base_channels,
+                "model_version": f"co2wounds-small-unet-epoch-{epoch}",
                 "dataset": "CO2Wounds-V2",
+                "license_scope": "academic_research_non_commercial_only",
                 "clinical_status": "experimental_not_clinically_validated",
                 "epoch": epoch,
                 "best_epoch": best_epoch,
                 "best_dice": best_dice,
                 "training_args": vars(args),
                 "val_metrics": val_metrics,
+                "decision_threshold": val_metrics["decision_threshold"],
+                "split_audit": split_audit,
             },
             output_dir / "last_small_unet.pt",
         )
