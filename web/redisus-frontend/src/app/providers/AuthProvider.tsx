@@ -1,7 +1,7 @@
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-import { auth } from '../../lib/firebase';
+import { auth, isFirebaseConfigured } from '../../lib/firebase';
 import { supabase } from '../../lib/supabase';
 import type { UserProfile } from '../../lib/types';
 import { ensureUserProfile } from '../../features/auth/authService';
@@ -20,15 +20,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
-  useEffect(
-    () =>
-      onAuthStateChanged(auth, nextUser => {
-        setUser(nextUser);
-        if (nextUser) void ensureUserProfile(nextUser);
-        setLoadingAuth(false);
-      }),
-    []
-  );
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setLoadingAuth(false);
+      return undefined;
+    }
+
+    return onAuthStateChanged(auth, nextUser => {
+      setUser(nextUser);
+      if (nextUser) void ensureUserProfile(nextUser);
+      setLoadingAuth(false);
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) {
