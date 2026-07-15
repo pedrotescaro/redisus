@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<h1 align="center">HEAL+ / REDISUS</h1>
+<h1 align="center">HEAL+</h1>
 
 <p align="center"><strong>Cuidado inteligente. Evolução visível.</strong></p>
 
