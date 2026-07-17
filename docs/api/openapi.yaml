@@ -1,49 +1,362 @@
-openapi: 3.0.3
+openapi: 3.1.1
 info:
   title: HEAL+ / REDISUS Clinical API
-  version: 0.1.0
-  description: Initial public contract for the official clinical API. Expand this file as routes are stabilized.
+  version: 1.0.0
+  description: |
+    API clínica oficial do HEAL+. A análise de imagem é um recurso de apoio à decisão,
+    exige revisão por profissional habilitado e não confirma diagnóstico isoladamente.
 servers:
   - url: http://localhost:5000
 paths:
   /health:
     get:
-      summary: Root healthcheck
+      summary: Verifica se o processo da API está acessível
+      security: []
       responses:
         "200":
-          description: API is reachable.
+          description: API acessível.
   /api/v1/health:
     get:
-      summary: Official API healthcheck
+      summary: Verifica saúde e componentes da API oficial
+      security: []
       responses:
         "200":
-          description: API is healthy.
-  /api/dashboard/summary:
+          description: Estado atual da API.
+  /api/v1/wound-analyses/capabilities:
     get:
-      summary: Authenticated clinical dashboard summary
+      summary: Consulta capacidades, runtime, taxonomia e limitações do motor
+      operationId: getWoundAnalysisCapabilities
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: Dashboard summary payload.
+          description: Capacidades do runtime atual.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WoundAnalysisCapabilities"
         "401":
-          description: Missing or invalid authentication.
+          $ref: "#/components/responses/Problem"
+  /api/v1/wound-analyses:
+    post:
+      summary: Cria e persiste uma análise de ferida
+      operationId: createWoundAnalysis
+      description: |
+        Aceita imagem com ou sem paciente/avaliação vinculada. ROI manual é opcional.
+        Repetir uma requisição com a mesma Idempotency-Key e o mesmo conteúdo retorna
+        o recurso já criado; reutilizar a chave com conteúdo diferente retorna 409.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
+            pattern: "^[A-Za-z0-9._:-]+$"
+        - in: header
+          name: X-Request-ID
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: JPEG, PNG ou WebP validado por conteúdo.
+                patient_id:
+                  type: string
+                  maxLength: 80
+                evaluation_id:
+                  type: string
+                  maxLength: 80
+                roi_payload:
+                  type: string
+                  description: JSON de uma ROI ou lista de ROIs normalizadas e confirmadas.
+      responses:
+        "201":
+          description: Análise criada e persistida.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WoundAnalysis"
+        "200":
+          description: Replay idempotente de uma análise existente.
+          headers:
+            X-Idempotent-Replay:
+              schema:
+                type: string
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WoundAnalysis"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
         "403":
-          description: Authenticated user cannot access this resource.
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "415":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+  /api/v1/wound-analyses/{analysis_id}:
+    get:
+      summary: Consulta uma análise persistida
+      operationId: getWoundAnalysis
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: analysis_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recurso de análise.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WoundAnalysis"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/analyze:
+    post:
+      deprecated: true
+      summary: Endpoint legado de análise
+      description: Use POST /api/v1/wound-analyses.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Resposta legada preservada para compatibilidade.
+  /api/dashboard/summary:
+    get:
+      summary: Resumo clínico autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Resumo do dashboard.
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      bearerFormat: Firebase JWT
+  responses:
+    Problem:
+      description: Erro HTTP no formato Problem Details (RFC 9457).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
   schemas:
-    ErrorResponse:
+    ProblemDetails:
       type: object
-      required: [error, detail, request_id]
+      additionalProperties: true
+      required: [type, title, status, detail, instance, code, request_id]
       properties:
-        error:
+        type:
           type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
         detail:
           type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+        error:
+          type: string
+          description: Alias temporário de code para clientes legados.
         request_id:
           type: string
+    WoundAnalysisCapabilities:
+      type: object
+      required: [service, resource, api_version, contract_version, runtime, inputs, outputs, clinical_use]
+      properties:
+        service:
+          type: string
+        resource:
+          type: string
+          const: wound_analysis
+        api_version:
+          type: string
+        contract_version:
+          type: string
+        runtime:
+          type: object
+        inputs:
+          type: object
+        outputs:
+          type: object
+        clinical_use:
+          type: object
+        evidence_basis:
+          type: array
+          items:
+            type: object
+    WoundAnalysis:
+      type: object
+      additionalProperties: true
+      required:
+        - resource_type
+        - api_version
+        - contract_version
+        - analysis_id
+        - status
+        - generated_at
+        - model_version
+        - subject
+        - execution
+        - safety
+        - is_valid_wound
+        - tissues
+        - inference
+        - interpretation
+        - metadata
+        - links
+      properties:
+        resource_type:
+          type: string
+          const: wound_analysis
+        api_version:
+          type: string
+        contract_version:
+          type: string
+        analysis_id:
+          type: string
+        status:
+          type: string
+          const: completed
+        generated_at:
+          type: string
+          format: date-time
+        model_version:
+          type: string
+        subject:
+          type: object
+          required: [patient_id, evaluation_id]
+          properties:
+            patient_id:
+              type: [string, "null"]
+            evaluation_id:
+              type: [string, "null"]
+        execution:
+          type: object
+          required: [engine, mode, degraded, processing_time_ms, components, warnings]
+          properties:
+            engine:
+              type: string
+            mode:
+              type: string
+              enum: [model_assisted, deterministic_fallback]
+            degraded:
+              type: boolean
+            processing_time_ms:
+              type: number
+              minimum: 0
+            components:
+              type: object
+              additionalProperties:
+                type: string
+            warnings:
+              type: array
+              items:
+                type: string
+        safety:
+          type: object
+          required: [intended_use, decision_support_only, clinician_review_required, limitations]
+          properties:
+            intended_use:
+              type: string
+            decision_support_only:
+              type: boolean
+              const: true
+            clinician_review_required:
+              type: boolean
+              const: true
+            regulatory_status:
+              type: string
+            limitations:
+              type: array
+              items:
+                type: string
+        is_valid_wound:
+          type: boolean
+        rejection_reason:
+          type: string
+        wound_area_px:
+          type: integer
+          minimum: 0
+        tissues:
+          type: array
+          items:
+            type: object
+            required: [name, name_en, percentage, color_hex]
+            properties:
+              name:
+                type: string
+              name_en:
+                type: string
+              percentage:
+                type: number
+                minimum: 0
+                maximum: 100
+              color_hex:
+                type: string
+        inference:
+          type: object
+        interpretation:
+          type: object
+        metadata:
+          type: object
+        visuals:
+          type: object
+        links:
+          type: object
+          required: [self, capabilities]
+          properties:
+            self:
+              type: string
+            capabilities:
+              type: string

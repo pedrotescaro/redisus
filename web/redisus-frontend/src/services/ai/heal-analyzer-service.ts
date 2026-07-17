@@ -38,6 +38,9 @@ export type HealAnalyzerBorderAnalysis = {
 };
 
 export type HealAnalyzerResult = {
+  resource_type?: "wound_analysis";
+  api_version?: string;
+  status?: "completed";
   analysis_id: string;
   contract_version: string;
   model_version: string;
@@ -52,6 +55,32 @@ export type HealAnalyzerResult = {
   tissues: HealAnalyzerTissueEntry[];
   border_analysis: HealAnalyzerBorderAnalysis | null;
   metadata: Record<string, unknown>;
+  subject?: {
+    patient_id: string | null;
+    evaluation_id: string | null;
+  };
+  execution?: {
+    engine: string;
+    mode: "model_assisted" | "deterministic_fallback";
+    degraded: boolean;
+    processing_time_ms: number;
+    components: Record<string, string>;
+    warnings: string[];
+  };
+  safety?: {
+    intended_use: string;
+    decision_support_only: boolean;
+    clinician_review_required: boolean;
+    regulatory_status: string;
+    limitations: string[];
+  };
+  tissue_analysis_trace?: {
+    coverage_pct?: number;
+    unclassified_pct?: number;
+    final_tissue_percentages?: Record<string, number>;
+    criteria?: string[];
+  };
+  wound_segmentation?: Record<string, unknown>;
   inference: {
     etiology: string;
     etiology_label: string;
@@ -104,7 +133,8 @@ async function waitForAuthenticatedUser(timeoutMs = 5000) {
 }
 
 async function buildAuthorizedHeaders(): Promise<HeadersInit> {
-  if (LOCAL_ANALYZER_MODE) {
+  const localDevelopmentApi = import.meta.env.DEV && ANALYZER_API_BASE.startsWith("/");
+  if (LOCAL_ANALYZER_MODE || localDevelopmentApi) {
     return {};
   }
 
@@ -127,6 +157,7 @@ export async function analyzeWithHealAnalyzer(
   image: File,
   options?: {
     patientId?: string;
+    evaluationId?: string;
     roiSelection?: HealAnalyzerRoiSelection | null;
     roiSelections?: HealAnalyzerRoiSelection[] | null;
   },
@@ -137,6 +168,11 @@ export async function analyzeWithHealAnalyzer(
   const patientId = options?.patientId?.trim();
   if (patientId) {
     formData.append("patient_id", patientId);
+  }
+
+  const evaluationId = options?.evaluationId?.trim();
+  if (evaluationId) {
+    formData.append("evaluation_id", evaluationId);
   }
 
   const roiSelections =
@@ -155,11 +191,12 @@ export async function analyzeWithHealAnalyzer(
     );
   }
 
-  const headers = await buildAuthorizedHeaders();
+  const headers = new Headers(await buildAuthorizedHeaders());
+  headers.set("Idempotency-Key", `heal-analysis-${crypto.randomUUID()}`);
 
   let response: Response;
   try {
-    response = await fetch(`${ANALYZER_API_BASE}/analyze`, {
+    response = await fetch(`${ANALYZER_API_BASE}/wound-analyses`, {
       method: "POST",
       headers,
       body: formData,

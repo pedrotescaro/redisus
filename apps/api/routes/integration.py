@@ -7,15 +7,22 @@ import io
 import json
 import math
 import os
+import re
 import traceback
 import uuid
 import base64
 from datetime import datetime, timezone
 from typing import Any, Dict, Mapping, Optional
 
-from flask import Blueprint, current_app, jsonify, request, send_file
+from flask import Blueprint, abort, current_app, g, jsonify, request, send_file
 from PIL import Image
 
+from packages.clinical_domain.wound_analysis import (
+    AnalyzerUnavailableError,
+    WoundAnalysisService,
+    build_wound_analysis_request_hash,
+    wound_analysis_capabilities,
+)
 from packages.clinical_domain.workflow import build_headless_analyzer_result
 from packages.clinical_domain.validation import (
     AIChatPayload,
@@ -30,6 +37,7 @@ from packages.shared.security import (
     current_user,
     current_user_required,
     enforce_rate_limit,
+    ensure_evaluation_access,
     ensure_patient_access,
     filter_patients_for_user,
     is_admin,
@@ -49,6 +57,7 @@ _gemini_model = None
 _wound_analyzer = None
 _MOJIBAKE_MARKERS = ("\u00c3", "\u00c2", "\u00e2\u20ac", "\ufffd")
 _gemini_lock = threading.Lock()
+_IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 _GEMINI_SYSTEM_INSTRUCTION = (
     "Voce e o assistente de IA HEAL+ da plataforma REDISUS. "
     "Especialista em estomaterapia, analise de feridas, cicatrizacao "
@@ -415,6 +424,242 @@ def _mask_to_png_bytes(mask) -> bytes:
     return buffer.tobytes()
 
 
+def _problem_response(
+    *,
+    status: int,
+    code: str,
+    title: str,
+    detail: str,
+    errors: list[dict[str, Any]] | None = None,
+):
+    """Return RFC 9457-compatible errors while preserving the legacy error code."""
+
+    request_id = getattr(g, "redisus_request_id", None) or request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    payload: dict[str, Any] = {
+        "type": f"https://heal-plus.local/problems/{code}",
+        "title": title,
+        "status": status,
+        "detail": detail,
+        "instance": request.path,
+        "code": code,
+        "error": code,
+        "request_id": request_id,
+    }
+    if errors:
+        payload["errors"] = errors
+    response = jsonify(payload)
+    response.status_code = status
+    response.content_type = "application/problem+json"
+    return response
+
+
+def _validated_idempotency_key() -> str | None:
+    key = (request.headers.get("Idempotency-Key") or "").strip()
+    if not key:
+        return None
+    if not _IDEMPOTENCY_KEY_PATTERN.fullmatch(key):
+        abort(400, description="Idempotency-Key must contain 8 to 128 safe characters")
+    return key
+
+
+def _validate_roi_image_context(
+    roi_payloads: list[AnalyzeRoiPayload],
+    *,
+    width: int,
+    height: int,
+) -> None:
+    for index, roi in enumerate(roi_payloads):
+        if not roi.confirmed:
+            abort(422, description=f"roi_payload[{index}] must be confirmed before analysis")
+        if roi.image_width != width or roi.image_height != height:
+            abort(
+                422,
+                description=(
+                    f"roi_payload[{index}] image dimensions do not match the uploaded image "
+                    f"({width}x{height})"
+                ),
+            )
+
+
+@integration_api.route("/wound-analyses/capabilities", methods=["GET"])
+def get_wound_analysis_capabilities():
+    current_user_required()
+    enforce_rate_limit("wound_analysis_read", 120)
+    return jsonify(wound_analysis_capabilities(analyzer_available=_get_wound_analyzer() is not None))
+
+
+@integration_api.route("/wound-analyses", methods=["POST"])
+def create_wound_analysis():
+    user = current_user_required()
+    enforce_rate_limit("wound_analysis", 20)
+    if "image" not in request.files:
+        return _problem_response(
+            status=400,
+            code="missing_image",
+            title="Imagem obrigatória",
+            detail="Envie a imagem clínica no campo multipart 'image'.",
+        )
+    unexpected_files = sorted(set(request.files.keys()) - {"image"})
+    if unexpected_files:
+        abort(400, description=f"unexpected file fields: {', '.join(unexpected_files)}")
+
+    assert_allowed_form_fields(request.form, allowed={"patient_id", "evaluation_id", "roi_payload"})
+    patient_id = (request.form.get("patient_id") or "").strip() or None
+    evaluation_id = (request.form.get("evaluation_id") or "").strip() or None
+    if patient_id and len(patient_id) > 80:
+        abort(400, description="patient_id exceeds maximum length")
+    if evaluation_id and len(evaluation_id) > 80:
+        abort(400, description="evaluation_id exceeds maximum length")
+
+    database = current_app.extensions.get("redisus_db")
+    if database is None:
+        return _problem_response(
+            status=503,
+            code="persistence_unavailable",
+            title="Persistência indisponível",
+            detail="O armazenamento oficial de análises não está disponível.",
+        )
+
+    if evaluation_id:
+        evaluation = ensure_evaluation_access(database, evaluation_id, user=user)
+        evaluation_patient_id = str(evaluation.get("patient_id") or "")
+        if patient_id and patient_id != evaluation_patient_id:
+            return _problem_response(
+                status=409,
+                code="clinical_context_conflict",
+                title="Contexto clínico conflitante",
+                detail="patient_id não corresponde ao paciente da evaluation_id informada.",
+            )
+        patient_id = evaluation_patient_id
+    elif patient_id:
+        patient = ensure_patient_access(database, patient_id, user=user)
+        patient_id = str(patient.id)
+
+    roi_payloads = validate_roi_form_value(request.form.get("roi_payload"), field_name="roi_payload")
+    validated_image = validate_and_sanitize_image_upload(request.files["image"])
+    _validate_roi_image_context(
+        roi_payloads,
+        width=validated_image.width,
+        height=validated_image.height,
+    )
+    idempotency_key = _validated_idempotency_key()
+    owner_uid = user_uid(user) or "unknown"
+    request_hash = build_wound_analysis_request_hash(
+        validated_image,
+        patient_id=patient_id,
+        evaluation_id=evaluation_id,
+        roi_payloads=roi_payloads,
+    )
+
+    if idempotency_key:
+        previous = database.get_wound_analysis_by_idempotency_key(
+            owner_uid=owner_uid,
+            idempotency_key=idempotency_key,
+        )
+        if previous:
+            if previous.get("request_hash") != request_hash:
+                return _problem_response(
+                    status=409,
+                    code="idempotency_conflict",
+                    title="Chave de idempotência reutilizada",
+                    detail="A mesma Idempotency-Key já foi usada com outra imagem ou contexto clínico.",
+                )
+            response = jsonify(previous.get("payload") or {})
+            response.headers["X-Idempotent-Replay"] = "true"
+            response.headers["Location"] = f"/api/v1/wound-analyses/{previous['id']}"
+            return response
+
+    manual_roi_masks = _build_manual_roi_masks(
+        roi_payloads,
+        width=validated_image.width,
+        height=validated_image.height,
+    )
+    manual_roi_mask = _combine_manual_roi_masks(manual_roi_masks)
+    manual_roi_metadata_list = _serialize_roi_payloads(roi_payloads)
+    manual_roi_summary = None
+    if len(manual_roi_metadata_list) == 1:
+        manual_roi_summary = dict(manual_roi_metadata_list[0])
+    elif manual_roi_metadata_list:
+        manual_roi_summary = {
+            "confirmed": True,
+            "selection_count": len(manual_roi_metadata_list),
+            "source": "manual",
+            "tools": [item.get("tool") for item in manual_roi_metadata_list if item.get("tool")],
+            "version": str(manual_roi_metadata_list[0].get("version") or ""),
+        }
+
+    analysis_id = str(uuid.uuid4())
+    service = WoundAnalysisService(_get_wound_analyzer)
+    try:
+        result = service.analyze(
+            validated_image,
+            analysis_id=analysis_id,
+            patient_id=patient_id,
+            evaluation_id=evaluation_id,
+            manual_roi_mask=manual_roi_mask,
+            manual_roi_masks=manual_roi_masks,
+            roi_metadata=manual_roi_summary,
+            roi_metadata_list=manual_roi_metadata_list,
+        )
+    except AnalyzerUnavailableError:
+        return _problem_response(
+            status=503,
+            code="analyzer_unavailable",
+            title="Motor clínico indisponível",
+            detail="O motor canônico do HEAL+ não pôde ser inicializado. Tente novamente mais tarde.",
+        )
+
+    result["persistence"] = {"stored": True, "backend": "sqlite"}
+    saved = database.save_wound_analysis_result(
+        analysis_id=analysis_id,
+        owner_uid=owner_uid,
+        patient_id=patient_id,
+        evaluation_id=evaluation_id,
+        request_hash=request_hash,
+        idempotency_key=idempotency_key,
+        payload=result,
+    )
+    if not saved:
+        if idempotency_key:
+            replay = database.get_wound_analysis_by_idempotency_key(
+                owner_uid=owner_uid,
+                idempotency_key=idempotency_key,
+            )
+            if replay and replay.get("request_hash") == request_hash:
+                response = jsonify(replay.get("payload") or {})
+                response.headers["X-Idempotent-Replay"] = "true"
+                response.headers["Location"] = f"/api/v1/wound-analyses/{replay['id']}"
+                return response
+        return _problem_response(
+            status=503,
+            code="persistence_unavailable",
+            title="Persistência indisponível",
+            detail="A análise foi interrompida porque o resultado não pôde ser persistido com segurança.",
+        )
+
+    response = jsonify(result)
+    response.status_code = 201
+    response.headers["Location"] = f"/api/v1/wound-analyses/{analysis_id}"
+    return response
+
+
+@integration_api.route("/wound-analyses/<analysis_id>", methods=["GET"])
+def get_wound_analysis(analysis_id: str):
+    user = current_user_required()
+    enforce_rate_limit("wound_analysis_read", 120)
+    database = current_app.extensions.get("redisus_db")
+    record = database.get_wound_analysis_result(analysis_id) if database is not None else None
+    if not record:
+        abort(404, description="wound analysis not found")
+
+    patient_id = str(record.get("patient_id") or "")
+    if patient_id:
+        ensure_patient_access(database, patient_id, user=user)
+    elif not is_admin(user) and str(record.get("owner_uid") or "") != str(user_uid(user) or ""):
+        abort(403, description="wound analysis access denied")
+    return jsonify(record.get("payload") or {})
+
+
 @integration_api.route("/analyze", methods=["POST"])
 def analyze_image():
     user = current_user_required()
@@ -695,13 +940,19 @@ Importante: Responda APENAS com o JSON válido. Não inclua delimitadores markdo
             "segmentation": encode_visual_payload(
                 getattr(report, "segmentation_map", None),
                 label="Mapa de tecidos",
-                description="Distribuicao de tecidos identificados pela segmentacao clinica.",
+                description=(
+                    "Distribuicao de tecidos identificados pela segmentacao clinica. "
+                    "Azul-ardosia indica area interna da ROI mantida como incerta."
+                ),
                 mime_type="image/png",
             ),
             "combined": encode_visual_payload(
                 getattr(report, "tissue_overlay", None),
                 label="Visualizacao combinada",
-                description="Foto original combinada com a leitura visual da IA.",
+                description=(
+                    "Foto original combinada com a leitura visual da IA; "
+                    "azul-ardosia indica area incerta, nao tecido ausente."
+                ),
             ),
             "attention": encode_visual_payload(
                 getattr(report, "grad_cam_overlay", None),

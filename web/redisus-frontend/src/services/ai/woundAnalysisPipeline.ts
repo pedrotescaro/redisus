@@ -11,7 +11,7 @@ import { defaultPoorImageQuality, evaluateRoiImageQuality, type WoundImageQualit
 import { cropImageByRoi, type RoiCropResult } from './roiCropService';
 import { classifyTissue, type TissueClassificationResult } from './tissueClassificationService';
 import { detectWoundInValidatedRoi, type WoundDetectionResult } from './woundDetectionService';
-import { segmentWoundRoi, type WoundSegmentationResult } from './woundSegmentationService';
+import { applyServerSegmentation, segmentWoundRoi, type WoundSegmentationResult } from './woundSegmentationService';
 import {
   WOUND_ANALYZER_BLOCKED_ROI_MESSAGE,
   WOUND_ANALYZER_UNRELIABLE_CLASSIFICATION_MESSAGE,
@@ -50,7 +50,7 @@ export const HEAL_ANALYZER_ASSISTIVE_DISCLAIMER =
   'Esta analise e assistiva e nao substitui avaliacao clinica profissional.';
 
 const SERVER_INFERENCE_ENABLED =
-  import.meta.env.VITE_HEAL_ANALYZER_ENABLE_SERVER_INFERENCE === 'true';
+  import.meta.env.VITE_HEAL_ANALYZER_ENABLE_SERVER_INFERENCE !== 'false';
 
 function emptyRoiValidation(reason: string): RoiValidationResult {
   return {
@@ -268,15 +268,13 @@ export const woundAnalysisPipeline = {
       };
     }
 
-    const segmentation = segmentWoundRoi(crop, woundDetection);
-    if (segmentation.limited) {
-      addAlert(alerts, 'medium', 'Segmentacao limitada', segmentation.reason || 'A segmentacao automatica validada ainda nao esta habilitada.');
-    }
+    let segmentation = segmentWoundRoi(crop, woundDetection);
 
     let analyzerResult: HealAnalyzerResult | null = null;
     if (SERVER_INFERENCE_ENABLED) {
       try {
         analyzerResult = await tryServerInference(crop, input.patient?.id || input.assessment?.patientId);
+        if (analyzerResult) segmentation = applyServerSegmentation(segmentation, analyzerResult);
       } catch (error) {
         addAlert(
           alerts,
@@ -292,6 +290,10 @@ export const woundAnalysisPipeline = {
         'Classificacao experimental desativada',
         'O sistema esta em modo seguro: sem modelo validado habilitado, nao ha classificacao tecidual automatica.'
       );
+    }
+
+    if (segmentation.limited) {
+      addAlert(alerts, 'medium', 'Segmentacao limitada', segmentation.reason || 'A segmentacao automatica validada ainda nao esta habilitada.');
     }
 
     const tissueClassification = classifyTissue({ detection: woundDetection, segmentation, analyzerResult });

@@ -178,9 +178,11 @@ export interface ClinicalAnalysisResult {
     areaPixels?: number;
     overlayUrl?: string;
     confidence?: number;
-    method: 'manual_roi_mask' | 'trained_segmentation_model';
+    method: 'manual_roi_mask' | 'clinical_backend' | 'heuristic_preview' | 'trained_segmentation_model';
     limited: boolean;
     reason?: string;
+    coveragePercent?: number;
+    unclassifiedPercent?: number;
   };
   tissueClassification: {
     enabled: boolean;
