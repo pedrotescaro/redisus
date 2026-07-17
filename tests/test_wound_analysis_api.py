@@ -1,5 +1,6 @@
 import io
 import json
+import base64
 from types import SimpleNamespace
 
 import numpy as np
@@ -217,3 +218,42 @@ def test_canonical_wound_analysis_fails_closed_without_clinical_engine(canonical
     payload = response.get_json()
     assert payload["code"] == "analyzer_unavailable"
     assert "canonical clinical analyzer" not in payload["detail"]
+
+
+def test_pdf_generation_rejects_remote_images_before_compilation(canonical_client):
+    client, _database = canonical_client
+    response = client.post(
+        "/api/v1/generate-pdf",
+        json={
+            "latex_code": (
+                "\\documentclass{article}\\usepackage{graphicx}\\begin{document}"
+                "\\includegraphics{http://127.0.0.1/internal}\\end{document}"
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.content_type == "application/problem+json"
+    assert "embedded PNG or JPEG" in response.get_json()["detail"]
+
+
+def test_pdf_generation_rejects_file_read_commands(canonical_client):
+    client, _database = canonical_client
+    response = client.post(
+        "/api/v1/generate-pdf",
+        json={"latex_code": "\\documentclass{article}\\begin{document}\\input{/etc/passwd}\\end{document}"},
+    )
+
+    assert response.status_code == 400
+    assert "forbidden command" in response.get_json()["detail"]
+
+
+def test_pdf_image_preparation_uses_fixed_local_filename(tmp_path):
+    from apps.api.routes.integration import _prepare_latex_images
+
+    encoded = base64.b64encode(_png_bytes()).decode("ascii")
+    latex = f"\\includegraphics[width=2cm]{{data:image/png;base64,{encoded}}}"
+    prepared = _prepare_latex_images(latex, tmp_path)
+
+    assert prepared == "\\includegraphics[width=2cm]{embedded_0.png}"
+    assert (tmp_path / "embedded_0.png").read_bytes() == _png_bytes()

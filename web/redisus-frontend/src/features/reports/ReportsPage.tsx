@@ -41,6 +41,29 @@ function scoreResponse(text: string): number {
   return score;
 }
 
+async function imageUrlToDataUrl(url: string): Promise<string> {
+  if (url.startsWith('data:image/png;base64,') || url.startsWith('data:image/jpeg;base64,')) {
+    return url;
+  }
+  const response = await fetch(url, {
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer'
+  });
+  if (!response.ok) {
+    throw new Error('Não foi possível carregar a imagem clínica para o relatório.');
+  }
+  const imageBlob = await response.blob();
+  if (!['image/png', 'image/jpeg'].includes(imageBlob.type) || imageBlob.size > 6_000_000) {
+    throw new Error('A imagem clínica não possui formato ou tamanho permitido para o relatório.');
+  }
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao preparar a imagem clínica para o relatório.'));
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.readAsDataURL(imageBlob);
+  });
+}
+
 function generateLatex(patient: Patient, evaluation: Evaluation, profile: any, includeAi: boolean, aiText: string | null): string {
   const sanitize = (text: string) => {
     if (!text) return '';
@@ -404,9 +427,23 @@ Por favor, gere um parecer clínico estruturado contendo:
     if (!selectedPatient || !selectedEvaluation) return;
     setGeneratingPdf(true);
     try {
+      let evaluationForPdf = selectedEvaluation;
+      const primaryImage = selectedEvaluation.images?.[0];
+      if (primaryImage) {
+        try {
+          const embeddedImage = await imageUrlToDataUrl(primaryImage.downloadURL);
+          evaluationForPdf = {
+            ...selectedEvaluation,
+            images: [{ ...primaryImage, downloadURL: embeddedImage }]
+          };
+        } catch (imageError) {
+          console.warn('Clinical image omitted from PDF:', imageError);
+          evaluationForPdf = { ...selectedEvaluation, images: [] };
+        }
+      }
       const latexContent = generateLatex(
         selectedPatient,
-        selectedEvaluation,
+        evaluationForPdf,
         profile,
         includeAi,
         analysis
