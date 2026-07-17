@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   BadgeCheck,
+  BookOpen,
   CheckCircle2,
   ClipboardList,
   FileImage,
@@ -23,12 +24,14 @@ import {
   BrainCircuit
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { subscribePatients } from '../../features/patients/patientService';
 import { subscribeEvaluations } from '../../features/evaluations/evaluationService';
 
 import { useAuth } from '../../app/providers/AuthProvider';
 import { WoundRoiCanvas } from '../roi/WoundRoiCanvas';
+import { ClinicalEvidencePanel } from './clinical-evidence-panel';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/Card';
@@ -48,7 +51,7 @@ import {
 } from '../../services/heal-analyzer/clinicalContextService';
 import { analyzerSelectionToRoi, ensureClinicalRois, roisToAnalyzerSelections } from '../../services/heal-analyzer/roiProcessingService';
 
-type MobilePanel = 'context' | 'roi' | 'result';
+type MobilePanel = 'context' | 'roi' | 'result' | 'evidence';
 
 const emptyContext: ClinicalAnalysisContext = {
   patient: null,
@@ -96,6 +99,7 @@ export function AnalyzerWorkbench({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const roiFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeMobilePanel, setActiveMobilePanel] = useState<MobilePanel>('context');
+  const [inspectorTab, setInspectorTab] = useState<'result' | 'evidence'>('result');
   const [context, setContext] = useState<ClinicalAnalysisContext>(emptyContext);
   const [contextLoading, setContextLoading] = useState(false);
   const [patientIdInput, setPatientIdInput] = useState(searchParams.get('patientId') || '');
@@ -309,14 +313,16 @@ export function AnalyzerWorkbench({
   };
 
   const runAnalysis = async () => {
-    if (!user || !imageSource) return;
+    if (!imageSource) return;
     setConfirmOpen(false);
     setAnalysisLoading(true);
     setError('');
     setNotice('');
     setActiveMobilePanel('result');
+    setInspectorTab('result');
 
     try {
+      const actorId = user?.uid || 'local-analyzer';
       const result = await buildClinicalAnalysisResult({
         mode: context.assessment ? 'assessment_context' : 'standalone',
         patient: context.patient,
@@ -325,15 +331,19 @@ export function AnalyzerWorkbench({
         image: imageSource,
         imageId: linkedImageId || selectedFile?.name,
         rois,
-        createdBy: user.uid
+        createdBy: actorId
       });
       setAnalysis(result);
 
-      try {
-        await saveClinicalAnalysisResult({ uid: user.uid, result });
-        setNotice('Analise assistiva gerada e salva com sucesso.');
-      } catch (saveError) {
-        setNotice(saveError instanceof Error ? `Analise gerada, mas nao salva: ${saveError.message}` : 'Analise gerada, mas nao salva.');
+      if (user && isSupabaseConfigured) {
+        try {
+          await saveClinicalAnalysisResult({ uid: user.uid, result });
+          setNotice('Análise assistiva gerada e salva com rastreabilidade.');
+        } catch (saveError) {
+          setNotice(saveError instanceof Error ? `Análise gerada, mas não salva: ${saveError.message}` : 'Análise gerada, mas não salva.');
+        }
+      } else {
+        setNotice('Análise assistiva concluída em modo avulso. Vincule uma avaliação para salvar no histórico clínico.');
       }
     } catch (analysisError) {
       setError(analysisError instanceof Error ? analysisError.message : 'Falha ao gerar analise assistiva.');
@@ -348,7 +358,7 @@ export function AnalyzerWorkbench({
       <div className="flex-grow w-full border-r border-heal-line dark:border-zinc-800/60 min-h-screen flex flex-col min-w-0">
         <PageHeader
           title="HEAL Analyzer"
-          description="Analise assistiva de feridas e ROI"
+          description="Diagnóstico assistivo, editor de ROI e consulta clínica"
           showSidebarToggle={showSidebarToggle}
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={onToggleSidebar}
@@ -369,7 +379,15 @@ export function AnalyzerWorkbench({
           {notice ? <Notice tone="success" message={notice} /> : null}
           {error ? <Notice tone="error" message={error} /> : null}
 
-          <MobileAnalyzerTabs activePanel={activeMobilePanel} onChange={setActiveMobilePanel} roiCount={rois.length} />
+          <MobileAnalyzerTabs
+            activePanel={activeMobilePanel}
+            onChange={panel => {
+              setActiveMobilePanel(panel);
+              if (panel === 'result') setInspectorTab('result');
+              if (panel === 'evidence') setInspectorTab('evidence');
+            }}
+            roiCount={rois.length}
+          />
 
           {/* Workspace do Canvas ROI */}
           <div className={cn(activeMobilePanel === 'roi' ? 'block' : 'hidden xl:block')}>
@@ -597,17 +615,61 @@ export function AnalyzerWorkbench({
       </div>
 
       {/* Coluna Lateral Direita (Resultado) */}
-      <aside className={cn(activeMobilePanel === 'result' ? 'block' : 'hidden xl:block', 'w-full xl:w-[390px] p-4 sm:py-5 sm:pr-5 sm:pl-3 shrink-0 min-h-screen xl:h-screen xl:overflow-y-auto')}>
-        <ClinicalResultPanel
-          analysis={analysis}
-          loading={analysisLoading}
-          hasImage={hasImage}
-          hasRoi={hasRoi}
-          patient={context.patient}
-          onEditRoi={() => setActiveMobilePanel('roi')}
-          onRunAnalysis={requestAnalysis}
-          onSelectImage={() => fileInputRef.current?.click()}
-        />
+      <aside
+        className={cn(
+          activeMobilePanel === 'result' || activeMobilePanel === 'evidence' ? 'block' : 'hidden xl:block',
+          'min-h-screen w-full shrink-0 p-4 sm:py-5 sm:pl-3 sm:pr-5 xl:h-screen xl:w-[410px] xl:overflow-y-auto'
+        )}
+      >
+        <div className="mb-3 grid grid-cols-2 rounded-xl border border-heal-line bg-heal-canvas p-1 dark:border-zinc-800 dark:bg-zinc-950">
+          <button
+            type="button"
+            onClick={() => {
+              setInspectorTab('result');
+              setActiveMobilePanel('result');
+            }}
+            className={cn(
+              'flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-black transition',
+              inspectorTab === 'result'
+                ? 'bg-white text-heal-blue shadow-sm dark:bg-zinc-900'
+                : 'text-heal-muted hover:text-heal-ink dark:hover:text-white'
+            )}
+          >
+            <ScanSearch className="h-3.5 w-3.5" />
+            Resultado
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setInspectorTab('evidence');
+              setActiveMobilePanel('evidence');
+            }}
+            className={cn(
+              'flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-black transition',
+              inspectorTab === 'evidence'
+                ? 'bg-white text-heal-blue shadow-sm dark:bg-zinc-900'
+                : 'text-heal-muted hover:text-heal-ink dark:hover:text-white'
+            )}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Base clínica
+          </button>
+        </div>
+
+        {inspectorTab === 'result' ? (
+          <ClinicalResultPanel
+            analysis={analysis}
+            loading={analysisLoading}
+            hasImage={hasImage}
+            hasRoi={hasRoi}
+            patient={context.patient}
+            onEditRoi={() => setActiveMobilePanel('roi')}
+            onRunAnalysis={requestAnalysis}
+            onSelectImage={() => fileInputRef.current?.click()}
+          />
+        ) : (
+          <ClinicalEvidencePanel />
+        )}
       </aside>
 
       <Modal open={confirmOpen} title="Análise assistiva com dados clínicos" onClose={() => setConfirmOpen(false)} size="lg">
@@ -1059,10 +1121,27 @@ Por favor, como especialista em estomaterapia, gere um Parecer Clínico Generati
                         <img src={analysis.segmentation.overlayUrl} alt="Mascara da ROI sobreposta ao recorte analisado" className="max-h-56 w-full rounded-xl object-contain bg-slate-950" />
                       ) : null}
                       <div className="grid gap-0.5">
-                        <Metric label="Método" value={analysis.segmentation.method === 'manual_roi_mask' ? 'Máscara manual da ROI' : 'Modelo treinado'} />
+                        <Metric
+                          label="Método"
+                          value={analysis.segmentation.method === 'clinical_backend'
+                            ? 'Pipeline clínico da API'
+                            : analysis.segmentation.method === 'heuristic_preview'
+                              ? 'Prévia heurística local'
+                              : analysis.segmentation.method === 'trained_segmentation_model'
+                                ? 'Segmentação legada'
+                                : 'Máscara manual da ROI'}
+                        />
                         <Metric label="Área estimada" value={analysis.segmentation.areaPixels ? `${analysis.segmentation.areaPixels} px` : 'Não disponível'} />
                         <Metric label="Confiança" value={analysis.segmentation.confidence !== undefined ? `${Math.round(analysis.segmentation.confidence * 100)}%` : 'Não disponível'} />
+                        <Metric label="Cobertura classificada" value={analysis.segmentation.coveragePercent !== undefined ? `${analysis.segmentation.coveragePercent.toFixed(1)}%` : 'Não disponível'} />
+                        <Metric label="Área incerta" value={analysis.segmentation.unclassifiedPercent !== undefined ? `${analysis.segmentation.unclassifiedPercent.toFixed(1)}%` : 'Não disponível'} />
                       </div>
+                      {analysis.segmentation.unclassifiedPercent !== undefined && analysis.segmentation.unclassifiedPercent > 0 ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] leading-relaxed text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
+                          <span className="h-3 w-3 shrink-0 rounded-sm bg-[#305c91]" />
+                          Azul-ardósia: área processada dentro da ROI, mas mantida como incerta para não forçar um tecido incorreto.
+                        </div>
+                      ) : null}
                       {analysis.segmentation.reason ? <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-100">{analysis.segmentation.reason}</p> : null}
                     </div>
                   </ResultSection>
@@ -1348,18 +1427,19 @@ function MobileAnalyzerTabs({ activePanel, onChange, roiCount }: { activePanel: 
   const tabs: Array<{ id: MobilePanel; label: string }> = [
     { id: 'context', label: 'Contexto' },
     { id: 'roi', label: `ROI${roiCount ? ` (${roiCount})` : ''}` },
-    { id: 'result', label: 'Resultado' }
+    { id: 'result', label: 'Resultado' },
+    { id: 'evidence', label: 'Base' }
   ];
 
   return (
-    <div className="flex gap-2 overflow-x-auto rounded-2xl border border-heal-line bg-white p-1 shadow-soft dark:border-zinc-800 dark:bg-zinc-900 lg:hidden">
+    <div className="grid grid-cols-4 gap-1 rounded-2xl border border-heal-line bg-white p-1 shadow-soft dark:border-zinc-800 dark:bg-zinc-900 lg:hidden">
       {tabs.map(tab => (
         <button
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
           className={cn(
-            'h-10 min-w-28 rounded-xl px-4 text-sm font-black transition',
+            'h-10 min-w-0 rounded-xl px-1 text-[11px] font-black transition sm:text-xs',
             activePanel === tab.id
               ? 'bg-heal-blue text-white shadow-sm'
               : 'text-heal-muted hover:bg-heal-canvas hover:text-heal-ink dark:hover:bg-zinc-800 dark:hover:text-white'

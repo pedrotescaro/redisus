@@ -254,10 +254,10 @@ def test_integration_analyze_route_repairs_mojibake_strings(tmp_path, monkeypatc
 
     assert response.status_code == 200
     payload = response.get_json()
-    assert payload["primary_tissue"] == "Tecido de GranulaÃ§Ã£o"
-    assert "cicatrizaÃ§Ã£o ativa" in payload["primary_justification"]
-    assert payload["tissues"][0]["description"] == "Tecido com neovascularizaÃ§Ã£o ativa."
-    assert payload["interpretation"]["recommendations"][0] == "Manter cobertura Ãºmida e proteger a lesÃ£o."
+    assert payload["primary_tissue"] == "Tecido de Granula\u00e7\u00e3o"
+    assert "cicatriza\u00e7\u00e3o ativa" in payload["primary_justification"]
+    assert payload["tissues"][0]["description"] == "Tecido com neovasculariza\u00e7\u00e3o ativa."
+    assert payload["interpretation"]["recommendations"][0] == "Manter cobertura \u00famida e proteger a les\u00e3o."
 
 
 def test_integration_analyze_route_passes_manual_roi_and_returns_roi_payload(tmp_path, monkeypatch):

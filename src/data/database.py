@@ -153,6 +153,33 @@ class Database:
                     FOREIGN KEY (patient_id) REFERENCES patients(id)
                 )
             """)
+
+            # Recurso canônico da API síncrona de análise de feridas.
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wound_analysis_results (
+                    id TEXT PRIMARY KEY,
+                    owner_uid TEXT NOT NULL,
+                    patient_id TEXT,
+                    evaluation_id TEXT,
+                    request_hash TEXT NOT NULL,
+                    idempotency_key TEXT,
+                    status TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id),
+                    FOREIGN KEY (evaluation_id) REFERENCES wound_evaluations(id),
+                    UNIQUE (owner_uid, idempotency_key)
+                )
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wound_analysis_results_patient
+                ON wound_analysis_results(patient_id, created_at DESC)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wound_analysis_results_owner
+                ON wound_analysis_results(owner_uid, created_at DESC)
+            """)
             
             # Tabela de configurações
             cursor.execute("""
@@ -2170,6 +2197,100 @@ class Database:
             return False
     
     # === ANÁLISES ===
+
+    def save_wound_analysis_result(
+        self,
+        *,
+        analysis_id: str,
+        owner_uid: str,
+        patient_id: str | None,
+        evaluation_id: str | None,
+        request_hash: str,
+        idempotency_key: str | None,
+        payload: Dict[str, Any],
+    ) -> bool:
+        """Persiste o recurso canônico completo para consulta e replay idempotente."""
+
+        now = datetime.now().isoformat()
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO wound_analysis_results
+                    (id, owner_uid, patient_id, evaluation_id, request_hash, idempotency_key,
+                     status, payload, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        analysis_id,
+                        owner_uid,
+                        patient_id or None,
+                        evaluation_id or None,
+                        request_hash,
+                        idempotency_key or None,
+                        str(payload.get("status") or "completed"),
+                        json.dumps(payload, ensure_ascii=False, allow_nan=False),
+                        now,
+                        now,
+                    ),
+                )
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao salvar recurso canônico de análise: {e}")
+            return False
+
+    def get_wound_analysis_result(self, analysis_id: str) -> Optional[Dict[str, Any]]:
+        """Busca um recurso canônico e seus metadados de autorização."""
+
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute(
+                    "SELECT * FROM wound_analysis_results WHERE id = ?",
+                    (analysis_id,),
+                ).fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": row["id"],
+                    "owner_uid": row["owner_uid"],
+                    "patient_id": row["patient_id"],
+                    "evaluation_id": row["evaluation_id"],
+                    "request_hash": row["request_hash"],
+                    "idempotency_key": row["idempotency_key"],
+                    "status": row["status"],
+                    "payload": json.loads(row["payload"] or "{}"),
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+        except Exception as e:
+            logger.error(f"Erro ao buscar recurso canônico de análise: {e}")
+            return None
+
+    def get_wound_analysis_by_idempotency_key(
+        self,
+        *,
+        owner_uid: str,
+        idempotency_key: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Busca replay anterior sem cruzar a fronteira de identidade do usuário."""
+
+        try:
+            with self._get_connection() as conn:
+                row = conn.execute(
+                    """
+                    SELECT id FROM wound_analysis_results
+                    WHERE owner_uid = ? AND idempotency_key = ?
+                    """,
+                    (owner_uid, idempotency_key),
+                ).fetchone()
+                if not row:
+                    return None
+                analysis_id = str(row["id"])
+            return self.get_wound_analysis_result(analysis_id)
+        except Exception as e:
+            logger.error(f"Erro ao buscar análise por chave de idempotência: {e}")
+            return None
     
     def save_analysis(self, analysis: AnalysisRecord) -> bool:
         """Salva registro de análise"""

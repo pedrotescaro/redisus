@@ -1,4 +1,5 @@
 import type { RoiCropResult } from './roiCropService';
+import type { HealAnalyzerResult } from './heal-analyzer-service';
 import type { WoundDetectionResult } from './woundDetectionService';
 
 export interface WoundSegmentationResult {
@@ -6,9 +7,11 @@ export interface WoundSegmentationResult {
   areaPixels?: number;
   overlayUrl?: string;
   confidence?: number;
-  method: 'manual_roi_mask' | 'trained_segmentation_model';
+  method: 'manual_roi_mask' | 'clinical_backend' | 'heuristic_preview';
   limited: boolean;
   reason?: string;
+  coveragePercent?: number;
+  unclassifiedPercent?: number;
   computedPercentages?: {
     necrosis: number;
     slough_fibrin: number;
@@ -171,10 +174,73 @@ export function segmentWoundRoi(crop: RoiCropResult, detection: WoundDetectionRe
     maskUrl: maskCanvas?.toDataURL('image/png'),
     overlayUrl: overlayCanvas.toDataURL('image/png'),
     areaPixels: crop.areaPixels,
-    confidence: Math.min(0.95, detection.confidence),
-    method: 'trained_segmentation_model',
-    limited: false,
-    reason: 'Segmentacao tecidual computada via rede neural em TypeScript no Front-end.',
+    confidence: Math.min(0.45, detection.confidence),
+    method: 'heuristic_preview',
+    limited: true,
+    reason: 'Previa visual heuristica local. A leitura clinica de tecidos depende do mapa retornado pela API.',
     computedPercentages: percentages
+  };
+}
+
+function normalizeTissueKey(value: string): keyof NonNullable<WoundSegmentationResult['computedPercentages']> | null {
+  const normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (normalized.includes('granulation') || normalized.includes('granulacao')) return 'granulation';
+  if (normalized.includes('slough') || normalized.includes('esfacelo') || normalized.includes('fibrin')) return 'slough_fibrin';
+  if (normalized.includes('necros') || normalized.includes('eschar') || normalized.includes('escara')) return 'necrosis';
+  if (normalized.includes('epithel') || normalized.includes('epitel')) return 'epithelial';
+  return null;
+}
+
+function serverTissuePercentages(result: HealAnalyzerResult) {
+  const percentages = {
+    necrosis: 0,
+    slough_fibrin: 0,
+    granulation: 0,
+    epithelial: 0
+  };
+
+  for (const tissue of result.tissues || []) {
+    const key = normalizeTissueKey(`${tissue.name} ${tissue.name_en}`);
+    if (key) percentages[key] += Math.max(0, Number(tissue.percentage || 0));
+  }
+
+  return percentages;
+}
+
+export function applyServerSegmentation(
+  preview: WoundSegmentationResult,
+  result: HealAnalyzerResult
+): WoundSegmentationResult {
+  const segmentationUrl = result.visuals?.segmentation?.data_url || undefined;
+  const combinedUrl = result.visuals?.combined?.data_url || segmentationUrl;
+  const coverage = Math.max(0, Math.min(100, Number(result.tissue_analysis_trace?.coverage_pct ?? 0)));
+  const unclassified = Math.max(
+    0,
+    Math.min(100, Number(result.tissue_analysis_trace?.unclassified_pct ?? (coverage > 0 ? 100 - coverage : 0)))
+  );
+  const inferenceConfidence = Number(result.inference?.confidence || 0);
+  const hasClinicalVisual = Boolean(combinedUrl || segmentationUrl);
+  const coverageSummary = coverage > 0
+    ? ` Cobertura classificada: ${coverage.toFixed(1)}%; area incerta: ${unclassified.toFixed(1)}%.`
+    : '';
+
+  return {
+    ...preview,
+    maskUrl: segmentationUrl || preview.maskUrl,
+    overlayUrl: combinedUrl || preview.overlayUrl,
+    areaPixels: Number(result.wound_area_px || preview.areaPixels || 0),
+    confidence: inferenceConfidence > 0 ? Math.min(1, inferenceConfidence) : undefined,
+    method: hasClinicalVisual ? 'clinical_backend' : 'heuristic_preview',
+    limited: !result.is_valid_wound || !hasClinicalVisual || unclassified > 15,
+    reason: hasClinicalVisual
+      ? `Mapa clinico produzido pela API com HSV/LAB, textura e zonas espaciais.${coverageSummary}`
+      : preview.reason,
+    coveragePercent: coverage || undefined,
+    unclassifiedPercent: coverage > 0 ? unclassified : undefined,
+    computedPercentages: serverTissuePercentages(result)
   };
 }

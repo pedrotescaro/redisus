@@ -1101,16 +1101,16 @@ class ClinicalWoundAnalyzer:
                 "manual_roi" if manual_roi_applied else "classical_cv"
             )
 
-        # 3.2 Remove fundo cirúrgico (lençol azul/verde/cinza) da máscara
-        wound_mask = self._exclude_surgical_background(image, wound_mask)
-
-        # 3.3 Classificação espacial de background — separa fundo de câmera
-        # de tecido necrótico usando variância local, crominância e conectividade
-        background_mask = self._create_background_mask_spatial(image, wound_mask)
-        wound_mask_clean = cv2.bitwise_and(wound_mask, cv2.bitwise_not(background_mask))
-        # Se a limpeza removeu quase tudo, ignora (provavelmente não tem fundo)
-        if np.sum(wound_mask_clean > 0) > 0.05 * np.sum(wound_mask > 0):
-            wound_mask = wound_mask_clean
+        # 3.2/3.3 A ROI manual é autoritativa: não subtrai pixels internos por
+        # cor, pois esfacelo cinza/oliva e necrose podem parecer fundo. A limpeza
+        # automática permanece apenas quando a própria pipeline detectou a ROI.
+        if not manual_roi_applied:
+            wound_mask = self._exclude_surgical_background(image, wound_mask)
+            background_mask = self._create_background_mask_spatial(image, wound_mask)
+            wound_mask_clean = cv2.bitwise_and(wound_mask, cv2.bitwise_not(background_mask))
+            # Se a limpeza removeu quase tudo, ignora (provavelmente não tem fundo)
+            if np.sum(wound_mask_clean > 0) > 0.05 * np.sum(wound_mask > 0):
+                wound_mask = wound_mask_clean
 
         # 3.4 Separação em zonas espaciais (periferia, core, anel externo)
         peripheral_zone, core_zone, outer_ring = self._create_zone_masks(wound_mask)
@@ -1178,7 +1178,12 @@ class ClinicalWoundAnalyzer:
 
         # 4. Segmentação tecidual clínica v3 (HSV + LAB + zonas + gradiente)
         tissue_pcts, seg_map, tissue_overlay = self._segment_clinical_v3(
-            image, wound_mask, peripheral_zone, core_zone, outer_ring
+            image,
+            wound_mask,
+            peripheral_zone,
+            core_zone,
+            outer_ring,
+            manual_roi_applied=manual_roi_applied,
         )
         report.segmentation_map = seg_map
         report.tissue_overlay = tissue_overlay
@@ -2076,6 +2081,7 @@ class ClinicalWoundAnalyzer:
         peripheral_zone: np.ndarray,
         core_zone: np.ndarray,
         outer_ring: np.ndarray,
+        manual_roi_applied: bool = False,
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
         """
         Segmentação clínica v3 — multi-espaço de cor + zonas espaciais + gradiente.
@@ -2297,7 +2303,14 @@ class ClinicalWoundAnalyzer:
             hsv_raw, np.array([55, 60, 35]), np.array([95, 255, 255])))
         _drape = cv2.bitwise_or(_drape, cv2.inRange(
             hsv_raw, np.array([0, 0, 40]), np.array([180, 22, 170])))
-        _not_drape = cv2.bitwise_not(_drape)
+        # Dentro de uma ROI manual confirmada, cinza/oliva pode ser tecido da
+        # ferida. Não o remove como lençol/fundo; apenas a ROI automática usa
+        # essa exclusão cromática.
+        _not_drape = (
+            np.full((h, w), 255, dtype=np.uint8)
+            if manual_roi_applied
+            else cv2.bitwise_not(_drape)
+        )
 
         adaptive_masks, adaptive_trace = self._build_adaptive_tissue_masks(
             denoised_norm=denoised_norm,
@@ -2403,8 +2416,11 @@ class ClinicalWoundAnalyzer:
             **adaptive_trace,
         }
 
-        # Mapa de segmentação colorido
-        seg_map = np.full((h, w, 3), 80, dtype=np.uint8)
+        # Mapa de segmentação colorido. Fora da ROI fica preto; pixels internos
+        # sem evidência suficiente recebem azul-ardósia para tornar a incerteza
+        # visível, em vez de parecer que a região não foi processada.
+        seg_map = np.zeros((h, w, 3), dtype=np.uint8)
+        seg_map[wound_mask > 0] = (145, 92, 48)
         colors = {
             "necrosis": (30, 30, 60),
             "slough": (80, 220, 220),
@@ -2416,7 +2432,8 @@ class ClinicalWoundAnalyzer:
 
         # Desenha contorno da wound_mask (perímetro da ROI) no overlay
         overlay = image.copy()
-        cv2.addWeighted(seg_map, 0.45, overlay, 0.55, 0, overlay)
+        blended_roi = cv2.addWeighted(seg_map, 0.45, image, 0.55, 0)
+        overlay[wound_mask > 0] = blended_roi[wound_mask > 0]
 
         # Contorno do perímetro da ferida (verde, 2px)
         contours_roi, _ = cv2.findContours(

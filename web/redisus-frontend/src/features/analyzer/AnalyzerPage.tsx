@@ -5,30 +5,26 @@ import { AnalyzerWorkbench } from "../../components/heal-analyzer/analyzer-workb
 
 function AnalyzerPageWithSidebar() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false); // starts false (sidebar enabled/visible by default)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   return (
-    <div className="flex h-screen bg-heal-canvas text-heal-ink dark:bg-[#060606] text-heal-ink dark:text-white antialiased overflow-hidden w-full">
-      {!isFullscreen && (
-        <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-      )}
+    <div className="flex h-screen w-full overflow-hidden bg-heal-canvas text-heal-ink antialiased dark:bg-[#060606] dark:text-white">
+      {!isSidebarCollapsed ? <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} /> : null}
 
       <div
-        className={`flex-grow flex flex-col min-h-0 min-w-0 bg-heal-canvas dark:bg-[#060606] relative overflow-hidden transition-all duration-300 ${
-          !isFullscreen ? 'lg:pl-[280px] border-l border-heal-line dark:border-[#1f1f23]/40' : ''
+        className={`relative flex min-h-0 min-w-0 flex-grow flex-col overflow-hidden bg-heal-canvas transition-[padding] duration-300 dark:bg-[#060606] ${
+          isSidebarCollapsed ? '' : 'border-l border-heal-line lg:pl-[280px] dark:border-[#1f1f23]/40'
         }`}
       >
-        {!isFullscreen && (
-          <div className="lg:hidden shrink-0">
-            <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
-          </div>
-        )}
+        <div className={`shrink-0 lg:hidden ${isSidebarCollapsed ? 'hidden' : ''}`}>
+          <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
+        </div>
 
-        <div className="flex flex-col flex-grow min-h-0 relative overflow-hidden bg-heal-canvas dark:bg-[#060606]">
+        <div className="relative flex min-h-0 flex-grow flex-col overflow-hidden bg-heal-canvas dark:bg-[#060606]">
           <AnalyzerWorkbench
-            showSidebarToggle={true}
-            isSidebarCollapsed={isFullscreen}
-            onToggleSidebar={() => setIsFullscreen(!isFullscreen)}
+            showSidebarToggle
+            isSidebarCollapsed={isSidebarCollapsed}
+            onToggleSidebar={() => setIsSidebarCollapsed(current => !current)}
           />
         </div>
       </div>

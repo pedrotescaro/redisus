@@ -37,7 +37,8 @@ def create_app() -> Flask:
     CORS(
         app,
         origins=[allowed_origin],
-        allow_headers=["Content-Type", "Authorization"],
+        allow_headers=["Content-Type", "Authorization", "Idempotency-Key", "X-Request-ID"],
+        expose_headers=["Location", "X-Idempotent-Replay", "X-Request-ID"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         supports_credentials=True,
     )
@@ -74,7 +75,7 @@ def create_app() -> Flask:
     @app.before_request
     def enforce_api_security():
         _request_id()
-        public_paths = {"/", "/health", "/api/v1/health", "/api/v1/generate-pdf"}
+        public_paths = {"/", "/health", "/api/v1/health"}
         if request.method == "OPTIONS" or request.path in public_paths:
             return None
         if request.path.startswith("/api/"):
@@ -95,31 +96,47 @@ def create_app() -> Flask:
     @app.errorhandler(HTTPException)
     def handle_http_exception(exc: HTTPException):
         if request.path.startswith("/api/") or request.path in {"/health", "/"}:
-            return (
-                jsonify(
-                    {
-                        "error": exc.name.lower().replace(" ", "_"),
-                        "detail": exc.description,
-                        "request_id": _request_id(),
-                    }
-                ),
-                exc.code,
+            status = int(exc.code or 500)
+            code = exc.name.lower().replace(" ", "_")
+            response = jsonify(
+                {
+                    "type": f"https://heal-plus.local/problems/{code}",
+                    "title": exc.name,
+                    "status": status,
+                    "detail": exc.description,
+                    "instance": request.path,
+                    "code": code,
+                    "error": code,
+                    "request_id": _request_id(),
+                }
             )
+            response.status_code = status
+            response.content_type = "application/problem+json"
+            if status == 429:
+                response.headers["Retry-After"] = os.getenv("REDISUS_RATE_LIMIT_WINDOW_SECONDS", "60")
+            return response
         return exc
 
     @app.errorhandler(Exception)
     def handle_unexpected_exception(exc: Exception):
         if request.path.startswith("/api/") or request.path in {"/health", "/"}:
-            return (
-                jsonify(
-                    {
-                        "error": "internal_server_error",
-                        "detail": "unexpected backend error",
-                        "request_id": _request_id(),
-                    }
-                ),
-                500,
+            request_id = _request_id()
+            app.logger.exception("unexpected API error request_id=%s", request_id)
+            response = jsonify(
+                {
+                    "type": "https://heal-plus.local/problems/internal_server_error",
+                    "title": "Internal Server Error",
+                    "status": 500,
+                    "detail": "unexpected backend error",
+                    "instance": request.path,
+                    "code": "internal_server_error",
+                    "error": "internal_server_error",
+                    "request_id": request_id,
+                }
             )
+            response.status_code = 500
+            response.content_type = "application/problem+json"
+            return response
         raise exc
 
     @app.route("/", methods=["GET"])

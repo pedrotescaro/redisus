@@ -7,15 +7,25 @@ import io
 import json
 import math
 import os
+import re
+import subprocess
+import tempfile
 import traceback
 import uuid
 import base64
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
-from flask import Blueprint, current_app, jsonify, request, send_file
+from flask import Blueprint, abort, current_app, g, jsonify, request, send_file
 from PIL import Image
 
+from packages.clinical_domain.wound_analysis import (
+    AnalyzerUnavailableError,
+    WoundAnalysisService,
+    build_wound_analysis_request_hash,
+    wound_analysis_capabilities,
+)
 from packages.clinical_domain.workflow import build_headless_analyzer_result
 from packages.clinical_domain.validation import (
     AIChatPayload,
@@ -30,6 +40,7 @@ from packages.shared.security import (
     current_user,
     current_user_required,
     enforce_rate_limit,
+    ensure_evaluation_access,
     ensure_patient_access,
     filter_patients_for_user,
     is_admin,
@@ -49,6 +60,7 @@ _gemini_model = None
 _wound_analyzer = None
 _MOJIBAKE_MARKERS = ("\u00c3", "\u00c2", "\u00e2\u20ac", "\ufffd")
 _gemini_lock = threading.Lock()
+_IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 _GEMINI_SYSTEM_INSTRUCTION = (
     "Voce e o assistente de IA HEAL+ da plataforma REDISUS. "
     "Especialista em estomaterapia, analise de feridas, cicatrizacao "
@@ -415,6 +427,331 @@ def _mask_to_png_bytes(mask) -> bytes:
     return buffer.tobytes()
 
 
+def _problem_response(
+    *,
+    status: int,
+    code: str,
+    title: str,
+    detail: str,
+    errors: list[dict[str, Any]] | None = None,
+):
+    """Return RFC 9457-compatible errors while preserving the legacy error code."""
+
+    request_id = getattr(g, "redisus_request_id", None) or request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    payload: dict[str, Any] = {
+        "type": f"https://heal-plus.local/problems/{code}",
+        "title": title,
+        "status": status,
+        "detail": detail,
+        "instance": request.path,
+        "code": code,
+        "error": code,
+        "request_id": request_id,
+    }
+    if errors:
+        payload["errors"] = errors
+    response = jsonify(payload)
+    response.status_code = status
+    response.content_type = "application/problem+json"
+    return response
+
+
+def _validated_idempotency_key() -> str | None:
+    key = (request.headers.get("Idempotency-Key") or "").strip()
+    if not key:
+        return None
+    if not _IDEMPOTENCY_KEY_PATTERN.fullmatch(key):
+        abort(400, description="Idempotency-Key must contain 8 to 128 safe characters")
+    return key
+
+
+def _validate_roi_image_context(
+    roi_payloads: list[AnalyzeRoiPayload],
+    *,
+    width: int,
+    height: int,
+) -> None:
+    for index, roi in enumerate(roi_payloads):
+        if not roi.confirmed:
+            abort(422, description=f"roi_payload[{index}] must be confirmed before analysis")
+        if roi.image_width != width or roi.image_height != height:
+            abort(
+                422,
+                description=(
+                    f"roi_payload[{index}] image dimensions do not match the uploaded image "
+                    f"({width}x{height})"
+                ),
+            )
+
+
+@integration_api.route("/wound-analyses/capabilities", methods=["GET"])
+def get_wound_analysis_capabilities():
+    current_user_required()
+    enforce_rate_limit("wound_analysis_read", 120)
+    return jsonify(wound_analysis_capabilities(analyzer_available=_get_wound_analyzer() is not None))
+
+
+@integration_api.route("/wound-analyses", methods=["POST"])
+def create_wound_analysis():
+    user = current_user_required()
+    enforce_rate_limit("wound_analysis", 20)
+    if "image" not in request.files:
+        return _problem_response(
+            status=400,
+            code="missing_image",
+            title="Imagem obrigatória",
+            detail="Envie a imagem clínica no campo multipart 'image'.",
+        )
+    unexpected_files = sorted(set(request.files.keys()) - {"image"})
+    if unexpected_files:
+        abort(400, description=f"unexpected file fields: {', '.join(unexpected_files)}")
+
+    assert_allowed_form_fields(request.form, allowed={"patient_id", "evaluation_id", "roi_payload"})
+    patient_id = (request.form.get("patient_id") or "").strip() or None
+    evaluation_id = (request.form.get("evaluation_id") or "").strip() or None
+    if patient_id and len(patient_id) > 80:
+        abort(400, description="patient_id exceeds maximum length")
+    if evaluation_id and len(evaluation_id) > 80:
+        abort(400, description="evaluation_id exceeds maximum length")
+
+    database = current_app.extensions.get("redisus_db")
+    if database is None:
+        return _problem_response(
+            status=503,
+            code="persistence_unavailable",
+            title="Persistência indisponível",
+            detail="O armazenamento oficial de análises não está disponível.",
+        )
+
+    if evaluation_id:
+        evaluation = ensure_evaluation_access(database, evaluation_id, user=user)
+        evaluation_patient_id = str(evaluation.get("patient_id") or "")
+        if patient_id and patient_id != evaluation_patient_id:
+            return _problem_response(
+                status=409,
+                code="clinical_context_conflict",
+                title="Contexto clínico conflitante",
+                detail="patient_id não corresponde ao paciente da evaluation_id informada.",
+            )
+        patient_id = evaluation_patient_id
+    elif patient_id:
+        patient = ensure_patient_access(database, patient_id, user=user)
+        patient_id = str(patient.id)
+
+    roi_payloads = validate_roi_form_value(request.form.get("roi_payload"), field_name="roi_payload")
+    validated_image = validate_and_sanitize_image_upload(request.files["image"])
+    _validate_roi_image_context(
+        roi_payloads,
+        width=validated_image.width,
+        height=validated_image.height,
+    )
+    idempotency_key = _validated_idempotency_key()
+    owner_uid = user_uid(user) or "unknown"
+    request_hash = build_wound_analysis_request_hash(
+        validated_image,
+        patient_id=patient_id,
+        evaluation_id=evaluation_id,
+        roi_payloads=roi_payloads,
+    )
+
+    if idempotency_key:
+        previous = database.get_wound_analysis_by_idempotency_key(
+            owner_uid=owner_uid,
+            idempotency_key=idempotency_key,
+        )
+        if previous:
+            if previous.get("request_hash") != request_hash:
+                return _problem_response(
+                    status=409,
+                    code="idempotency_conflict",
+                    title="Chave de idempotência reutilizada",
+                    detail="A mesma Idempotency-Key já foi usada com outra imagem ou contexto clínico.",
+                )
+            response = jsonify(previous.get("payload") or {})
+            response.headers["X-Idempotent-Replay"] = "true"
+            response.headers["Location"] = f"/api/v1/wound-analyses/{previous['id']}"
+            return response
+
+    manual_roi_masks = _build_manual_roi_masks(
+        roi_payloads,
+        width=validated_image.width,
+        height=validated_image.height,
+    )
+    manual_roi_mask = _combine_manual_roi_masks(manual_roi_masks)
+    manual_roi_metadata_list = _serialize_roi_payloads(roi_payloads)
+    manual_roi_summary = None
+    if len(manual_roi_metadata_list) == 1:
+        manual_roi_summary = dict(manual_roi_metadata_list[0])
+    elif manual_roi_metadata_list:
+        manual_roi_summary = {
+            "confirmed": True,
+            "selection_count": len(manual_roi_metadata_list),
+            "source": "manual",
+            "tools": [item.get("tool") for item in manual_roi_metadata_list if item.get("tool")],
+            "version": str(manual_roi_metadata_list[0].get("version") or ""),
+        }
+
+    analysis_id = str(uuid.uuid4())
+    service = WoundAnalysisService(_get_wound_analyzer)
+    try:
+        result = service.analyze(
+            validated_image,
+            analysis_id=analysis_id,
+            patient_id=patient_id,
+            evaluation_id=evaluation_id,
+            manual_roi_mask=manual_roi_mask,
+            manual_roi_masks=manual_roi_masks,
+            roi_metadata=manual_roi_summary,
+            roi_metadata_list=manual_roi_metadata_list,
+        )
+    except AnalyzerUnavailableError:
+        return _problem_response(
+            status=503,
+            code="analyzer_unavailable",
+            title="Motor clínico indisponível",
+            detail="O motor canônico do HEAL+ não pôde ser inicializado. Tente novamente mais tarde.",
+        )
+
+    result["persistence"] = {"stored": True, "backend": "sqlite"}
+    saved = database.save_wound_analysis_result(
+        analysis_id=analysis_id,
+        owner_uid=owner_uid,
+        patient_id=patient_id,
+        evaluation_id=evaluation_id,
+        request_hash=request_hash,
+        idempotency_key=idempotency_key,
+        payload=result,
+    )
+    if not saved:
+        if idempotency_key:
+            replay = database.get_wound_analysis_by_idempotency_key(
+                owner_uid=owner_uid,
+                idempotency_key=idempotency_key,
+            )
+            if replay and replay.get("request_hash") == request_hash:
+                response = jsonify(replay.get("payload") or {})
+                response.headers["X-Idempotent-Replay"] = "true"
+                response.headers["Location"] = f"/api/v1/wound-analyses/{replay['id']}"
+                return response
+        return _problem_response(
+            status=503,
+            code="persistence_unavailable",
+            title="Persistência indisponível",
+            detail="A análise foi interrompida porque o resultado não pôde ser persistido com segurança.",
+        )
+
+    response = jsonify(result)
+    response.status_code = 201
+    response.headers["Location"] = f"/api/v1/wound-analyses/{analysis_id}"
+    return response
+
+
+@integration_api.route("/wound-analyses/<analysis_id>", methods=["GET"])
+def get_wound_analysis(analysis_id: str):
+    user = current_user_required()
+    enforce_rate_limit("wound_analysis_read", 120)
+    database = current_app.extensions.get("redisus_db")
+    record = database.get_wound_analysis_result(analysis_id) if database is not None else None
+    if not record:
+        abort(404, description="wound analysis not found")
+
+    patient_id = str(record.get("patient_id") or "")
+    if patient_id:
+        ensure_patient_access(database, patient_id, user=user)
+    elif not is_admin(user) and str(record.get("owner_uid") or "") != str(user_uid(user) or ""):
+        abort(403, description="wound analysis access denied")
+    return jsonify(record.get("payload") or {})
+
+
+def _find_latex_image_sources(latex_code: str, *, max_images: int = 12) -> list[tuple[int, int, str]]:
+    """Locate includegraphics sources with a bounded linear scanner."""
+
+    marker = "\\includegraphics"
+    cursor = 0
+    sources: list[tuple[int, int, str]] = []
+    text_length = len(latex_code)
+    while cursor < text_length and len(sources) < max_images:
+        marker_start = latex_code.find(marker, cursor)
+        if marker_start < 0:
+            break
+        position = marker_start + len(marker)
+        while position < text_length and latex_code[position].isspace():
+            position += 1
+        if position < text_length and latex_code[position] == "[":
+            option_end = latex_code.find("]", position + 1)
+            if option_end < 0 or option_end - position > 512:
+                raise ValueError("invalid includegraphics options")
+            position = option_end + 1
+        while position < text_length and latex_code[position].isspace():
+            position += 1
+        if position >= text_length or latex_code[position] != "{":
+            cursor = marker_start + len(marker)
+            continue
+        source_start = position + 1
+        source_end = latex_code.find("}", source_start)
+        if source_end < 0:
+            raise ValueError("unterminated includegraphics source")
+        source = latex_code[source_start:source_end].strip()
+        sources.append((source_start, source_end, source))
+        cursor = source_end + 1
+    if latex_code.find(marker, cursor) >= 0:
+        raise ValueError("too many embedded images")
+    return sources
+
+
+def _prepare_latex_images(latex_code: str, directory: Path) -> str:
+    """Materialize bounded image data URLs without network or user-controlled paths."""
+
+    allowed_media = {
+        "data:image/png;base64": ".png",
+        "data:image/jpeg;base64": ".jpg",
+        "data:image/jpg;base64": ".jpg",
+    }
+    replacements: list[tuple[int, int, str]] = []
+    for index, (source_start, source_end, source) in enumerate(_find_latex_image_sources(latex_code)):
+        metadata, separator, encoded = source.partition(",")
+        normalized_metadata = metadata.lower()
+        if not separator or normalized_metadata not in allowed_media:
+            raise ValueError("includegraphics accepts only embedded PNG or JPEG data URLs")
+        compact_encoded = "".join(encoded.split())
+        if len(compact_encoded) > 8_000_000:
+            raise ValueError("embedded image exceeds maximum size")
+        try:
+            image_bytes = base64.b64decode(compact_encoded, validate=True)
+        except ValueError as exc:
+            raise ValueError("invalid embedded image encoding") from exc
+        if not image_bytes or len(image_bytes) > 6_000_000:
+            raise ValueError("embedded image exceeds maximum size")
+        extension = allowed_media[normalized_metadata]
+        filename = f"embedded_{index}{extension}"
+        (directory / filename).write_bytes(image_bytes)
+        replacements.append((source_start, source_end, filename))
+
+    for source_start, source_end, filename in reversed(replacements):
+        latex_code = latex_code[:source_start] + filename + latex_code[source_end:]
+    return latex_code
+
+
+def _validate_latex_commands(latex_code: str) -> None:
+    normalized = latex_code.casefold()
+    forbidden_commands = (
+        "\\write18",
+        "\\input",
+        "\\include{",
+        "\\openin",
+        "\\openout",
+        "\\read",
+        "\\write",
+        "\\immediate",
+        "\\catcode",
+        "\\csname",
+        "\\newread",
+        "\\newwrite",
+    )
+    if any(command in normalized for command in forbidden_commands):
+        raise ValueError("latex source contains a forbidden command")
+
+
 @integration_api.route("/analyze", methods=["POST"])
 def analyze_image():
     user = current_user_required()
@@ -695,13 +1032,19 @@ Importante: Responda APENAS com o JSON válido. Não inclua delimitadores markdo
             "segmentation": encode_visual_payload(
                 getattr(report, "segmentation_map", None),
                 label="Mapa de tecidos",
-                description="Distribuicao de tecidos identificados pela segmentacao clinica.",
+                description=(
+                    "Distribuicao de tecidos identificados pela segmentacao clinica. "
+                    "Azul-ardosia indica area interna da ROI mantida como incerta."
+                ),
                 mime_type="image/png",
             ),
             "combined": encode_visual_payload(
                 getattr(report, "tissue_overlay", None),
                 label="Visualizacao combinada",
-                description="Foto original combinada com a leitura visual da IA.",
+                description=(
+                    "Foto original combinada com a leitura visual da IA; "
+                    "azul-ardosia indica area incerta, nao tecido ausente."
+                ),
             ),
             "attention": encode_visual_payload(
                 getattr(report, "grad_cam_overlay", None),
@@ -1016,87 +1359,88 @@ def list_patients():
 
 @integration_api.route("/generate-pdf", methods=["POST"])
 def generate_pdf():
-    import re
-    import tempfile
-    import subprocess
-    import urllib.request
-    
+    current_user_required()
+    enforce_rate_limit("report", 10)
     try:
-        data = request.get_json() or {}
-        latex_code = data.get("latex_code", "")
-        if not latex_code:
-            return jsonify({"error": "missing_latex_code"}), 400
+        if request.mimetype != "application/json":
+            abort(415, description="content-type must be application/json")
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            abort(400, description="invalid or empty json payload")
+        if set(data) - {"latex_code"}:
+            abort(400, description="unexpected fields in PDF request")
+        latex_code = data.get("latex_code")
+        if not isinstance(latex_code, str) or not latex_code.strip():
+            abort(400, description="latex_code is required")
+        if len(latex_code) > 1_500_000:
+            abort(413, description="latex source exceeds maximum size")
+        _validate_latex_commands(latex_code)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Detect and decode base64 data URLs (e.g. digital signatures)
-            import base64
-            base64_matches = re.findall(r'\\includegraphics(?:\[.*?\])?\{(data:image/([a-zA-Z0-9]+);base64,([a-zA-Z0-9+/=\s\r\n]+))\}', latex_code)
-            for idx, (full_data_url, ext, b64_data) in enumerate(base64_matches):
-                local_filename = f"sig_{idx}.{ext}"
-                local_filepath = os.path.join(tmpdir, local_filename)
-                try:
-                    clean_b64 = re.sub(r'\s+', '', b64_data)
-                    img_data = base64.b64decode(clean_b64)
-                    with open(local_filepath, "wb") as out_file:
-                        out_file.write(img_data)
-                    latex_code = latex_code.replace(full_data_url, local_filename)
-                except Exception as b64_exc:
-                    current_app.logger.error(f"Failed to decode base64 image: {b64_exc}")
-                    latex_code = latex_code.replace(full_data_url, "")
+        with tempfile.TemporaryDirectory(prefix="heal_pdf_") as tmpdir:
+            workdir = Path(tmpdir).resolve()
+            latex_code = _prepare_latex_images(latex_code, workdir)
+            tex_path = workdir / "report.tex"
+            tex_path.write_text(latex_code, encoding="utf-8")
 
-            # Detect and download remote image URLs
-            urls = re.findall(r'\\includegraphics(?:\[.*?\])?\{(https?://.*?)\}', latex_code)
-            for idx, url in enumerate(urls):
-                local_filename = f"img_{idx}.png"
-                local_filepath = os.path.join(tmpdir, local_filename)
-                try:
-                    req = urllib.request.Request(
-                        url,
-                        headers={'User-Agent': 'Mozilla/5.0'}
-                    )
-                    with urllib.request.urlopen(req) as response:
-                        with open(local_filepath, "wb") as out_file:
-                            out_file.write(response.read())
-                    # Replace URL with the local relative filename for pdflatex
-                    latex_code = latex_code.replace(url, local_filename)
-                except Exception as img_exc:
-                    current_app.logger.error(f"Failed to download image {url}: {img_exc}")
-                    latex_code = latex_code.replace(url, "")
+            command = [
+                "pdflatex",
+                "-no-shell-escape",
+                "-halt-on-error",
+                "-interaction=nonstopmode",
+                "-output-directory",
+                str(workdir),
+                tex_path.name,
+            ]
+            tex_environment = os.environ.copy()
+            tex_environment.update(
+                {
+                    "openin_any": "p",
+                    "openout_any": "p",
+                    "TEXMFOUTPUT": str(workdir),
+                }
+            )
+            result = None
+            for _ in range(2):
+                result = subprocess.run(
+                    command,
+                    cwd=workdir,
+                    env=tex_environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                if result.returncode != 0:
+                    break
 
-            tex_path = os.path.join(tmpdir, "report.tex")
-            with open(tex_path, "w", encoding="utf-8") as f:
-                f.write(latex_code)
-
-            # pdflatex parameters
-            cmd = ["pdflatex", "-interaction=nonstopmode", "-output-directory", tmpdir, tex_path]
-            
-            # Pass 1
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            # Pass 2
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-            pdf_path = os.path.join(tmpdir, "report.pdf")
-            if not os.path.exists(pdf_path):
-                log_path = os.path.join(tmpdir, "report.log")
-                log_content = ""
-                if os.path.exists(log_path):
-                    with open(log_path, "r", encoding="utf-8", errors="ignore") as lf:
-                        log_content = lf.read()
-                return jsonify({
-                    "error": "compilation_failed",
-                    "stdout": res.stdout,
-                    "stderr": res.stderr,
-                    "log": log_content
-                }), 500
-
-            with open(pdf_path, "rb") as f:
-                pdf_bytes = f.read()
+            pdf_path = workdir / "report.pdf"
+            if result is None or result.returncode != 0 or not pdf_path.is_file():
+                return _problem_response(
+                    status=422,
+                    code="pdf_compilation_failed",
+                    title="Falha ao compilar PDF",
+                    detail="O conteúdo do relatório não pôde ser compilado com segurança.",
+                )
+            if pdf_path.stat().st_size > 20 * 1024 * 1024:
+                abort(413, description="generated PDF exceeds maximum size")
+            pdf_bytes = pdf_path.read_bytes()
 
         return send_file(
             io.BytesIO(pdf_bytes),
             mimetype="application/pdf",
             as_attachment=True,
-            download_name="relatorio_clinico.pdf"
+            download_name="relatorio_clinico.pdf",
+        )
+    except ValueError as exc:
+        abort(400, description=str(exc))
+    except subprocess.TimeoutExpired:
+        return _problem_response(
+            status=504,
+            code="pdf_compilation_timeout",
+            title="Tempo de compilação excedido",
+            detail="A compilação segura do relatório excedeu o limite de tempo.",
         )
     except Exception as exc:
-        return jsonify({"error": "pdf_generation_failed", "detail": str(exc)}), 500
+        current_app.logger.exception("PDF generation failed")
+        raise exc

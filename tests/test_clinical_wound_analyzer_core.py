@@ -42,7 +42,7 @@ def test_segment_clinical_v3_detects_mixed_dark_yellow_red_tissues():
     cv2.ellipse(image, (135, 175), (38, 30), -20, 0, 360, (25, 55, 65), -1)
 
     peripheral_zone, core_zone, outer_ring = analyzer._create_zone_masks(wound_mask)
-    tissue_pcts, _, _ = analyzer._segment_clinical_v3(
+    tissue_pcts, segmentation_map, overlay = analyzer._segment_clinical_v3(
         image,
         wound_mask,
         peripheral_zone,
@@ -53,6 +53,10 @@ def test_segment_clinical_v3_detects_mixed_dark_yellow_red_tissues():
     assert tissue_pcts["slough"] > 20.0
     assert tissue_pcts["necrosis"] > 20.0
     assert tissue_pcts["slough"] > tissue_pcts["granulation"]
+    assert np.all(segmentation_map[wound_mask == 0] == 0)
+    assert np.all(segmentation_map[wound_mask > 0].sum(axis=1) > 0)
+    contour_margin = cv2.dilate(wound_mask, np.ones((7, 7), dtype=np.uint8))
+    assert np.array_equal(overlay[contour_margin == 0], image[contour_margin == 0])
 
 
 def test_segment_clinical_v3_detects_olive_slough_pressure_injury_pattern():
@@ -143,7 +147,7 @@ def test_analyze_uses_manual_roi_as_primary_filter():
     assert report.is_valid_wound is True
     assert report.roi["source"] == "manual"
     assert report.roi["tool"] == "polygon"
-    assert abs(report.wound_area_px - int(np.sum(manual_mask > 0))) < 200
+    assert report.wound_area_px == int(np.sum(manual_mask > 0))
     assert report.roi["area_px"] == report.wound_area_px
 
 

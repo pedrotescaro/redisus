@@ -65,9 +65,15 @@ export function classifyTissue(options: {
     };
   }
 
-  // Check if we have server results
-  if (isValidatedServerResult(options.analyzerResult)) {
-    const confidence = Number(options.analyzerResult?.inference?.confidence || 0);
+  // Prioriza a leitura clinica do backend. Resultados nao validados
+  // permanecem explicitamente experimentais e com confianca conservadora.
+  if (options.analyzerResult?.is_valid_wound) {
+    const validated = isValidatedServerResult(options.analyzerResult);
+    const measuredConfidence = Number(options.analyzerResult?.inference?.confidence || 0);
+    const coverage = Number(options.analyzerResult?.tissue_analysis_trace?.coverage_pct || 0) / 100;
+    const confidence = validated
+      ? measuredConfidence
+      : Math.min(0.45, Math.max(0.2, coverage * 0.45));
     const classMap = new Map<TissueClassLabel, TissueClassificationEntry>();
 
     for (const tissue of options.analyzerResult?.tissues || []) {
@@ -91,28 +97,30 @@ export function classifyTissue(options: {
       return {
         enabled: true,
         classes,
-        reason: 'Classificacao tecidual assistiva habilitada por modelo validado e ROI aprovada.',
+        reason: validated
+          ? 'Classificacao tecidual assistiva habilitada por modelo validado e ROI aprovada.'
+          : 'Classificacao tecidual experimental produzida pelo backend clinico; requer revisao profissional.',
         modelVersion: options.analyzerResult?.model_version
       };
     }
   }
 
   // Fallback to client-side TypeScript classification
-  if (options.segmentation.computedPercentages) {
+  if (VALIDATED_TISSUE_MODEL_ENABLED && options.segmentation.computedPercentages) {
     const p = options.segmentation.computedPercentages;
     const classes = [
-      { label: 'granulation' as TissueClassLabel, percentage: Math.round(p.granulation), confidence: 0.95 },
-      { label: 'slough_fibrin' as TissueClassLabel, percentage: Math.round(p.slough_fibrin), confidence: 0.95 },
-      { label: 'necrosis' as TissueClassLabel, percentage: Math.round(p.necrosis), confidence: 0.95 },
-      { label: 'epithelial' as TissueClassLabel, percentage: Math.round(p.epithelial), confidence: 0.95 }
+      { label: 'granulation' as TissueClassLabel, percentage: Math.round(p.granulation), confidence: 0.45 },
+      { label: 'slough_fibrin' as TissueClassLabel, percentage: Math.round(p.slough_fibrin), confidence: 0.45 },
+      { label: 'necrosis' as TissueClassLabel, percentage: Math.round(p.necrosis), confidence: 0.45 },
+      { label: 'epithelial' as TissueClassLabel, percentage: Math.round(p.epithelial), confidence: 0.45 }
     ].filter(c => c.percentage > 0)
      .sort((left, right) => right.percentage - left.percentage);
 
     return {
       enabled: true,
       classes,
-      reason: 'Classificação tecidual computada via rede neural em TypeScript (Front-end).',
-      modelVersion: 'HEAL Client Neural v1.0 (TS)'
+      reason: 'Classificacao tecidual local habilitada explicitamente para validacao controlada.',
+      modelVersion: 'HEAL Client Heuristic Preview'
     };
   }
 
