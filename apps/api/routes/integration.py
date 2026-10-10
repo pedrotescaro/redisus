@@ -490,7 +490,7 @@ def analyze_image():
 
     except Exception as exc:
         traceback.print_exc()
-        return jsonify({"error": "analysis_failed", "detail": str(exc)}), 500
+        return jsonify({"error": "analysis_failed", "detail": "An internal error occurred during image analysis. Check server logs for details."}), 500
 
 
 @integration_api.route("/image-labels", methods=["POST"])
@@ -534,7 +534,7 @@ def image_labels():
         return jsonify(labels_data)
     except Exception as exc:
         traceback.print_exc()
-        return jsonify({"error": "labeling_failed", "detail": str(exc)}), 500
+        return jsonify({"error": "labeling_failed", "detail": "An internal error occurred during image labeling. Check server logs for details."}), 500
 
 
 @integration_api.route("/ai-chat", methods=["POST"])
@@ -636,7 +636,7 @@ def ai_chat():
         )
     except Exception as exc:
         traceback.print_exc()
-        return jsonify({"error": "chat_failed", "detail": str(exc)}), 500
+        return jsonify({"error": "chat_failed", "detail": "An internal error occurred during AI chat. Check server logs for details."}), 500
 
 
 @integration_api.route("/ai-chat/history", methods=["GET"])
@@ -661,7 +661,7 @@ def chat_history():
             )
         return jsonify({"conversations": result})
     except Exception as exc:
-        return jsonify({"conversations": [], "error": str(exc)})
+        return jsonify({"error": "conversation_access_error", "detail": "Could not retrieve conversation history."}), 500
 
 
 @integration_api.route("/ai-chat/history/<conversation_id>", methods=["GET"])
@@ -692,7 +692,7 @@ def chat_messages(conversation_id: str):
             )
         return jsonify({"messages": result, "conversation_id": conversation_id})
     except Exception as exc:
-        return jsonify({"messages": [], "error": str(exc)})
+        return jsonify({"error": "conversation_access_error", "detail": "Could not retrieve conversation messages."}), 500
 
 
 @integration_api.route("/ai-chat/history/<conversation_id>", methods=["DELETE"])
@@ -713,7 +713,7 @@ def delete_conversation(conversation_id: str):
         conv_ref.delete()
         return jsonify({"deleted": True, "conversation_id": conversation_id})
     except Exception as exc:
-        return jsonify({"error": "delete_failed", "detail": str(exc)}), 500
+        return jsonify({"error": "delete_failed", "detail": "An internal error occurred while deleting the conversation."}), 500
 
 
 @integration_api.route("/patients", methods=["GET"])
@@ -728,4 +728,4 @@ def list_patients():
         result = [patient.to_dict() if hasattr(patient, "to_dict") else patient for patient in scoped]
         return jsonify({"patients": result})
     except Exception as exc:
-        return jsonify({"patients": [], "error": str(exc)})
+        return jsonify({"patients": [], "error": "database_query_failed", "detail": "Could not retrieve patient list."}), 500

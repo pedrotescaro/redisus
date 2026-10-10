@@ -8,6 +8,7 @@ import uuid
 
 from flask import Flask, g, jsonify, request
 from flask_cors import CORS
+from loguru import logger
 from werkzeug.exceptions import HTTPException
 
 from packages.clinical_domain import ClinicalAPI, ClinicalDashboard, Database
@@ -34,6 +35,9 @@ def create_app() -> Flask:
     app.config["REDISUS_MAX_IMAGE_MEGAPIXELS"] = int(os.getenv("REDISUS_MAX_IMAGE_MEGAPIXELS", "12"))
 
     allowed_origin = os.getenv("CLINICAL_API_ALLOWED_ORIGIN", "http://localhost:3000")
+    if allowed_origin == "*":
+        logger.warning("CLINICAL_API_ALLOWED_ORIGIN is set to '*' — rejecting wildcard CORS for security.")
+        allowed_origin = "null"
     CORS(
         app,
         origins=[allowed_origin],
@@ -87,6 +91,8 @@ def create_app() -> Flask:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: http: https:; connect-src 'self' https:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src 'self'; form-action 'self'"
         response.headers["X-Request-ID"] = _request_id()
         if request.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
@@ -229,5 +235,7 @@ app = create_app()
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    debug = os.getenv("FLASK_ENV", "development").lower() == "development"
+    debug = os.getenv("FLASK_DEBUG", "0").strip().lower() in {"1", "true", "yes"}
+    if debug:
+        logger.warning("FLASK_DEBUG is enabled - DO NOT use in production. The Werkzeug debugger allows arbitrary code execution.")
     app.run(host="0.0.0.0", port=port, debug=debug)

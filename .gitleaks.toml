@@ -1,0 +1,15 @@
+title = "REDISUS gitleaks configuration"
+
+[extend]
+# Block common patterns in healthcare/medical repos
+[[extend.detectors]]
+description = "Firebase service account JSON"
+path = "firebase-service-account.json"
+
+[[extend.detectors]]
+description = "Google API key"
+regex = '''AIza[0-9A-Za-z\-_]{35}'''
+
+[[extend.detectors]]
+description = "Gemini API key"
+regex = '''(gemini|gapi)[_a-z]*[0-9A-Za-z\-_]{35}'''

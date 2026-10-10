@@ -281,7 +281,11 @@ class ClinicalAPI:
 
         @bp.after_request
         def add_cors_headers(response):
-            response.headers["Access-Control-Allow-Origin"] = self.allowed_origin
+            allowed_origin = self.allowed_origin
+            if allowed_origin == "*":
+                logger.warning("CLINICAL_API_ALLOWED_ORIGIN is set to '*' — rejecting wildcard CORS for security.")
+                allowed_origin = "null"
+            response.headers["Access-Control-Allow-Origin"] = allowed_origin
             response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
             response.headers["Access-Control-Allow-Credentials"] = "true"
